@@ -1,0 +1,9 @@
+^analysis$
+^docs$
+^data$
+^raw$
+^wiki$
+^\.git
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.claude$

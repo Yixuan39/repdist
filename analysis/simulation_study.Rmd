@@ -1,0 +1,210 @@
+---
+title: "Simulation study: when protein identity fails and function does not"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE,
+                      fig.width = 8, fig.height = 3.4, message = FALSE)
+knitr::opts_knit$set(root.dir = "..")
+```
+
+Bray-Curtis treats two proteins as either the same accession or maximally
+different. Metaproteomes break that: samples can differ in function while sharing
+no accession, and Bray-Curtis cannot tell that apart from any other difference.
+
+Here two groups of samples differ **only** in protein function. Depth, richness
+and abundance profile are identical by construction, and no accession appears
+in more than one sample. Three distances are compared: Bray-Curtis, weighted
+UniFrac on a protein tree, and `weightedRep()` with a TM-Vec ground metric.
+
+```{r libs, cache = FALSE}
+Sys.setenv(KMP_DUPLICATE_LIB_OK = "TRUE")
+reticulate::use_python(Sys.which("python3"), required = TRUE)
+
+library(phyloseq)
+library(Biostrings)
+library(vegan)
+library(ggplot2)
+library(gt)
+library(here)
+for (f in list.files(here("R"), full.names = TRUE)) {source(f)}
+set.seed(1)
+```
+
+## Data
+
+Two functional groups, each built from **two** Pfam families rather than one,
+from UniProt via `analysis/fetch_pfam.R`:
+
+| Pfam | family | role | median aa | class | reaction |
+|---|---|---|---|---|---|
+| PF00162 | PGK | A | 395 | transferase, EC 2.7.2.3 | ATP-dependent phosphoryl transfer |
+| PF01546 | Peptidase_M20 | B | 379 | hydrolase, EC 3.4.-.- | zinc-dependent amide hydrolysis |
+| PF00406 | Adenylate_kinase | A | 214 | transferase, EC 2.7.4.3 | ATP-dependent phosphoryl transfer |
+| PF00293 | Nudix_hydrolase | B | 175 | hydrolase, EC 3.6.1.- | nucleotide pyrophosphohydrolysis |
+
+A single family per group would make family identity and group the same
+variable, so any family-specific quirk -- length included -- is perfectly
+collinear with group and no covariate can separate them. Two families per
+group breaks that: role A spans both a ~395 aa and a ~214 aa family, role B a
+~379 aa and a ~175 aa one, so the only thing consistent within a role is the
+functional class.
+
+For each role, candidates from its two families (one protein per organism per
+family, reviewed bacterial UniProt entries) are pooled and 600 are drawn at
+random (`set.seed(1)`, once, at the top of `fetch_pfam.R`) -- no matching of
+organisms between roles. Length is a consequence of that draw, not a
+constraint on it, so it is checked below rather than engineered:
+
+```{r universe}
+universe <- readRDS(here("data", "simulated", "pfam_universe.rds"))
+tapply(nchar(universe$seq), universe$role, summary)
+```
+
+## Simulation
+
+30 samples per group. Group A expresses PGK + Adenylate_kinase, group B
+Peptidase_M20 + Nudix_hydrolase.
+
+- **Proteins.** Each role's 600 candidates are shuffled once and the first 240
+  (30 samples x 8 proteins) are dealt out in disjoint slices of 8, so every
+  sample gets a random mix of both families and no accession lands in two
+  samples. The remaining 360 candidates per role stay in `universe` unused --
+  slack for the length check above, not part of the simulation.
+- **Abundance.** One weight profile is reused by every sample, then counts are
+  multinomial at a fixed depth.
+
+```{r simulate}
+M <- 8L; DEPTH <- 2000L; N <- 30L
+
+# two columns on purpose: plot_ordination() drops a one-column sample_data and
+# then cannot find the variable to colour by
+meta <- data.frame(sample = sprintf("s%02d", seq_len(2 * N)),
+                   group = rep(c("A", "B"), each = N),
+                   row.names = sprintf("s%02d", seq_len(2 * N)))
+pool <- lapply(split(universe$protein, universe$role), sample)
+prof <- sort(rlnorm(M, 0, 0.6), decreasing = TRUE)
+
+counts <- t(sapply(seq_len(2 * N), function(s) {
+  slice <- pool[[meta$group[s]]][((s - 1) %% N) * M + seq_len(M)]
+  p <- setNames(numeric(nrow(universe)), universe$protein)
+  p[slice] <- prof
+  rmultinom(1, DEPTH, p)[, 1]
+}))
+dimnames(counts) <- list(rownames(meta), universe$protein)
+
+stopifnot(all(rowSums(counts) == DEPTH),             # depth matched
+          length(unique(rowSums(counts > 0))) == 1L, # richness matched
+          max(colSums(counts > 0)) == 1L)            # no accession in two samples
+```
+
+A tree over the proteins actually used (not the full 1200-candidate universe),
+so weighted UniFrac has a ground metric to use:
+
+```{r tree}
+used <- universe[match(colnames(counts), universe$protein), ]
+seqs <- AAStringSet(setNames(used$seq, used$protein))
+aln  <- DECIPHER::AlignSeqs(seqs, verbose = FALSE)
+dm   <- DECIPHER::DistanceMatrix(aln, verbose = FALSE, includeTerminalGaps = FALSE)
+dm[is.na(dm)] <- max(dm, na.rm = TRUE)   # unalignable pairs => maximally distant
+tree <- ape::as.phylo(as.hclust(DECIPHER::Treeline(myDistMatrix = dm, method = "NJ",
+                                                   verbose = FALSE)))
+```
+
+Counts, tree, sequences and metadata go into one `phyloseq` object, which is the
+input to everything below.
+
+```{r phyloseq}
+ps <- phyloseq(otu_table(counts, taxa_are_rows = FALSE), sample_data(meta),
+               phy_tree(tree), refseq(seqs))
+saveRDS(ps, here("data", "simulated", "sim_ps.rds"))
+ps
+```
+
+## Embedding
+
+TM-Vec1: its head was trained to regress the TM-score of protein pairs, so cosine
+similarity between two vectors is a predicted TM-score.
+
+```{r embed}
+Z <- embed_proteins(as.character(refseq(ps)), batch_size = 16)[taxa_names(ps), ]
+```
+
+## Results
+
+```{r distances}
+cnt <- as(otu_table(ps), "matrix")
+D <- list(
+  `Bray-Curtis`              = phyloseq::distance(ps, method = "bray"),
+  `w-UniFrac (protein tree)` = phyloseq::distance(ps, method = "wunifrac"),
+  `weightedRep + TM-Vec1`    = weightedRep(cnt, Z, method = "mmd")
+)
+```
+
+The two roles are not length-matched by construction (see the length check
+above), so `group` is tested with each sample's abundance-weighted mean
+protein length entered first -- the same covariate-adjustment pattern
+`case_study.Rmd` already uses for dose/sex/age, applied here to rule out
+length as the source of the separation rather than genuine functional signal.
+Reporting the raw (unadjusted) $R^2$ alongside it shows how much work the
+adjustment is actually doing: with a single family per group that gap was
+large, because family and group were the same variable; with two length
+scales per group it should be small.
+
+```{r permanova}
+md <- data.frame(sample_data(ps))
+len <- setNames(nchar(as.character(refseq(ps))), taxa_names(ps))
+md$mean_log_len <- as.numeric((cnt %*% log(len[colnames(cnt)])) / rowSums(cnt))
+
+gt(do.call(rbind, lapply(names(D), function(n) {
+  raw <- adonis2(D[[n]] ~ group, data = md, by = "terms", permutations = 9999)
+  adj <- adonis2(D[[n]] ~ mean_log_len + group, data = md, by = "terms", permutations = 9999)
+  data.frame(distance = n,
+             R2_raw = round(raw["group", "R2"], 3),
+             R2_adjusted = round(adj["group", "R2"], 3),
+             F = round(adj["group", "F"], 2), p = adj["group", "Pr(>F)"])
+})))
+```
+
+```{r pcoa, warning = FALSE}
+plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["Bray-Curtis"]]), color = "group") + theme_bw()
+plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["w-UniFrac (protein tree)"]]), color = "group") + theme_bw()
+plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["weightedRep + TM-Vec1"]]), color = "group") + theme_bw()
+```
+
+## Conclusion
+
+Bray-Curtis returns 1.000 for every pair. A constant distance matrix cannot
+express any grouping, so PERMANOVA lands on the exact null $1/(n-1) = 0.017$ with
+$p = 1$. It is not weak here, it is blind: no accession is shared, and accessions
+are all it reads.
+
+`weightedRep()` with a TM-Vec1 ground metric recovers the difference from sequence
+alone, with no alignment, no tree and no annotation. `R2_raw` and `R2_adjusted`
+are close, which is the point of building two length scales into each group:
+with a single family per group, family and group were the same variable and
+length adjustment was doing real work to separate them; here it barely moves
+the number, because no single length characterizes either group any more (per
+the length check above, both roles span everything from the ~175-220 aa family
+to the ~380-400 aa one) — the only thing PGK and Adenylate_kinase share, or
+Peptidase_M20 and Nudix_hydrolase share, is the functional class, so that is
+what a real effect has to generalize over rather than any one family's length
+or sequence idiosyncrasies.
+
+Weighted UniFrac on a protein tree also finds it, at a lower $R^2$. That arm is
+not a fair fight and should not be quoted as one: none of the four families are
+homologous to each other, so the alignment behind the tree is largely gap and
+between-family branch lengths are gap-penalty artifacts rather than measured
+divergence. A better tree would likely close some of the gap. The claim worth
+making is applicability — an embedding stays defined where an alignment across
+non-homologous proteins does not — rather than power.
+
+Two limits. This is the zero-overlap extreme; real metaproteomes share some
+accessions, and Bray-Curtis regains ability as that overlap rises. And the
+functional contrast here is total, every protein in one group a transferase and
+in the other a hydrolase, so the effect size says nothing about realistic ones.

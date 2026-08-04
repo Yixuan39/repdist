@@ -1,0 +1,10 @@
+{
+  "scikit-bio/tmvec-swissmodel": {
+    "head": "tmvec1",
+    "backbone": "Rostlab/prot_t5_xl_uniref50"
+  },
+  "scikit-bio/tmvec": {
+    "head": "tmvec1",
+    "backbone": "Rostlab/prot_t5_xl_uniref50"
+  }
+}

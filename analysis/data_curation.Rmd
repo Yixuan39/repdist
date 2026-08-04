@@ -1,0 +1,244 @@
+---
+title: "Data curation: Extended Data Table 1 to a phyloseq object"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: kable
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE, fig.width = 7)
+knitr::opts_knit$set(root.dir = "..")   # this file lives in analysis/
+```
+
+```{r libs, cache = FALSE, message = FALSE}
+library(phyloseq)
+library(vegan)
+library(permute)
+HERE <- file.path("data", "test_study")
+```
+
+Source: Blakeley-Ruiz *et al.*, *ISME J* **19**(1), wraf048, "Dietary protein source
+alters gut microbiota composition and function".
+
+**Extended Data Table 1** is the abundance source. Its sample columns are
+peptide-spectral-match **counts** — unrarefied spectral counts summed per taxon is what
+the paper calls "proteinaceous biomass" (see below) — and it carries amino-acid
+sequences inline. **Extended Data Table 6** publishes microbe-restricted %NSAF, a
+different abundance normalization not used here; it is loaded only for its curated GTDB
+lineage per protein, joined onto Table 1's proteins by id.
+
+This report builds the phyloseq object and checks it against the published PERMANOVA.
+If that check fails nothing downstream is worth running, so it lives here rather than
+in the analysis. Output: `data/test_study/ps.rds`.
+
+# Reading the table
+
+Two title lines, a header on line 3, five annotation columns, then one column per
+sample. Blank cells are zeros. Column 1 codes each protein `Diet`, `DietLlactis`,
+`Host` or `Microbiome`; only microbial proteins are kept, matching the published
+microbiota analysis.
+
+```{r read}
+raw <- read.delim(file.path(HERE, "ExtendedDataTable1CompleteMetaproteome.txt"),
+                  skip = 2, quote = "\"", check.names = FALSE,
+                  colClasses = "character", comment.char = "")
+names(raw)[1:5] <- c("code", "protein_id", "aa_length", "description", "sequence")
+raw <- raw[raw$code == "Microbiome", ]
+
+counts <- vapply(raw[, -(1:5)], function(x) {
+  v <- as.numeric(x); v[is.na(v)] <- 0; v      # blank cell = protein not seen
+}, numeric(nrow(raw)))
+storage.mode(counts) <- "integer"
+dimnames(counts) <- list(raw$protein_id, names(raw)[-(1:5)])
+
+c(proteins = nrow(counts), samples = ncol(counts), total_psm = sum(counts))
+```
+
+# Design, from the sample names
+
+Names are `{cage}_{mouse}_{diet}`, e.g. `C2_1_20RIC`. The diet token gives both the
+protein source and its percentage, and — through the published feeding order — the
+period, which is what `age_week` needs. `T0` is the pre-intervention baseline on
+standard chow; `CTL` is the repeat feeding at study end, 20% soy for C1/C2 and 20%
+casein for C3/C4.
+
+The ninth diet, 20% chicken bone, caused weight loss, was stopped after three days and
+yielded no samples, so no token exists for it.
+
+```{r design}
+diets <- data.frame(
+  token  = c("T0", "20SOY", "20CAS", "20RIC", "40SOY", "20YST", "40CAS", "20PEA",
+             "20EGG", "CTL"),
+  period = 0:9,
+  diet   = c(NA, "Soy", "Casein", "Rice", "Soy", "Yeast", "Casein", "Pea", "Egg", NA),
+  dose   = c(NA, "20", "20", "20", "40", "20", "40", "20", "20", "20"),
+  phase  = c("baseline", rep("treatment", 8), "control"))
+
+f <- strsplit(colnames(counts), "_")
+cage  <- vapply(f, `[`, "", 1)
+token <- vapply(f, `[`, "", 3)
+stopifnot(token %in% diets$token)
+
+md <- data.frame(diets[match(token, diets$token), c("period", "phase", "diet", "dose")],
+                 sample_id = colnames(counts), cage = cage,
+                 subject = paste(cage, vapply(f, `[`, "", 2), sep = "_"),
+                 # sex is not in the name and is not free to vary; it is also the
+                 # paper's "mouse group", the sexes having come from different rooms
+                 sex = ifelse(cage %in% c("C1", "C3"), "Male", "Female"),
+                 row.names = colnames(counts))
+# control re-feeds take their source from the cage
+md$diet[md$phase == "control"] <- ifelse(cage[md$phase == "control"] %in% c("C1", "C2"),
+                                         "Soy", "Casein")
+# adonis2 on a continuous term is invariant to a constant shift, so weeks-since-T0
+# stands in for age. The bone week still elapsed, so CTL sits two weeks after period 8.
+md$age_week <- ifelse(md$period == 9, 10L, md$period)
+
+table(md$period, md$diet, useNA = "ifany")
+```
+
+`C3_1` contributes 3 samples and `C4_2` 8; the other ten mice contribute 10 each.
+
+# Bins
+
+Protein ids encode the MAG bin (`AB1-1_Cage2_bin.36_00001` -> `AB1-1_Cage2_bin.36`), so
+the bin is recoverable from the id alone. But a bin is per-assembly, not per-species: the
+same organism gets a different bin number in every cage it was assembled in, so `Bin`
+over-splits whatever it is used as a stand-in for species.
+
+Extended Data Table 6 carries a real GTDB lineage per protein, curated rather than parsed
+from an id, and does not have that problem -- the same species gets the same lineage
+string regardless of which cage's assembly it came from. It has no counts of its own
+(§ intro), so it is loaded here only for its five annotation columns, joined onto Table 1's
+proteins by protein id.
+
+```{r bins}
+bin <- sub("_[0-9]+$", "", rownames(counts))
+
+t6 <- read.delim(file.path(HERE, "annotated", "ExtendedDataTable6AnnotatedMicrobialMetaproteomes.txt"),
+                 skip = 2, quote = "\"", check.names = FALSE, colClasses = "character",
+                 comment.char = "", fileEncoding = "latin1")
+lineage <- setNames(t6[["Taxa Lineage"]], t6[["Protein Identifier"]])[rownames(counts)]
+
+ranks <- c("Domain", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+rk <- t(vapply(strsplit(lineage, ";"), function(x) {
+  x <- sub("^[a-z]__", "", x)
+  x[!nzchar(x)] <- NA
+  length(x) <- length(ranks)
+  x
+}, character(length(ranks))))
+dimnames(rk) <- list(rownames(counts), ranks)
+
+tax <- cbind(Bin = bin, rk)
+c(bins = length(unique(bin)), genera = length(unique(na.omit(tax[, "Genus"]))),
+ unmatched = sum(is.na(lineage)), proteins = nrow(tax))
+```
+
+`r sum(is.na(lineage))` of `r nrow(tax)` proteins have no Table 6 entry and stay
+unclassified at every rank; `Bin` is unaffected and still covers all of them.
+
+## No phylogenetic tree {#no-tree}
+
+`phy_tree` is the one phyloseq slot this dataset cannot fill honestly, and both routes
+were measured before being abandoned.
+
+Aligning the proteins (`DECIPHER::AlignSeqs` → `Treeline`, the 16S idiom) assumes the
+features are homologous. They are not: the 200 most abundant proteins align to **4236
+columns for a mean length of 589 — 86% gaps**, non-homologous sequences gapping past
+each other. A tree from that is a similarity dendrogram, not a phylogeny.
+
+A GTDB taxonomy cladogram over bins fails worse. Measured while Table 6's lineages were
+still loaded: only **415 of 750 bins** carry one, so dropping the unplaceable bins costs a
+**median 33% of each sample's mass**, and that loss is strongly **diet-associated** — mean
+retention 31% on Yeast against 73% on Pea, ANOVA $p = 4\times10^{-24}$. Weighted UniFrac
+on that tree would read a diet-confounded classification-coverage artifact as composition:
+a larger confound than the sequencing depth rarefaction exists to remove. That measurement
+is why the lineages are no longer carried at all.
+
+So there is no weighted UniFrac here. This is the motivation for the method rather than
+an obstacle to it — relatedness at protein resolution has essentially no tree-based
+option, which is why the ground metric is a continuous representation space.
+
+# The phyloseq object
+
+```{r build}
+ps <- phyloseq(otu_table(counts, taxa_are_rows = TRUE),
+               sample_data(md),
+               tax_table(tax),
+               refseq(Biostrings::AAStringSet(setNames(raw$sequence, raw$protein_id))))
+ps
+```
+
+```{r save}
+saveRDS(ps, file.path(HERE, "ps.rds"))
+```
+
+# Checking against the published result
+
+> "A Bray–Curtis dissimilarity matrix calculated from proteinaceous biomasses of species
+> in the microbiota was analyzed, using the adonis2 function in the vegan package in R,
+> to test for the effect of protein source, amount of protein, mouse group, or age (in
+> weeks) on microbiota composition. The strata function was used to account for repeated
+> measures."
+
+Their `df` fixes the coding: protein source at df 7 means 8 levels, not the 6 diets, and
+amount at df 2 means 3 — which only works if T0 is in the model with its own level of
+each. So source is the six proteins plus `chow` and `control`, and all 111 samples are
+used.
+
+`tax_glom()` needs more than one rank to work with, so the proteins are summed onto
+their real taxon directly — the finest lineage rank Table 6 resolved. A protein with no
+Table 6 lineage falls back to its own `Bin` rather than a shared `Unclassified` bucket:
+merging only happens where the lineage says two proteins are the same organism, so
+proteins nobody could place don't get treated as each other's evidence. (A single pooled
+`Unclassified` bucket was tried first and fits the published numbers visibly worse —
+28% of proteins have no lineage, and merging them regardless of their real, probably
+different, organisms adds noise a per-cage `Bin` fallback avoids.)
+
+```{r species}
+tx  <- as(tax_table(ps), "matrix")
+lin <- tx[, c("Domain", "Phylum", "Class", "Order", "Family", "Genus", "Species")]
+taxon <- apply(lin, 1, function(x) paste(x[!is.na(x)], collapse = ";"))
+taxon <- ifelse(nzchar(taxon), taxon, tx[, "Bin"])
+
+taxa_ab <- rowsum(as(otu_table(ps), "matrix"), taxon)
+n_taxa  <- nrow(taxa_ab)
+taxa_ab <- t(taxa_ab) / colSums(taxa_ab)          # samples in rows, relative abundance
+
+m <- data.frame(sample_data(ps))
+m$source <- ifelse(m$phase == "baseline", "chow",
+            ifelse(m$phase == "control", "control", m$diet))
+m$amount <- ifelse(is.na(m$dose), "chow", m$dose)
+
+set.seed(1)
+a <- adonis2(vegdist(taxa_ab, "bray") ~ source + amount + sex + age_week,
+             data = m, by = "terms",
+             permutations = how(blocks = factor(m$subject), nperm = 9999))
+a
+```
+
+```{r compare, echo = FALSE}
+data.frame(term = c("source", "amount", "sex", "age_week"),
+           paper_df = c(7, 2, 1, 1), paper_R2 = c(.39, .01, .21, .01),
+           paper_F = c(15.0, 2.2, 56.9, 2.5),
+           df = a$Df[1:4], R2 = round(a$R2[1:4], 3), F = round(a$F[1:4], 1))
+```
+
+Source, mouse group and age land close to the published values, against `r n_taxa`
+taxa — real lineage where Table 6 resolved one, `Bin` otherwise, so still finer than
+their 161 dereplicated species (per-cage assembly still splits organisms Table 6 couldn't
+place, just fewer of them than before).
+
+The one term that does not match is `amount`, at df 1 against their 2: coding T0 as its
+own level of *both* source and amount makes the two collinear, and the sequential fit
+gives the shared degree of freedom to whichever enters first. The variance explained is
+unchanged, so this is a covariate coding detail — but their exact coding is not
+recoverable from the published methods, and this is where that shows.
+
+"Mouse group" is sex. The sexes came from different Jackson Labs rooms and started with
+different microbiomes, so group, room, cage pair and sex are one factor and cannot be
+separated. Under `blocks = subject` it is constant within a mouse and has no valid
+permutation distribution — read its $R^2$, not its $p$.
+
+**The object reproduces the paper.** Analysis continues in `case_study.Rmd`.

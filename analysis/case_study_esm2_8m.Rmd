@@ -1,0 +1,223 @@
+---
+title: "Diet protein study: ESM-2 8M as a ground metric"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE,
+                      fig.width = 8, fig.height = 4, message = FALSE)
+knitr::opts_knit$set(root.dir = "..")
+```
+
+`docs/ground_metric_models.md` picked TM-Vec1 as the package's one ground metric because
+its head regresses TM-score, so cosine similarity is a named, calibrated quantity. ESM-2
+was dropped from `embed_proteins()` for the opposite reason: its geometry is a side effect
+of a masked-language objective, uncalibrated at any size, and the survey's own measurement
+at 8M parameters -- the exact checkpoint used below -- found long-range contact P@L 0.17
+(against 0.52 at 650M), same-superfamily AUROC 0.766 against a length-alone baseline of
+0.722, and length plus amino-acid composition already explaining 0.445 of the embedding's
+own variance. "Structure" is not a defensible label for what this model encodes.
+
+That is a reason not to trust *what the distance means*, not a reason it can't detect
+anything. This report plugs `weightedRep()` into the same beta-diversity pipeline as
+`case_study.Rmd` with ESM-2 8M in the ground-metric slot, purely to show the method runs
+against a different embedding backend -- it is not a candidate to replace TM-Vec1, and
+nothing here tries to explain what a resulting distance is picking up on (structure,
+homology, taxonomy, composition, length -- all plausible, none adjudicated here). Nothing
+past beta diversity (differential abundance, structural rollup) is repeated either.
+
+```{r libs, cache = FALSE}
+Sys.setenv(KMP_DUPLICATE_LIB_OK = "TRUE")
+
+library(phyloseq)
+library(vegan)
+library(ggplot2)
+library(gt)
+library(here)
+for (f in list.files("R", full.names = TRUE)) source(f)
+
+path  <- here("data", "test_study")
+NPERM <- 9999
+```
+
+## Data and rarefaction
+
+Same table, same rarefaction as `case_study.Rmd`, reproduced here rather than sourced so
+this report renders standalone: rarefy to the shallowest sample, drop the baseline phase
+(diet is undefined there).
+
+```{r data-rarefy}
+ps <- readRDS(file.path(path, "ps.rds"))
+floor_depth <- min(sample_sums(ps))
+
+# rarefy_even_depth() reads .Random.seed before it sets one; in a fresh Rscript
+# session (no prior RNG use) that variable doesn't exist yet and it errors.
+set.seed(1)
+
+psd <- rarefy_even_depth(ps, sample.size = floor_depth, rngseed = 1,
+                         replace = FALSE, verbose = FALSE)
+psd <- prune_samples(sample_data(psd)$phase != "baseline", psd)
+psd <- prune_taxa(taxa_sums(psd) > 0, psd)
+sample_data(psd)$diet <- factor(sample_data(psd)$diet)
+sample_data(psd)$dose <- factor(sample_data(psd)$dose)
+psd
+```
+
+## Embedding
+
+`facebook/esm2_t6_8M_UR50D` via plain `transformers` -- unlike ESM C, ESM-2 has been a
+registered `AutoModel` architecture for years, so this needs nothing beyond the
+`torch`/`transformers` dependency `embed_proteins()` already carries for TM-Vec1, no
+separate SDK. Same pooling convention as the rest of this analysis family: the tokenizer
+wraps every sequence in `<cls> ... <eos>`, and the pooled vector averages only the residue
+positions, not the two flanking special tokens or right-padding, over the frozen encoder
+(no trained head). `max_position_embeddings` is 1026 (1024 residues plus the two special
+tokens); `r sum(Biostrings::width(refseq(psd)) > 1024)` of `r ntaxa(psd)` proteins here
+exceed that and are truncated.
+
+```{r embed, cache = FALSE}
+# cache = FALSE: same reasoning as case_study.Rmd's embed chunk -- the rds file,
+# keyed by protein id, is the only cache that actually tracks what's embedded.
+ESM2_PY <- r"(
+import torch
+from transformers import AutoModel, AutoTokenizer
+
+_ESM2_CACHE = {}
+
+def _repdist_esm2_model(repo, device):
+    if repo not in _ESM2_CACHE:
+        tok = AutoTokenizer.from_pretrained(repo)
+        model = AutoModel.from_pretrained(repo).eval().to(device)
+        _ESM2_CACHE[repo] = (tok, model)
+    return _ESM2_CACHE[repo]
+
+def _repdist_esm2(seqs, repo, device):
+    tok, model = _repdist_esm2_model(repo, device)
+    enc = tok(seqs, return_tensors="pt", padding=True)
+    enc = {k: v.to(device) for k, v in enc.items()}
+    with torch.no_grad():
+        h = model(**enc).last_hidden_state
+    lens = enc["attention_mask"].sum(1)
+    mask = enc["attention_mask"].clone()
+    for i, n in enumerate(lens.tolist()):
+        mask[i, 0] = 0         # <cls>
+        mask[i, n - 1] = 0     # <eos>
+    mask = mask.unsqueeze(-1).float()
+    pooled = (h * mask).sum(1) / mask.sum(1)
+    return pooled.cpu().numpy()
+)"
+
+embed_esm2 <- function(seqs, model = "facebook/esm2_t6_8M_UR50D",
+                       device = c("mps", "cuda", "cpu"), batch_size = 16) {
+  device <- match.arg(device)
+  reticulate::py_require(c("torch", "transformers"))
+  torch <- reticulate::import("torch")
+  reticulate::py_run_string(ESM2_PY)
+  torch$set_grad_enabled(FALSE)
+  on.exit(torch$set_grad_enabled(TRUE), add = TRUE)
+
+  prepped <- substr(toupper(seqs), 1, 1024)   # 1026-token context minus <cls>/<eos>
+  lens <- nchar(prepped)
+  out <- NULL
+
+  # same token-budget batching as embed_proteins() in R/embed.R
+  token_budget <- 16384L
+  chunks <- list(); i <- 1L
+  while (i <= length(prepped)) {
+    j <- i
+    while (j < length(prepped) && (j - i + 2L) * max(lens[i:(j + 1L)]) <= token_budget &&
+           (j - i + 2L) <= batch_size) j <- j + 1L
+    chunks[[length(chunks) + 1L]] <- i:j
+    i <- j + 1L
+  }
+
+  for (idx in chunks) {
+    arr <- reticulate::py_to_r(reticulate::py$`_repdist_esm2`(
+      as.list(unname(prepped[idx])), model, device))
+    if (is.null(out)) out <- matrix(NA_real_, nrow = length(prepped), ncol = ncol(arr))
+    out[idx, ] <- arr
+    if (device == "mps") torch$mps$empty_cache() else if (device == "cuda") torch$cuda$empty_cache()
+  }
+  rownames(out) <- names(seqs)
+  out
+}
+
+cache <- file.path(path, "embeddings_esm2_8M.rds")
+Zall  <- if (file.exists(cache)) readRDS(cache) else NULL
+need  <- setdiff(taxa_names(psd), rownames(Zall))
+
+if (length(need)) {
+  s <- as.character(refseq(psd)[need])
+  s <- s[order(nchar(s))]                      # length-sorted: keeps batches tight
+  for (i in split(seq_along(s), ceiling(seq_along(s) / 2000))) {
+    Zall <- rbind(Zall, embed_esm2(s[i], batch_size = 16))
+    saveRDS(Zall, cache)
+  }
+}
+Z <- Zall[taxa_names(psd), ]
+```
+
+## Results
+
+Bray-Curtis and Jaccard as the protein-identity baselines, `weightedRep` on the ESM-2 8M
+embedding as the test. Same PERMANOVA specification as `case_study.Rmd`: amount of
+protein, sex and age as covariates, only the diet term reported, permutations blocked
+within mouse.
+
+```{r distances-permanova}
+cnt <- t(as(otu_table(psd), "matrix"))     # samples in rows
+md  <- data.frame(sample_data(psd))
+D <- list(`Bray-Curtis` = phyloseq::distance(psd, method = "bray"),
+          `Jaccard`     = vegdist(cnt, method = "jaccard", binary = TRUE),
+          `weightedRep (ESM-2 8M)` = weightedRep(cnt, Z, method = "mmd"))
+
+diet_test <- function(dl) do.call(rbind, lapply(names(dl), function(n) {
+  set.seed(1)
+  a <- adonis2(dl[[n]] ~ diet + dose + sex + age_week, data = md, by = "terms",
+               permutations = permute::how(blocks = factor(md$subject), nperm = NPERM))
+  data.frame(distance = n, R2 = round(a["diet", "R2"], 3),
+             F = round(a["diet", "F"], 2), p = a["diet", "Pr(>F)"])
+}))
+res <- diet_test(D)
+r2  <- setNames(res$R2, res$distance)
+gt(res)
+```
+
+```{r pcoa, cache = FALSE, fig.height = 4.5}
+for (n in names(D)) {
+  print(plot_ordination(psd, ordinate(psd, "PCoA", distance = D[[n]]), color = "diet") +
+          stat_ellipse(type = "t", geom = "polygon", alpha = 0) +
+          ggtitle(n) + theme_bw())
+}
+```
+
+```{r diagnostics}
+gt(data.frame(
+  distance     = names(D),
+  betadisper_p = sapply(D, function(d) round(anova(betadisper(d, md$diet))$`Pr(>F)`[1], 4)),
+  row.names = NULL))
+```
+
+## Conclusion
+
+`case_study.Rmd` reported diet $R^2$ of 0.281 (Bray-Curtis), 0.192 (Jaccard) and 0.335
+(TM-Vec1 `weightedRep`). Here, ESM-2 8M's `weightedRep` lands at
+$R^2=$ `r sprintf("%.3f", r2["weightedRep (ESM-2 8M)"])`
+(Bray-Curtis and Jaccard reproduce at
+`r sprintf("%.3f", r2["Bray-Curtis"])` and `r sprintf("%.3f", r2["Jaccard"])`, as expected
+since nothing about the counts or the rarefaction changed).
+
+That number alone does not settle whether ESM-2 8M's geometry is doing anything a random
+projection wouldn't -- `docs/ground_metric_models.md` §6 measured a random 320-d embedding
+at diet $R^2=0.29$ on this same table (chosen to match this model's own hidden size), so a
+value in that neighborhood is the null, not a finding, and clearing it needs the
+Mantel-against-random-projection check that document describes, not run here. What this
+report settles on its own is narrower: whether `weightedRep()` runs end to end and reads
+some diet signal with the exact 8M checkpoint the ground-metric survey used to reject the
+uncalibrated family, on real data rather than the survey's fold-recognition benchmark. The
+comparison above is that number, nothing more -- no claim about what the distance is
+picking up on, no dispersion argument, no accession-shuffle robustness check.

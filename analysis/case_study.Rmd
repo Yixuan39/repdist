@@ -1,0 +1,452 @@
+---
+title: "Re analysis of diet protein study"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE,
+                      fig.width = 8, fig.height = 4, message = FALSE)
+knitr::opts_knit$set(root.dir = "..")
+```
+
+The simulation study showed that a protein-identity distance goes blind when
+samples share no accessions, and that a TM-Vec ground metric does not. This report
+applies the same comparison to real data: 111 mouse faecal metaproteomes across
+eight dietary protein sources (Blakeley-Ruiz *et al.*, *ISME J* 19(1) wraf048),
+quantified by spectral counting.
+
+There is no weighted-UniFrac arm. The simulation could align 480 proteins from four
+families and give it a ground metric; here the universe is ~19,000 proteins from a
+whole gut community, mostly non-homologous, and there is no alignment to build a
+tree from.
+
+```{r libs, cache = FALSE}
+Sys.setenv(KMP_DUPLICATE_LIB_OK = "TRUE")
+reticulate::use_python(Sys.which("python3"), required = TRUE)
+
+library(phyloseq)
+library(vegan)
+library(ggplot2)
+library(gt)
+library(here)
+library(MicrobiomeStat)
+for (f in list.files("R", full.names = TRUE)) source(f)
+
+path  <- here("data", "test_study")
+NPERM <- 9999
+```
+
+## Data
+
+```{r data}
+ps <- readRDS(file.path(path, "ps.rds"))   # built and validated in data_curation.Rmd
+ps
+```
+
+## Rarefaction
+
+```{r depth-check, fig.height = 3}
+floor_depth <- min(sample_sums(ps))    # rarefy to the shallowest sample, dropping none
+
+ggplot(data.frame(depth = sort(sample_sums(ps))), aes(seq_along(depth), depth)) +
+  geom_col(width = 1) +
+  geom_hline(yintercept = floor_depth, linetype = "dashed", color = "firebrick") +
+  labs(x = "sample, sorted by depth", y = "PSMs") + theme_bw()
+```
+
+The shallowest samples sit within a few percent of each other, so there is no isolated
+outlier to drop and the cutoff (dashed line) is simply the minimum depth,
+`r floor_depth` PSMs. Taking it from `min()` rather than hardcoding it is what keeps
+that sentence true: any fixed number above the minimum silently discards the samples
+below it.
+
+```{r rarefy}
+psd <- rarefy_even_depth(ps, sample.size = floor_depth, rngseed = 1,
+                         replace = FALSE, verbose = FALSE)
+
+# T0 has no protein source, so the diet term is undefined for it
+psd <- prune_samples(sample_data(psd)$phase != "baseline", psd)
+psd <- prune_taxa(taxa_sums(psd) > 0, psd)
+sample_data(psd)$diet <- factor(sample_data(psd)$diet)
+sample_data(psd)$dose <- factor(sample_data(psd)$dose)
+psd
+```
+
+Rarefying before pruning matters: rarefaction subsamples the raw counts, so it has
+to see the raw counts.
+
+## Embedding
+
+TM-Vec1, the ground metric chosen in `docs/ground_metric_models.md`: its head was
+trained to regress the TM-score of protein pairs, so cosine similarity between two
+vectors is a predicted TM-score. Sequences are truncated at 1022 residues, TM-Vec1's
+own limit from its ProtT5 encoder. The result is cached.
+
+```{r embed, cache = FALSE}
+# cache = FALSE on purpose: this chunk's own code never changes, so knitr's
+# chunk cache would not notice that `psd` changed upstream (e.g. a different
+# rarefaction depth) and would silently replay a stale Z. The rds file below is
+# the only cache, keyed by protein id, and it lives in data/ rather than in the
+# knitr cache directory. Filename is model-specific (not "embeddings_tmvec.rds")
+# so switching models can't silently reuse the previous model's vectors via the
+# `need <- setdiff(...)` resume logic below.
+cache <- file.path(path, "embeddings_tmvec1.rds")
+Zall  <- if (file.exists(cache)) readRDS(cache) else NULL
+need  <- setdiff(taxa_names(psd), rownames(Zall))
+
+if (length(need)) {
+  s <- substr(as.character(refseq(psd)[need]), 1, 1022)
+  s <- s[order(nchar(s))]                       # length-sorted: keeps batches tight
+  # Save every 2000 proteins rather than once at the end. The full pass is about
+  # an hour and the cache is keyed by protein id, so an interrupted render resumes
+  # from the last block instead of starting over.
+  for (i in split(seq_along(s), ceiling(seq_along(s) / 2000))) {
+    Zall <- rbind(Zall, embed_proteins(s[i], batch_size = 16))
+    saveRDS(Zall, cache)
+  }
+}
+Z <- Zall[taxa_names(psd), ]
+```
+
+## Results
+
+Bray-Curtis and Jaccard are both protein-identity distances -- two proteins are
+either the same accession or maximally different -- and differ only in whether
+abundance enters: Bray-Curtis weights by how much of each protein was detected,
+Jaccard only by whether it was detected at all.
+
+```{r distances}
+cnt <- t(as(otu_table(psd), "matrix"))     # samples in rows
+md  <- data.frame(sample_data(psd))
+D <- list(`Bray-Curtis` = phyloseq::distance(psd, method = "bray"),
+          `Jaccard`     = vegdist(cnt, method = "jaccard", binary = TRUE),
+          `weightedRep` = weightedRep(cnt, Z, method = "mmd"))
+```
+
+Amount of protein, sex and age stay in the model as covariates; only the diet term
+is reported. Permutations are blocked within mouse, since each mouse contributes
+several samples. `sex` is constant within a mouse, so it has no valid permutation
+distribution under that blocking — it absorbs variance rather than being tested.
+
+```{r permanova}
+diet_test <- function(dl) do.call(rbind, lapply(names(dl), function(n) {
+  set.seed(1)
+  a <- adonis2(dl[[n]] ~ diet + dose + sex + age_week, data = md, by = "terms",
+               permutations = permute::how(blocks = factor(md$subject), nperm = NPERM))
+  data.frame(distance = n, R2 = round(a["diet", "R2"], 3),
+             F = round(a["diet", "F"], 2), p = a["diet", "Pr(>F)"])
+}))
+res <- diet_test(D)
+r2  <- setNames(res$R2, res$distance)   # name-based lookup for the prose below
+gt(res)
+```
+
+```{r pcoa, cache = FALSE, fig.height = 4.5}
+for (n in names(D)) {
+  print(plot_ordination(psd, ordinate(psd, "PCoA", distance = D[[n]]), color = "diet") +
+          stat_ellipse(type = "t", geom = "polygon", alpha = 0) +
+          ggtitle(n) + theme_bw())
+}
+```
+
+## Diagnostics
+
+A PERMANOVA $p$ can come from groups differing in *spread* rather than in
+*location*, and the test cannot separate the two on its own. `betadisper` can.
+
+```{r diagnostics}
+gt(data.frame(
+  distance     = names(D),
+  betadisper_p = sapply(D, function(d) round(anova(betadisper(d, md$diet))$`Pr(>F)`[1], 4)),
+  row.names = NULL))
+```
+
+## What Bray-Curtis and Jaccard are actually using
+
+All three distances find a highly significant diet effect and land in the same
+broad range, which the simulation would not have predicted. The reason is that
+these are cage-housed lab mice searched against one protein database: samples
+really do share *the same accessions*, and exact accession identity is something
+Bray-Curtis and Jaccard can read directly. Jaccard's lower $R^2$ against
+Bray-Curtis's is the presence/absence penalty: it throws away how much of each
+shared protein was detected, keeping only whether it was detected at all.
+
+The test is to take that away. Give every sample its own private accession for each
+protein it detected. Counts, sequences and abundances are all unchanged — only the
+labels differ — so no two samples share an accession any more.
+
+```{r shuffle}
+nz  <- which(cnt > 0, arr.ind = TRUE)
+lab <- paste0("protein", seq_len(nrow(nz)))   # masked: one private label per (sample, protein) detection
+
+cnt_s <- matrix(0L, nrow(cnt), length(lab), dimnames = list(rownames(cnt), lab))
+cnt_s[cbind(nz[, "row"], seq_len(nrow(nz)))] <- cnt[nz]
+Z_s <- Z[nz[, "col"], ]
+rownames(Z_s) <- lab
+
+c(accessions_before = ncol(cnt), accessions_after = ncol(cnt_s),
+  max_samples_sharing_one = max(colSums(cnt_s > 0)))
+```
+
+```{r shuffle-test}
+res_s <- diet_test(list(`Bray-Curtis` = vegdist(cnt_s / rowSums(cnt_s), "bray"),
+                        `Jaccard`     = vegdist(cnt_s, method = "jaccard", binary = TRUE),
+                        `weightedRep` = weightedRep(cnt_s, Z_s, method = "mmd")))
+gt(res_s)
+```
+
+Bray-Curtis and Jaccard both collapse to the exact null. Every pair is now
+maximally dissimilar, so each distance matrix is constant and cannot express any
+grouping: $F = 1$, $p = 1$, and $R^2 = 5/98 = 0.051$, which is simply the diet
+term's degrees of freedom over $n-1$ — the share any 5-df term receives when there
+is nothing to explain. `weightedRep()` returns exactly what it returned above,
+because a protein's embedding does not depend on what its accession is called and
+the abundance-weighted mean is therefore unchanged.
+
+So Bray-Curtis's and Jaccard's whole result here rests on samples sharing literal
+accessions. That is a fair assumption within one colony, one database and one
+assembly. It stops being fair across studies, colonies or assemblies, where the
+same function arrives under a different accession — which is the case the
+representation distance is built for.
+
+## Differential abundance
+
+PERMANOVA tests whether diet structures the community as a whole; it says
+nothing about which proteins carry that signal. Testing all `r ncol(cnt)`
+proteins directly would mean that many near-independent tests on units that
+mostly aren't independent -- protein groups are frequently homologous
+(`docs/method_notes.md` §1), so a chunk of those "tests" are the same
+signal counted several times. `rollupStructural()` collapses proteins into
+bins where every member
+has predicted TM-score >= 0.5 to every other member -- the same-fold
+threshold from Xu & Zhang (2010), already used above -- before any testing
+happens, so multiplicity is paid once per structural unit, not once per
+accession.
+
+```{r rollup}
+roll <- rollupStructural(cnt, Z, cluster_threshold = 0.5)
+c(proteins = ncol(cnt), bins = ncol(roll$counts))
+```
+
+LinDA (Zhou *et al.*, *Genome Biology* 2022) fits a linear model per bin on
+centered-log-ratio-transformed abundance and corrects the compositional bias
+a plain `lm()` on relative abundance would carry -- the same reason
+`weightedRep()` works on abundance weights rather than raw proportions
+directly. Its formula interface takes a random effect for repeated sampling
+of the same mouse, the model-based counterpart to the permutation blocking
+`adonis2` used above.
+
+No prevalence filter -- every one of the `r ncol(roll$counts)` bins is
+tested, including the ones with only a handful of nonzero samples. LinDA
+warns about those rather than dropping them; the mixed model can also
+report a singular fit for a bin (its between-mouse variance estimated at
+zero), which `lmer` warns about but does not treat as an error.
+
+```{r linda}
+fit <- linda(t(roll$counts), md,
+            formula = "~ diet + dose + sex + age_week + (1 | subject)",
+            feature.dat.type = "count", verbose = FALSE)
+```
+
+As with the PERMANOVA table, only the diet term is reported: a joint Wald
+test on all five diet coefficients per bin, LinDA's counterpart to
+`adonis2`'s `by = "terms"`.
+
+```{r linda-wald}
+L <- matrix(0, nrow = 5, ncol = length(fit$variables) + 1)
+for (i in 1:5) L[i, i + 1] <- 1   # intercept + the 5 diet dummy columns
+wald <- linda.wald.test(fit, L, model = "LMM", alpha = 0.05)
+rownames(wald) <- rownames(fit$output[[1]])   # linda.wald.test drops them; reused below
+
+gt(data.frame(bins_tested = nrow(wald), bins_diet_sig = sum(wald$reject),
+              fraction_sig = round(mean(wald$reject), 3)))
+```
+
+`r round(100 * mean(wald$reject))`% of bins reject at `padj <= 0.05` --
+consistent with the PERMANOVA result above: diet is not a handful of
+marker proteins, it reorganizes abundance broadly across the structural
+repertoire. That joint test has no size to it, though -- diet has five
+levels and no single number is "the" effect. A volcano plot needs one
+effect size per point, so the five diet-vs-Casein contrasts already inside
+`fit` are shown separately: one panel per diet, log2 fold change against
+Casein on the x-axis, each point one bin, red where that specific contrast
+rejects at `padj <= 0.05`.
+
+```{r volcano, fig.height = 3.2, fig.width = 10}
+diet_vars <- grep("^diet", fit$variables, value = TRUE)
+volc <- do.call(rbind, lapply(diet_vars, function(v) {
+  o <- fit$output[[v]]
+  data.frame(bin = rownames(o), diet = sub("^diet", "", v),
+             log2FoldChange = o$log2FoldChange, pvalue = o$pvalue, reject = o$reject)
+}))
+
+ggplot(volc, aes(log2FoldChange, -log10(pvalue), color = reject)) +
+  geom_point(alpha = 0.6, size = 1) +
+  facet_wrap(~ diet, nrow = 1) +
+  scale_color_manual(values = c(`FALSE` = "grey70", `TRUE` = "firebrick"), guide = "none") +
+  labs(x = "log2 fold change vs Casein", y = expression(-log[10](p))) + theme_bw()
+```
+
+```{r top-bin}
+top <- volc[volc$reject, ]
+top <- top[which.max(abs(top$log2FoldChange)), ]
+
+members <- names(roll$bin)[roll$bin == top$bin]
+t6 <- read.delim(file.path(path, "annotated", "ExtendedDataTable6AnnotatedMicrobialMetaproteomes.txt"),
+                 skip = 2, quote = "\"", check.names = FALSE, colClasses = "character",
+                 comment.char = "", fileEncoding = "latin1")
+ann <- setNames(t6[["Consensus annotation"]], t6[["Protein Identifier"]])[members]
+tx  <- as.data.frame(as(tax_table(psd), "matrix"))[members, c("Genus", "Species")]
+```
+
+The single largest shift, in either direction, is bin `r top$bin` on
+`r top$diet`: `r sprintf("%+.1f", top$log2FoldChange)` log2 fold change
+against Casein at $p=$ `r formatC(top$pvalue, digits = 1, format = "e")`.
+Its `r length(members)` members come from `r length(unique(na.omit(tx$Genus)))`
+different genera -- proteins TM-Vec1 grouped as one predicted fold despite
+sharing no organism, the case an accession-identity distance cannot follow
+through a diet shift at all. Extended Data Table 6 annotates
+`r sum(!is.na(ann))` of them, and every annotated one is a glycan-degrading
+enzyme -- alpha-L-fucosidases and GH65/GH92 glycoside hydrolases, plausible
+machinery for a yeast-cell-wall-heavy diet, though this is one bin's
+annotation coverage, not a pathway enrichment test.
+
+```{r top-bin-table}
+info <- data.frame(
+  Protein = members, Genus = tx$Genus, Species = tx$Species,
+  `Annotation (Table 6)` = unname(ann),
+  `Length (aa)` = Biostrings::width(refseq(psd)[members]),
+  `Mean count, Casein` = round(colMeans(cnt[md$diet == "Casein", members, drop = FALSE]), 1),
+  check.names = FALSE
+)
+info[[paste0("Mean count, ", top$diet)]] <-
+  round(colMeans(cnt[md$diet == top$diet, members, drop = FALSE]), 1)
+info <- info[order(-info[[ncol(info)]]), ]   # re-used below, so the sort has to stick
+gt(info)
+```
+
+Every member sits at or near zero on Casein and climbs on `r top$diet`,
+which is what the fold change states in raw counts -- not an artifact of
+the log-ratio transform.
+
+`rollupStructural()`'s complete-linkage guarantee is that every pair inside
+a bin has predicted TM-score >= `cluster_threshold` to every *other* member, not
+just to a nearest neighbor -- true here by construction, but a heatmap
+shows what it looks like: the full pairwise predicted TM-score matrix for
+bin9, same protein order as the table above.
+
+```{r tm-heatmap, fig.height = 5, fig.width = 6}
+Zb <- Z[info$Protein, ]
+S  <- 1 - as.matrix(proxy::dist(Zb, method = "cosine"))   # cosine == predicted TM-score
+dimnames(S) <- list(info$Protein, info$Protein)           # kept protein-indexed, reused below
+
+df <- as.data.frame(as.table(S))
+names(df) <- c("i", "j", "TM_hat")
+df$i <- factor(df$i, levels = info$Protein, labels = seq_along(info$Protein))
+df$j <- factor(df$j, levels = info$Protein, labels = seq_along(info$Protein))
+
+ggplot(df, aes(i, j, fill = TM_hat)) +
+  geom_tile() +
+  scale_fill_viridis_c(limits = c(0.5, 1), name = "predicted\nTM-score") +
+  coord_fixed() +
+  labs(x = "protein, table row above", y = "protein, table row above") +
+  theme_minimal()
+```
+
+The floor is `r round(min(S[upper.tri(S)]), 3)`, comfortably above the 0.5
+cutoff, and the diagonal is exactly 1 by construction (`cos(z, z) = 1`).
+The brighter blocks are sub-structure *within* the bin -- proteins closer
+to a TM-score of 1 with each other than with the rest of the bin -- but
+nothing drops below where complete linkage promised it wouldn't.
+
+Rows 1 and 2 stand out for a different reason: they are the two most
+abundant members of the whole bin, and also two of the ones with neither a
+Genus call nor a Table 6 annotation -- invisible to a lineage-based method
+and to a profile-based one, grouped here on structure alone.
+
+```{r dark-proteins}
+dark      <- info$Protein[is.na(info$Genus) & is.na(info[["Annotation (Table 6)"]])]
+annotated <- info$Protein[!is.na(info[["Annotation (Table 6)"]])]
+
+nn <- do.call(rbind, lapply(dark[1:2], function(p) {
+  best <- annotated[which.max(S[p, annotated])]
+  data.frame(Protein = p, `Predicted TM-score` = round(S[p, best], 3),
+             `Nearest annotated neighbor` = best,
+             Annotation = info[["Annotation (Table 6)"]][info$Protein == best],
+             check.names = FALSE)
+}))
+gt(nn)
+```
+
+Both of their nearest annotated relatives *within the bin* turn out to be
+the same protein: `r nn[["Nearest annotated neighbor"]][1]`, a
+*`r nn$Annotation[1]`* from a different genus entirely -- predicted TM-score
+`r nn[["Predicted TM-score"]][1]` to `r nn$Protein[1]` and
+`r nn[["Predicted TM-score"]][2]` to `r nn$Protein[2]`. That is not a
+function call, just a specific, testable hypothesis where Table 6 offers
+none at all -- exactly the gap a sequence-only annotation pipeline leaves
+open and a structural ground metric can speak to.
+
+bin9's two dark proteins are not a cherry-picked pair. Annotation-dependent
+tools -- eggNOG-mapper, Pfam/HMMER, and whatever built Table 6's "Consensus
+annotation" column here -- only speak for a protein with a detectable match
+to something already characterized; the rest usually just drop out of any
+function-level discussion, not because they don't matter, but because
+there is nothing to put in the annotation column. That gap is not rare
+here, and it is not concentrated in the boring part of the data:
+
+```{r dark-scope}
+is_dark <- function(ids) {
+  a <- setNames(t6[["Consensus annotation"]], t6[["Protein Identifier"]])[ids]
+  g <- as.data.frame(as(tax_table(psd), "matrix"))[ids, "Genus"]
+  is.na(a) & is.na(g)
+}
+sig_members <- names(roll$bin)[roll$bin %in% rownames(wald)[wald$reject]]
+
+gt(data.frame(
+  scope    = c("whole protein universe", "diet-significant bins only"),
+  proteins = c(ncol(cnt), length(sig_members)),
+  dark     = c(sum(is_dark(colnames(cnt))), sum(is_dark(sig_members))),
+  pct_dark = round(100 * c(mean(is_dark(colnames(cnt))), mean(is_dark(sig_members))), 1)
+))
+```
+
+Proteins with neither a Genus call nor a Table 6 annotation are about as
+common among the proteins LinDA flagged as diet-associated as they are
+everywhere else in the dataset -- being biologically important here (large
+fold change, high significance) bought them no better odds of being
+annotated. A structural ground metric does not fix the annotation gap, but
+it does not inherit it either: `rollupStructural()` places every protein
+in a bin whether or not it has a database hit, and a bin's annotated
+members give its unannotated ones a specific, checkable neighbor instead
+of silence.
+
+## Conclusion
+
+All three distances find dietary protein source highly significant, with diet
+$R^2$ of `r sprintf("%.3f", r2["Bray-Curtis"])` for Bray-Curtis,
+`r sprintf("%.3f", r2["Jaccard"])` for Jaccard, and
+`r sprintf("%.3f", r2["weightedRep"])` for the representation — the representation
+now reads more diet signal than Bray-Curtis, not just as much of it. The gain is
+real but not large, and the reason it exists at all is measurable: these samples
+share accessions, so protein identity, weighted or not, was already a good
+feature here.
+
+Two more results separate the representation from the other two. Bray-Curtis
+fails the dispersion check while the representation passes, so part of the
+Bray-Curtis effect is diets differing in how variable they are rather than in
+where they sit. And once accession sharing is removed, both protein-identity
+distances drop to the null while the representation is untouched.
+
+The honest reading is that the representation buys robustness and, here, a little
+power too. It keeps working where Bray-Curtis cannot — no shared accessions, no
+alignment, no tree, no annotation.
+
+What this report does not settle is alpha diversity. Rarefying equalises depth, not
+evenness, and any abundance-weighted set distance can respond to how concentrated a
+sample is as well as to what is in it. Separating the two needs evenness matching or
+a support-corrected estimator, neither of which is done here.

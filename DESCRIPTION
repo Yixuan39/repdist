@@ -1,0 +1,31 @@
+Package: repdist
+Title: Homology-Aware Beta Diversity from Protein Language Model Embeddings
+Version: 0.1.0
+Authors@R: person("Yixuan", "Yang", email = "yixuanyang309@icloud.com", role = c("aut", "cre"))
+Description: Sample distances for metaproteomics that treat each sample as an
+    abundance-weighted distribution over proteins embedded in a frozen protein
+    language model space. Keeps the functional form of weighted UniFrac and
+    Bray-Curtis while replacing the ground metric with a PLM metric defined for
+    any sequence, including proteins with no tree position and no annotation.
+    Returns 'dist' objects for direct use with vegan::adonis2().
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends: R (>= 4.1)
+Imports:
+    Biostrings,
+    fastcluster,
+    jsonlite,
+    proxy,
+    reticulate
+Suggests:
+    ape,
+    phyloseq,
+    ggplot2,
+    knitr,
+    lpSolve,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    vegan
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0
