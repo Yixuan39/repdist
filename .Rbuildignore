@@ -3,6 +3,7 @@
 ^data$
 ^raw$
 ^wiki$
+^sources$
 ^\.git
 ^.*\.Rproj$
 ^\.Rproj\.user$

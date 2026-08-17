@@ -9,13 +9,14 @@ results/
 cache/
 docs/
 raw/
+sources/
 *.html
-# ...except the rendered reports linked from README.md
+# ...except the rendered reports, each kept on its own analysis branch
 !analysis/simulation_study.html
 !analysis/data_curation.html
 !analysis/case_study.html
-!analysis/case_study_esm2_8m.html
-!analysis/protein_tsne.html
+!analysis/data_curation_case_study2.html
+!analysis/case_study2.html
 *.pt
 *.npy
 *.npz
