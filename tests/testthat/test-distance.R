@@ -11,9 +11,19 @@ counts <- matrix(
   dimnames = list(paste0("s", 1:6), rownames(Z)))
 
 test_that("sample_repdist accepts embeddings or a precomputed ground distance", {
+  # sample_repdist() defaults to euclidean, seq_repdist() to cosine, so the
+  # precomputed ground distance has to be asked for the same metric to match.
   expect_equal(
     sample_repdist(counts, Z),
-    sample_repdist(counts, seq_repdist(Z)))
+    sample_repdist(counts, seq_repdist(Z, "euclidean")))
+  expect_equal(
+    sample_repdist(counts, Z, distance = "cosine"),
+    suppressWarnings(sample_repdist(counts, seq_repdist(Z, "cosine"))))
+})
+
+test_that("a non-metric precomputed ground distance warns", {
+  expect_warning(sample_repdist(counts, seq_repdist(Z, "cosine")), "indefinite")
+  expect_silent(sample_repdist(counts, seq_repdist(Z, "euclidean")))
 })
 
 test_that("sample_repdist returns a dist that adonis2 accepts", {
@@ -124,9 +134,11 @@ test_that("globally zero-count proteins are dropped before the ground distance",
 
   C <- as.matrix(seq_repdist(Z))
   C <- rbind(cbind(C, junk = 1), junk = c(rep(1, ncol(C)), 0))
+  # Both sides are cosine ground distances, so both warn; the point here is that
+  # the globally-zero protein is dropped identically either way.
   expect_equal(
-    sample_repdist(cc, stats::as.dist(C)),
-    sample_repdist(counts, seq_repdist(Z)))
+    suppressWarnings(sample_repdist(cc, stats::as.dist(C))),
+    suppressWarnings(sample_repdist(counts, seq_repdist(Z))))
 })
 
 test_that("one retained protein gives zero sample distance", {

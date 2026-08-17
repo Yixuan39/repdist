@@ -25,11 +25,13 @@ Imports:
     jsonlite,
     reticulate
 Suggests:
+    BiocStyle,
     phyloseq,
     ggplot2,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
     vegan
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.0

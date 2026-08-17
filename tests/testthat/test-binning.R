@@ -112,8 +112,11 @@ test_that("bin_dist feeds sample_repdist at bin resolution", {
   expect_setequal(labels(bins$bin_dist), colnames(bins$counts))
   expect_equal(as.matrix(bins$bin_dist),
                C[bins$reps$protein, bins$reps$protein], ignore_attr = TRUE)
-  expect_equal(attr(sample_repdist(bins$counts, bins$bin_dist), "Size"),
-               nrow(counts))
+  # bin_dist is the cosine ground distance between medoids, on the TM-score
+  # scale cluster_threshold is expressed in, so feeding it to sample_repdist()
+  # warns: that scale is not a metric. The bin-resolution MMD is still built.
+  expect_warning(D <- sample_repdist(bins$counts, bins$bin_dist), "indefinite")
+  expect_equal(attr(D, "Size"), nrow(counts))
 })
 
 test_that("precomputed distances are not expanded for binning", {

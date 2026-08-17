@@ -1,5 +1,21 @@
 # repdist 0.99.0
 
+- `sample_repdist()` now defaults to a `"euclidean"` ground metric, while
+  `seq_repdist()` and `repdist_bin()` keep `"cosine"`. MMD is a distance only
+  under a positive-semi-definite kernel, and a Gaussian RBF guarantees that
+  only on a true metric; `1 - cosine` is not one, so the old default produced
+  an indefinite kernel and `sample_repdist()` aborted on most inputs where
+  samples shared few accessions. Nothing is lost: `embed_proteins()` returns
+  unit-norm rows, for which `||a - b|| = sqrt(2 * (1 - cos))`, so the two
+  metrics rank protein pairs identically. `"cosine"` remains available, and
+  remains the default wherever the TM-score scale is what
+  `cluster_threshold` is read against.
+- `sample_repdist()` warns when handed a precomputed `dist` whose metric is not
+  euclidean, rather than letting a non-metric ground distance reach the kernel
+  silently.
+- `mmd_matrix()` scales its negative-MMD tolerance to the kernel rather than to
+  the MMD matrix itself. The old tolerance collapsed onto rounding noise when
+  every sample had the same composition, rejecting a valid kernel.
 - `sample_repdist()` now computes RBF-MMD only. OT, transport matrices, core
   controls, and parallel imports were removed.
 - `embed_proteins()` embeds complete proteins without truncation. Its single

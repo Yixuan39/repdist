@@ -1,0 +1,309 @@
+---
+title: "Homology-aware beta diversity with repdist"
+author: "Yixuan Yang"
+package: repdist
+output:
+  BiocStyle::html_document:
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{Homology-aware beta diversity with repdist}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6,
+                      fig.height = 4, message = FALSE)
+```
+
+# Why a representation distance
+
+Bray-Curtis, Jaccard and their relatives compare samples through protein
+*identity*: two proteins are either the same accession or maximally different.
+Metaproteomes break that assumption. Two communities can carry the same
+enzymatic function on accessions that never overlap, and an identity-based
+distance cannot tell that case apart from any other difference — it simply
+reports the maximum and stops.
+
+`repdist` replaces the identity comparison with a distance in a protein
+language model's representation space. Each sample becomes an
+abundance-weighted distribution over protein embeddings, and two samples are
+compared by the maximum mean discrepancy (MMD) between those distributions
+under an RBF kernel. The ground distance is defined for *any* pair of
+sequences, including proteins with no annotation, no tree position, and no
+homolog in the other sample.
+
+```{r load}
+library(repdist)
+```
+
+# Installation
+
+```{r install, eval = FALSE}
+if (!requireNamespace("remotes", quietly = TRUE))
+    install.packages("remotes")
+remotes::install_github("Yixuan39/repdist")
+```
+
+# The workflow
+
+Three steps, and the middle one is the expensive object worth reusing.
+
+1. **Embed** sequences with `embed_proteins()`, or import embeddings you
+   already have with `read_embeddings()`.
+2. **Build the protein ground distance** once with `seq_repdist()`.
+3. **Compare samples** with `sample_repdist()`, and/or **collapse proteins into
+   structural bins** with `repdist_bin()`.
+
+## Embedding
+
+`embed_proteins()` downloads a protein language model and runs it through a
+pinned Python environment managed by `r BiocStyle::Biocpkg("basilisk")`; you do
+not manage Python packages yourself. Because the default model is several
+gigabytes, the call is not evaluated here.
+
+```{r embed, eval = FALSE}
+seqs <- read_fasta("proteins.fasta")
+Z <- embed_proteins(seqs)                       # default: tmvec-swissmodel-large
+```
+
+`known_models()` lists the registered models. TM-Vec heads are the reason the
+cosine scale is interpretable: the head was trained to regress the TM-score of
+protein pairs, so cosine similarity between two TM-Vec embeddings *is* a
+predicted TM-score.
+
+```{r models}
+names(known_models())
+```
+
+Sequences are embedded complete, never truncated. `memory_fraction` is the
+single batching control — batch sizes are derived from currently available CPU,
+CUDA or MPS memory. A protein that cannot fit alone, or that exceeds the
+backbone's architectural context, is skipped with a warning rather than
+silently clipped.
+
+Embeddings computed elsewhere can be imported directly. Official TM-Vec `.npz`
+databases use `headers` rather than `ids`; both are detected.
+
+```{r read-emb, eval = FALSE}
+Z <- read_embeddings("protein_embeddings.npz")
+```
+
+# A worked example
+
+Everything below runs without a model download, on a small simulated protein
+universe built to make the identity/representation contrast visible.
+
+Four structural families, twelve proteins each. Embeddings are unit-norm, as
+`embed_proteins()` returns them.
+
+```{r universe}
+set.seed(1)
+n_fam <- 4L; per_fam <- 12L; d <- 32L
+
+centres <- matrix(0.12, n_fam, d)
+for (f in seq_len(n_fam)) centres[f, ((f - 1L) * 8L + 1L):(f * 8L)] <- 1.5
+family <- rep(seq_len(n_fam), each = per_fam)
+
+Z <- centres[family, ] +
+  matrix(abs(rnorm(n_fam * per_fam * d, 0, 0.2)), n_fam * per_fam, d)
+Z <- Z / sqrt(rowSums(Z^2))
+rownames(Z) <- sprintf("prot%02d", seq_len(nrow(Z)))
+dim(Z)
+```
+
+Eight samples in two groups. Group A expresses families 1 and 2, group B
+families 3 and 4 — but **every sample is given its own private set of
+accessions**, so no two samples share a single protein identifier.
+
+```{r counts}
+counts <- matrix(0L, 8L, nrow(Z),
+                 dimnames = list(sprintf("s%d", 1:8), rownames(Z)))
+for (i in seq_len(8L)) {
+  fams <- if (i <= 4L) c(1L, 2L) else c(3L, 4L)
+  k <- if (i <= 4L) i else i - 4L
+  idx <- unlist(lapply(fams,
+    function(f) (f - 1L) * per_fam + ((k - 1L) * 3L + 1:3)))
+  counts[i, idx] <- rpois(length(idx), 30) + 10L
+}
+group <- factor(rep(c("A", "B"), each = 4))
+
+# no accession is shared by any pair of samples
+max(sapply(1:7, function(i) max(sapply((i + 1):8,
+  function(j) sum(counts[i, ] > 0 & counts[j, ] > 0)))))
+```
+
+## The protein ground distance
+
+`seq_repdist()` builds the protein-by-protein distance everything else
+consumes. Compute it once and pass it around: at real proteome sizes it is the
+expensive object (roughly 400 MB at 10,000 proteins).
+
+```{r ground}
+G <- seq_repdist(Z)          # cosine: 1 - predicted TM-score
+M <- as.matrix(G)
+c(within_family  = 1 - mean(M[1:12, 1:12][lower.tri(diag(12))]),
+  between_family = 1 - mean(M[1:12, 13:24]))
+```
+
+Within a family the predicted TM-score is 0.98; across families 0.37. That
+straddles 0.5, TM-score's conventional same-fold threshold.
+
+## Beta diversity
+
+`sample_repdist()` returns a `dist`, so it drops straight into
+`r BiocStyle::CRANpkg("vegan")`. Compare it against Bray-Curtis on the same
+counts.
+
+```{r beta}
+D  <- sample_repdist(counts, Z)
+bc <- vegan::vegdist(counts, "bray")
+
+c(bray_curtis_min = min(bc), bray_curtis_max = max(bc))
+```
+
+Bray-Curtis is exactly 1 for every pair. With no shared accessions it has
+nothing to work with, and the two groups are indistinguishable from any other
+pair of samples.
+
+```{r beta-repdist}
+Dm <- as.matrix(D)
+c(within_group  = mean(Dm[1:4, 1:4][lower.tri(diag(4))]),
+  between_group = mean(Dm[1:4, 5:8]))
+```
+
+`sample_repdist()` separates them by an order of magnitude, because it compares
+where the samples sit in representation space rather than which accessions they
+happen to carry.
+
+```{r permanova}
+md <- data.frame(group = group)
+rbind(
+  `Bray-Curtis` = vegan::adonis2(bc ~ group, data = md, permutations = 999)[1, c("R2", "Pr(>F)")],
+  `repdist`     = vegan::adonis2(D  ~ group, data = md, permutations = 999)[1, c("R2", "Pr(>F)")])
+```
+
+## Choosing the ground metric
+
+`sample_repdist()` defaults to `"euclidean"`, while `seq_repdist()` and
+`repdist_bin()` default to `"cosine"`. That split is deliberate and worth
+understanding.
+
+MMD is a distance only when the kernel is positive semi-definite, and a
+Gaussian RBF guarantees that only on a true metric. `1 - cosine` is not one: it
+violates the triangle inequality, and the kernel it induces can be indefinite —
+on real TM-Vec embeddings its smallest eigenvalue runs to `-5e-1`. Rather than
+return a meaningless number, `sample_repdist()` refuses.
+
+Nothing is lost by the split. For unit-norm embeddings — what `embed_proteins()`
+returns — the two metrics are monotone transforms of one another:
+
+```{r equivalence}
+dc <- seq_repdist(Z, "cosine")
+de <- seq_repdist(Z, "euclidean")
+max(abs(as.vector(de) - sqrt(2 * as.vector(dc))))          # ||a-b|| = sqrt(2(1-cos))
+cor(as.vector(dc), as.vector(de), method = "spearman")
+```
+
+They rank protein pairs identically; euclidean simply expresses that ordering
+on a scale that is a true metric. Use `"cosine"` where the *value* has to be
+read as a TM-score — that is, for `repdist_bin()`'s `cluster_threshold` — and
+`"euclidean"` wherever the distance feeds a kernel.
+
+This equivalence holds only for unit-norm rows. On an embedding matrix with
+varying row norms, `"euclidean"` also picks up magnitude, which `"cosine"`
+normalizes away. Passing a precomputed non-euclidean `dist` to
+`sample_repdist()` warns for the same reason.
+
+# Structural bins
+
+`repdist_bin()` collapses proteins into bins by complete-linkage clustering on
+the ground distance, so that *every* pair inside a bin meets the requested
+TM-score threshold. This is the route to differential abundance at the level of
+structure rather than accession, which is where biomarker discovery usually
+wants to be: a signal spread thinly across fifty homologous accessions is
+invisible to a per-protein test after multiple-testing correction, but
+concentrated in one bin it is not.
+
+```{r bins}
+b <- repdist_bin(counts, G, cluster_threshold = 0.5)
+table(b$bins$bin)
+```
+
+The four families are recovered exactly, twelve proteins each, without ever
+being told there were four. The bin-level count table shows the group structure
+that the accession-level table could not:
+
+```{r bin-counts}
+b$bins$counts
+```
+
+`repdist_bin()` also returns the complete-linkage tree over the original
+proteins, the same tree pruned to bin representatives, and — when `seqs` is
+supplied — the medoid sequence of each bin as an `AAStringSet`, ready for
+annotation.
+
+```{r bin-parts}
+b$tree
+b$bins$reps
+```
+
+The pruned tree is a similarity hierarchy, not a phylogeny; `repdist` fits it,
+and an external implementation such as `phyloseq::UniFrac()` can consume it.
+
+For a bin-resolution MMD, hand `sample_repdist()` the medoid *embeddings*
+rather than `bin_dist`. `bin_dist` is on the cosine scale by construction — the
+scale `cluster_threshold` is read against — and so is not the right input to a
+kernel; the medoid rows carry the same information and let the euclidean
+default apply.
+
+```{r bin-mmd}
+Z_bin <- Z[b$bins$reps$protein, ]
+rownames(Z_bin) <- b$bins$reps$bin
+D_bin <- sample_repdist(b$bins$counts, Z_bin)
+round(as.matrix(D_bin), 3)
+```
+
+The within-group distances are near zero and the between-group ones sit at
+0.62, on four bins rather than forty-eight proteins.
+
+Several thresholds can share one pairwise distance by passing a vector, which
+avoids recomputing the expensive object:
+
+```{r bins-multi}
+b2 <- repdist_bin(counts, G, cluster_threshold = c(0.5, 0.7))
+vapply(b2$bins, function(x) ncol(x$counts), integer(1))
+```
+
+# Quality control
+
+Embedding models have a training length range, and proteins beyond it are the
+ones most likely to be mis-embedded. `length_abundance_profile()` shows how
+much of the catalog *and* how much of the abundance lies past a candidate
+cutoff — the second curve is the one that matters, since a handful of very long
+proteins can carry a large share of the signal.
+
+```{r qc, fig.alt = "Proportion of proteins and of abundance longer than each length"}
+set.seed(2)
+lengths <- setNames(round(exp(rnorm(nrow(Z), log(320), 0.6))) + 40, rownames(Z))
+length_abundance_profile(counts, lengths, max_length = 1000)
+```
+
+# Practical notes
+
+**Rarefy first.** `sample_repdist()` is abundance-weighted, so it inherits the
+usual depth sensitivity. Rarefy with `vegan::rrarefy()` when samples were not
+collected at a common depth.
+
+**Memory.** The RBF kernel materializes a protein-by-protein Gram matrix, so
+cost is quadratic in the number of retained proteins. `repdist_bin()` is the
+coarser route when that matrix is too large; in practice the ceiling for
+binning is around 75,000 proteins on 32 GB. Bin the *identified* subset of a
+catalog, never a whole search database.
+
+**Reuse the ground distance.** Both `sample_repdist()` and `repdist_bin()`
+accept a precomputed `seq_repdist()` object. Build it once.
+
+```{r session}
+sessionInfo()
+```

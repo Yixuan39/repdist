@@ -7,7 +7,7 @@
 sample_repdist(
   counts,
   embeddings,
-  distance = c("cosine", "euclidean"),
+  distance = c("euclidean", "cosine"),
   weighted = TRUE,
   sigma = NULL
 )
@@ -20,9 +20,16 @@ rows, proteins in columns. Every row must have a positive total.}
 \code{colnames(counts)}, or a named protein \code{\link[stats:dist]{stats::dist()}} object such as the
 result of \code{\link[=seq_repdist]{seq_repdist()}}.}
 
-\item{distance}{Ground metric used to build the RBF kernel from
-an embedding matrix: "cosine" (1 - predicted TM-score) or "euclidean".
-Ignored when \code{embeddings} is already a \code{dist} object.}
+\item{distance}{Ground metric used to build the RBF kernel from an embedding
+matrix. \code{"euclidean"} (the default) is a true metric, so the RBF kernel is
+guaranteed positive semi-definite and the MMD is guaranteed a distance.
+\code{"cosine"} (\verb{1 - predicted TM-score}) is \emph{not} a metric and can yield an
+indefinite kernel, which this function will reject rather than return a
+meaningless number; on the unit-norm embeddings \code{embed_proteins()} returns
+the two rank protein pairs identically, so \code{"euclidean"} costs nothing.
+Ignored when \code{embeddings} is already a \code{dist} object -- in that case the
+metric was fixed when \code{\link[=seq_repdist]{seq_repdist()}} built it, so pass
+\code{seq_repdist(Z, "euclidean")} for a kernel.}
 
 \item{weighted}{Use abundance as the weight (default). \code{FALSE} replaces each
 sample's abundances with \code{sign(abundance)}, so every expressed protein
@@ -46,6 +53,12 @@ ground distance already in memory.
 Proteins with zero abundance in every sample are dropped before the weights,
 kernel, or bandwidth are computed -- they carry no signal and would
 otherwise be free to distort the median-heuristic bandwidth.
+
+The ground metric defaults to \code{"euclidean"} here, unlike \code{\link[=seq_repdist]{seq_repdist()}} and
+\code{\link[=repdist_bin]{repdist_bin()}}, which default to \code{"cosine"}. MMD is only a distance when
+the kernel is positive semi-definite, and a Gaussian RBF guarantees that
+only on a true metric; \code{1 - cosine} is not one. See \code{\link[=seq_repdist]{seq_repdist()}} for why
+this costs nothing on unit-norm embeddings.
 
 Rarefy \code{counts} first (e.g. \code{vegan::rrarefy()}) if samples weren't
 collected at a common depth.

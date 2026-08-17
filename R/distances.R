@@ -11,15 +11,32 @@
 #' `"cosine"` is `1 - cosine similarity`. For TM-Vec embeddings cosine
 #' similarity is a *predicted TM-score*, so this is `1 - TM-score` -- the same
 #' calibrated scale [repdist_bin()]'s `cluster_threshold` is expressed in,
-#' and the reason it is the default. Caveat worth knowing: `1 - cosine` is a
-#' dissimilarity, not a metric -- it violates the triangle inequality (0, 45,
-#' 90 degrees apart gives 0.293 + 0.293 < 1). That is harmless for complete-
-#' linkage clustering and the RBF kernel does not require a metric. Use
-#' `"euclidean"` if you need that guarantee and can give up the TM-score
-#' reading of the scale.
+#' and the reason it is this function's default and the one [repdist_bin()]
+#' uses. Caveat worth knowing: `1 - cosine` is a dissimilarity, not a metric --
+#' it violates the triangle inequality (0, 45, 90 degrees apart gives
+#' 0.293 + 0.293 < 1). That is harmless for the complete-linkage clustering
+#' [repdist_bin()] does.
+#'
+#' It is **not** harmless for [sample_repdist()]. A Gaussian RBF is
+#' positive-semi-definite only on a conditionally-negative-definite metric
+#' (Schoenberg), so `rbf_kernel(1 - cosine)` can be indefinite -- on real
+#' TM-Vec embeddings its smallest eigenvalue runs to `-5e-1` -- and MMD under
+#' an indefinite kernel is not a distance. That is why [sample_repdist()]
+#' defaults to `"euclidean"` while this function and [repdist_bin()] default to
+#' `"cosine"`.
+#'
+#' Nothing is given up by that split. `embed_proteins()` returns unit-norm
+#' rows, and for unit-norm vectors `||a - b|| = sqrt(2 * (1 - cos))` -- the two
+#' ground metrics are monotone transforms of each other (rank correlation 1.0
+#' to eight decimals on real TM-Vec embeddings), so they induce the same
+#' ordering of protein pairs. Euclidean simply expresses it on a scale that is
+#' a true metric. The equivalence holds *only* for unit-norm rows: on an
+#' embedding matrix with varying row norms, `"euclidean"` also picks up
+#' magnitude, which `"cosine"` normalizes away.
 #'
 #' @param embeddings Numeric matrix, one row per protein.
-#' @param distance "cosine" (1 - predicted TM-score) or "euclidean".
+#' @param distance "cosine" (1 - predicted TM-score; not a metric) or
+#'   "euclidean" (a true metric, and the one to use for a kernel).
 #' @return A `dist` object over proteins.
 #' @examples
 #' Z <- rbind(p1 = c(1, 0), p2 = c(0, 1), p3 = c(1, 1))
@@ -117,6 +134,12 @@ seq_repdist <- function(embeddings, distance = c("cosine", "euclidean")) {
 #' kernel, or bandwidth are computed -- they carry no signal and would
 #' otherwise be free to distort the median-heuristic bandwidth.
 #'
+#' The ground metric defaults to `"euclidean"` here, unlike [seq_repdist()] and
+#' [repdist_bin()], which default to `"cosine"`. MMD is only a distance when
+#' the kernel is positive semi-definite, and a Gaussian RBF guarantees that
+#' only on a true metric; `1 - cosine` is not one. See [seq_repdist()] for why
+#' this costs nothing on unit-norm embeddings.
+#'
 #' Rarefy `counts` first (e.g. `vegan::rrarefy()`) if samples weren't
 #' collected at a common depth.
 #'
@@ -125,9 +148,16 @@ seq_repdist <- function(embeddings, distance = c("cosine", "euclidean")) {
 #' @param embeddings Numeric matrix, one row per protein with rownames matching
 #'   `colnames(counts)`, or a named protein [stats::dist()] object such as the
 #'   result of [seq_repdist()].
-#' @param distance Ground metric used to build the RBF kernel from
-#'   an embedding matrix: "cosine" (1 - predicted TM-score) or "euclidean".
-#'   Ignored when `embeddings` is already a `dist` object.
+#' @param distance Ground metric used to build the RBF kernel from an embedding
+#'   matrix. `"euclidean"` (the default) is a true metric, so the RBF kernel is
+#'   guaranteed positive semi-definite and the MMD is guaranteed a distance.
+#'   `"cosine"` (`1 - predicted TM-score`) is *not* a metric and can yield an
+#'   indefinite kernel, which this function will reject rather than return a
+#'   meaningless number; on the unit-norm embeddings `embed_proteins()` returns
+#'   the two rank protein pairs identically, so `"euclidean"` costs nothing.
+#'   Ignored when `embeddings` is already a `dist` object -- in that case the
+#'   metric was fixed when [seq_repdist()] built it, so pass
+#'   `seq_repdist(Z, "euclidean")` for a kernel.
 #' @param weighted Use abundance as the weight (default). `FALSE` replaces each
 #'   sample's abundances with `sign(abundance)`, so every expressed protein
 #'   carries equal weight -- the presence/absence counterpart, standing to
@@ -142,7 +172,7 @@ seq_repdist <- function(embeddings, distance = c("cosine", "euclidean")) {
 #' @export
 sample_repdist <- function(counts,
                            embeddings,
-                           distance = c("cosine", "euclidean"),
+                           distance = c("euclidean", "cosine"),
                            weighted = TRUE,
                            sigma = NULL) {
   distance <- match.arg(distance)
@@ -156,6 +186,22 @@ sample_repdist <- function(counts,
     all(rowSums(counts) > 0),
     is.logical(weighted), length(weighted) == 1L, !is.na(weighted)
   )
+
+  # A precomputed `dist` carries its own metric, so `distance` cannot apply. The
+  # default from seq_repdist() is "cosine", which is not a metric and so is not
+  # safe under a kernel -- say so here rather than let it surface as a confusing
+  # non-PSD error further down, or not at all.
+  if (inherits(embeddings, "dist") &&
+      !identical(attr(embeddings, "method"), "euclidean")) {
+    how <- attr(embeddings, "method")
+    warning("`embeddings` is a ",
+            if (is.null(how) || !nzchar(how)) "`dist` of unknown metric"
+            else paste0(how, " `dist`"),
+            ", which is not known to satisfy the triangle inequality; the RBF ",
+            "kernel it induces may be indefinite. Pass ",
+            "seq_repdist(Z, \"euclidean\") for a sample-level distance.",
+            call. = FALSE)
+  }
 
   if (!weighted) counts <- sign(counts)
 
@@ -208,7 +254,11 @@ mmd_matrix <- function(P, K) {
   PK <- P %*% K   # the samples x proteins product, reused for both terms
   self_term <- rowSums(PK * P)
   M2 <- outer(self_term, self_term, "+") - 2 * tcrossprod(PK, P)
-  tol <- 1e-8 * max(abs(M2))
+  # Scale the tolerance to the kernel (the self terms), not to M2 itself. When
+  # every sample has the same composition M2 is exactly 0 in exact arithmetic,
+  # so a tolerance relative to max(abs(M2)) collapses onto the rounding noise it
+  # is meant to absorb and rejects a perfectly valid kernel.
+  tol <- 1e-8 * max(self_term)
   if (any(M2 < -tol))
     stop("Negative squared MMD beyond floating-point tolerance -- `K` is not a ",
          "valid positive-semidefinite kernel.", call. = FALSE)

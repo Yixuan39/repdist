@@ -9,7 +9,8 @@ seq_repdist(embeddings, distance = c("cosine", "euclidean"))
 \arguments{
 \item{embeddings}{Numeric matrix, one row per protein.}
 
-\item{distance}{"cosine" (1 - predicted TM-score) or "euclidean".}
+\item{distance}{"cosine" (1 - predicted TM-score; not a metric) or
+"euclidean" (a true metric, and the one to use for a kernel).}
 }
 \value{
 A \code{dist} object over proteins.
@@ -27,12 +28,28 @@ never materialized.
 \code{"cosine"} is \verb{1 - cosine similarity}. For TM-Vec embeddings cosine
 similarity is a \emph{predicted TM-score}, so this is \code{1 - TM-score} -- the same
 calibrated scale \code{\link[=repdist_bin]{repdist_bin()}}'s \code{cluster_threshold} is expressed in,
-and the reason it is the default. Caveat worth knowing: \code{1 - cosine} is a
-dissimilarity, not a metric -- it violates the triangle inequality (0, 45,
-90 degrees apart gives 0.293 + 0.293 < 1). That is harmless for complete-
-linkage clustering and the RBF kernel does not require a metric. Use
-\code{"euclidean"} if you need that guarantee and can give up the TM-score
-reading of the scale.
+and the reason it is this function's default and the one \code{\link[=repdist_bin]{repdist_bin()}}
+uses. Caveat worth knowing: \code{1 - cosine} is a dissimilarity, not a metric --
+it violates the triangle inequality (0, 45, 90 degrees apart gives
+0.293 + 0.293 < 1). That is harmless for the complete-linkage clustering
+\code{\link[=repdist_bin]{repdist_bin()}} does.
+
+It is \strong{not} harmless for \code{\link[=sample_repdist]{sample_repdist()}}. A Gaussian RBF is
+positive-semi-definite only on a conditionally-negative-definite metric
+(Schoenberg), so \code{rbf_kernel(1 - cosine)} can be indefinite -- on real
+TM-Vec embeddings its smallest eigenvalue runs to \code{-5e-1} -- and MMD under
+an indefinite kernel is not a distance. That is why \code{\link[=sample_repdist]{sample_repdist()}}
+defaults to \code{"euclidean"} while this function and \code{\link[=repdist_bin]{repdist_bin()}} default to
+\code{"cosine"}.
+
+Nothing is given up by that split. \code{embed_proteins()} returns unit-norm
+rows, and for unit-norm vectors \verb{||a - b|| = sqrt(2 * (1 - cos))} -- the two
+ground metrics are monotone transforms of each other (rank correlation 1.0
+to eight decimals on real TM-Vec embeddings), so they induce the same
+ordering of protein pairs. Euclidean simply expresses it on a scale that is
+a true metric. The equivalence holds \emph{only} for unit-norm rows: on an
+embedding matrix with varying row norms, \code{"euclidean"} also picks up
+magnitude, which \code{"cosine"} normalizes away.
 }
 \examples{
 Z <- rbind(p1 = c(1, 0), p2 = c(0, 1), p3 = c(1, 1))
