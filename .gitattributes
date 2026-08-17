@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Source data is stored verbatim: never normalize line endings in data/,
+# these are the irreplaceable inputs the curation reports parse.
+data/** -text
