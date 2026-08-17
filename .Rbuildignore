@@ -7,3 +7,5 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^\.claude$
+^repdist\.BiocCheck$
+^inst/python/__pycache__$

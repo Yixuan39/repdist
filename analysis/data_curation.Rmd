@@ -48,8 +48,16 @@ names(raw)[1:5] <- c("code", "protein_id", "aa_length", "description", "sequence
 raw <- raw[raw$code == "Microbiome", ]
 
 counts <- vapply(raw[, -(1:5)], function(x) {
-  v <- as.numeric(x); v[is.na(v)] <- 0; v      # blank cell = protein not seen
+  blank <- !nzchar(trimws(x))                  # blank cell = protein not seen
+  v <- suppressWarnings(as.numeric(x))
+  bad <- is.na(v) & !blank                      # a parse failure that ISN'T blank is
+  if (any(bad))                                 # unexpected data, not a documented zero
+    stop("Non-numeric, non-blank count cell(s): ",
+         paste(unique(x[bad]), collapse = ", "), call. = FALSE)
+  v[blank] <- 0
+  v
 }, numeric(nrow(raw)))
+stopifnot(all(counts >= 0), all(counts == round(counts)))  # PSM counts only
 storage.mode(counts) <- "integer"
 dimnames(counts) <- list(raw$protein_id, names(raw)[-(1:5)])
 

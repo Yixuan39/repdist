@@ -1,10 +1,40 @@
 {
-  "scikit-bio/tmvec-swissmodel": {
-    "head": "tmvec1",
-    "backbone": "Rostlab/prot_t5_xl_uniref50"
+  "esm2": {
+    "head": "generic",
+    "backbone": "facebook/esm2_t33_650M_UR50D",
+    "training_max_length": 1022,
+    "context_max_length": 1022
+  },
+  "esm2-small": {
+    "head": "generic",
+    "backbone": "facebook/esm2_t6_8M_UR50D",
+    "training_max_length": 1022,
+    "context_max_length": 1022
   },
   "scikit-bio/tmvec": {
     "head": "tmvec1",
-    "backbone": "Rostlab/prot_t5_xl_uniref50"
+    "backbone": "Rostlab/prot_t5_xl_uniref50",
+    "training_max_length": 1022
+  },
+  "scikit-bio/tmvec-swissmodel": {
+    "head": "tmvec1",
+    "backbone": "Rostlab/prot_t5_xl_uniref50",
+    "training_max_length": 300
+  },
+  "tmvec-swissmodel-large": {
+    "head": "tmvec1-large",
+    "backbone": "Rostlab/prot_t5_xl_uniref50",
+    "training_max_length": 1000,
+    "url": "https://ndownloader.figshare.com/files/49181530",
+    "sha256": "59584bbfa81dd7756fef0b5f385fb7bccd78d7c30785ca1de6f26d199e6c8755",
+    "config": {
+      "d_model": 1024,
+      "nhead": 4,
+      "num_layers": 4,
+      "dim_feedforward": 2048,
+      "out_dim": 512,
+      "dropout": 0.1,
+      "activation": "relu"
+    }
   }
 }

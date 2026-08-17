@@ -1,0 +1,178 @@
+{
+  "search_id": "search_3f445a5b003623044d7f8237038ac677",
+  "session_id": "session_3f445a5b003623044d7f8237038ac677",
+  "status": "ok",
+  "results": [
+    {
+      "url": "https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction/data",
+      "title": "AMP\u00ae-Parkinson's Disease Progression Prediction | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "... organizations/fnihamppd) AMP\u00ae-PD \u00b7 Featured Code Competition \u00b7 3 years ago\n\nLate Submission\n\nmore\\_horiz\n\n# AMP\u00ae-Parkinson's Disease Progression Prediction\n\nUse protein and peptide data measurements from Parkinson's Disease patients ..."
+      ]
+    },
+    {
+      "url": "https://github.com/prithvidasgupta/si-618-parkinson-prediction",
+      "title": "GitHub - prithvidasgupta/si-618-parkinson-prediction: AMP Kaggle Competition https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction/data?select=train_clinical_data.csv",
+      "publish_date": null,
+      "excerpts": [
+        "prithvidasgupta / **si-618-parkinson-prediction** Public\n\n* [Notifications](https://github.com/login?return_to=%2Fprithvidasgupta%2Fsi-618-parkinson-prediction) You must be signed in to change notification settings\n* [Fork 1](https://github.com/login?return_to=%2Fprithvidasgupta%2Fsi-618-parkinson-prediction)\n* [Star 1](https://github.com/login?return_to=%2Fprithvidasgupta%2Fsi-618-parkinson-prediction)\n\nAMP Kaggle Competition [https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction/data?select=train\\_clinical\\_data.csv](https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction/data?select=train_clinical_data.csv)\n\n1 star 1 fork Branches Tags Activity\n\n[Star](https://github.com/login?return_to=%2Fprithvidasgupta%2Fsi-618-parkinson-prediction)\n\n[Notifications](https://github.com/login?return_to=%2Fprithvidasgupta%2Fsi-618-parkinson-prediction) You must be signed in to change notification settings\n\n* Code\n* [Issues](https://github.\ncom/prithvidasgupta/si-618-parkinson-prediction/issues)\n* [Pull requests](https://github.com/prithvidasgupta/si-618-parkinson-prediction/pulls)\n* Actions\n* Projects\n* Security\n* Insights\n\n# prithvidasgupta/si-618-parkinson-prediction\n\nmain\n\nBranches Tags\n\n \n\nGo to file\n\nCode\n\n## Folders and files\n\n|Name |Name |Last commit message |Last commit date |\n| --- | --- | --- | --- |\n|## Latest commit\n\n## History\n\n[44 Commits](https://github.com/prithvidasgupta/si-618-parkinson-prediction/commits/main/)\n\n |\n|data |data | | |\n|processed\\_data |processed\\_data | | |\n|rough\\_work |rough\\_work | | |\n|.gitignore |.gitignore | | |\n|EDA.ipynb |EDA.ipynb | | |\n|README.md |README.md | | |\n|main.ipynb |main.ipynb | | |\n|View all files |\n\n## Repository files navigation\n\n* README\n\n# Parkinson's Disease Progression Prediction\n\nWe propose to predict the progression of Parkinson's Disease (PD) using protein and peptide data measurements.\nParkinson's Disease is a chronic and progressive neurological disorder that affects movement, causing symptoms such as tremors, stiffness, and impaired balance and coordination. It is the second most common neurodegenerative disorder, affecting approximately 1% of people over the age of 60. Early and accurate prediction of disease progression can help healthcare providers plan and adjust treatment regimens accordingly, including medications, physical therapy, and surgical interventions. It can also help patients and their caregivers better understand what to expect in terms of symptoms and disease trajectory.\n\nThe progression in patients with PD is measured by MDS-UPDRS (Movement Disorder Society-Sponsored Revision of the Unified Parkinson's Disease Rating Scale), which is a comprehensive assessment of both motor and non-motor symptoms associated with Parkinson's. We plan to develop a model trained on data of protein and peptide levels over time in subjects with Parkinson\u2019s disease.\nWe believe this work could help provide important breakthrough information about which molecules change as Parkinson\u2019s disease progresses.\n\n## Team members\n\n* Prithvijit Dasgupta (prithvid)\n* Nowrin Mohamed (nowrin)\n* Sachin Salim (sachinks)\n\n# Steps to run the code:\n\n1. eda.ipynb - Exploratory data analysis of all 4 datasets present in the project with basic manipulation and also visualization.\n2. main.ipynb - Preprocessing, data transformation, and all the ML models are present in this file.\n3. data\\\\ - contains the original train\\_clinical\\_data.csv, supplemental\\_clinical\\_data.csv, train\\_proteins.csv and train\\_peptides.csv data. In addition to this, it contains the processed data as peptides\\_features.csv and proteins\\_features.csv\n\n## About\n\nAMP Kaggle Competition [https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction/data?select=train\\_clinical\\_data.csv](https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction/data?"
+      ]
+    },
+    {
+      "url": "https://fnih.org/our-programs/accelerating-medicines-partnership-amp/amp-parkinsons-disease/",
+      "title": "AMP\u00ae Parkinson's Disease | FNIH",
+      "publish_date": "2025-09-17",
+      "excerpts": [
+        "# AMP\u00ae  \nParkinson's  \nDisease\n\n* [Home](https://fnih.org/)\n* [Our Programs](https://fnih.org/our-programs/)\n* [Accelerating Medicines Partnership\u00ae (AMP\u00ae)](https://fnih.org/our-programs/accelerating-medicines-partnership-amp/)\n* AMP\u00ae Parkinson\u2019s Disease\n\n##### Our mission is to combine data and resources to aid discovery of novel treatments for Parkinson\u2019s disease.\n\nThe Accelerating Medicines Partnership\u00ae (AMP\u00ae) Parkinson\u2019s Disease (AMP PD) is a public-private partnership among NIH and private sector organizations. Managed by the FNIH, this partnership aims to identify and validate diagnostic, prognostic, and/or disease progression biomarkers for Parkinson\u2019s disease and to provide new tools for use in clinical trials, thereby accelerating the development of novel therapies.\n\n###### Goals\n\n* Standardizing data collection for biomarkers in multiple cohorts.\n* Conducting standardized assays on thousands of existing biosamples, incorporating existing clinical, imaging, genetic data.\n* Pursuing additional large-scale biomarker discovery with transcriptomics, epigenomics, whole genome sequencing, metabolomics, and proteomics.\n* Dissecting new targets and disease subtypes; track and predict disease progression; identify biomarkers of Parkinson\u2019s progression and assess their potential as targets for therapies.\n\n[Learn More](https://www.ninds.nih.gov/current-research/focus-disorders/parkinsons-disease-research/amp-parkinsons-disease-and-related-disorders)\n\n#### No Approved Therapies\n\nIn the United States alone, it is estimated that more than 1 million people live with PD and approximately 60,000 Americans are diagnosed with the disease each year.\nAlthough PD is a complex neurodegenerative disorder, the two primary pathological hallmarks of PD are death of dopamine neurons in a specific area of the brain called the substantia nigra and buildup within neurons of a protein, called alpha synuclein, into clusters called Lewy bodies. PD has been linked to several genetic, epigenetic and environmental factors; however, exact causes of neuronal death and Lewy body formation remain unknown. Despite hundreds of millions of dollars spent on research and development, no disease-modifying drugs have been approved for PD. Data from current PD studies remains siloed behind independent access mechanisms, with no centralized harmonized dataset \u2013 limiting the ability to conduct cross-study analyses required to develop deeper mechanistic understanding of disease drivers to be targeted by novel therapies in trials.\n\n#### Identifying & Validating New Biomarkers\nSuccess of clinical trials aimed at developing new treatments for PD hinges on identifying and validating biomarkers for application in clinical trials. A wealth of information has been collected from individuals with PD through such programs as the NINDS\u2019s Parkinson\u2019s Disease Biomarkers Program (PDBP) the Michael J. Fox Foundation (MJFF)\u2019s Parkinson\u2019s disease Progression Biomarker Initiative (PPMI), the MJFF/NINDS BioFIND cohort and the Harvard Biomarkers Study (HBS). However, the prohibitive time, cost and resources required to perform a large-scale analysis of data from these programs have prevented individual researchers, companies, and organizations from fully leveraging these datasets. As a public-private partnership, AMP PD will provide expertise and resources needed to determine which biomarkers show the greatest potential for predicting PD and the progression of the disease.\n\n#### Partners\n\n###### Private Sector Partners\n\nNP-partner\n\nNP-partner\n\nNP-partner\n\nNP-partner"
+      ]
+    },
+    {
+      "url": "https://fnih.org/our-programs/accelerating-medicines-partnership-amp/parkinsons-disease-and-related-disorders/",
+      "title": "AMP\u00ae Parkinson\u2019s Disease and Related Disorders | FNIH",
+      "publish_date": "2025-10-16",
+      "excerpts": [
+        "\\\\\n\n# AMP\u00ae  \nParkinson\u2019s Disease and Related Disorders\n\n* [Home](https://fnih.org/)\n* [Our Programs](https://fnih.org/our-programs/)\n* [Accelerating Medicines Partnership\u00ae (AMP\u00ae)](https://fnih.org/our-programs/accelerating-medicines-partnership-amp/)\n* AMP\u00ae Parkinson\u2019s Disease and Related Disorders\n\n##### Our mission is to better differentiate Parkinson\u2019s disease from related neurodegenerative disorders, enabling earlier diagnosis, more timely interventions, and better outcomes.\n\nAMP Parkinson\u2019s Disease and Related Disorders (AMP PDRD) builds on the infrastructure established during AMP Parkinson\u2019s Disease (AMP PD), expanding on datasets to include a broader range of patients with Parkinson\u2019s disease and other related disorders that share similar symptoms and biological characteristics, such as multiple system atrophy (MSA), Lewy body dementia (LBD), and progressive supranuclear palsy (PSP).\nAMP PD integrated and harmonized data from diverse natural history and clinical trial studies, and streamlined data access to advance the discovery and development of therapeutics for people living with Parkinson\u2019s disease.\n\nAMP PDRD seeks to employ a data-driven approach to identify and validate biomarkers distinguishing Parkinson\u2019s disease from related diseases, with an overarching goal to enhance the success of clinical trials and ultimately broaden treatment options for individuals affected by these conditions.\n\n###### Goals\n\n* AMP PDRD seeks to build on progress to date by:\n* 1) Discovery and validation of PD and related synucleinopathy biomarkers: validating biomarkers such as alpha-synuclein seed amplification assays and other novel biomarkers to enhance patient stratification and therapeutic development while deepening understanding of PD\u2019s and related synucleinopathies underlying mechanisms.\n\n...\n\nIn the United States alone, it is estimated that more than 1 million people live with PD and approximately 90,000 Americans are diagnosed with the disease each year.\n\nEarly diagnosis is crucial for initiating appropriate treatment, and doctors have traditionally relied on a patient\u2019s medical history, neurological examinations, and imaging tests to rule out other conditions with similar symptoms. A promising new diagnostic test can detect abnormal amounts of a protein called alpha-synuclein, a known biological characteristic of Parkinson\u2019s disease, through a spinal tap or skin biopsy.\n\nOnce diagnosed, currently available treatments can manage symptoms, but no drugs have been approved to cure Parkinson\u2019s or alter the course of the disease.\n\n#### Identifying & Validating New Biomarkers"
+      ]
+    },
+    {
+      "url": "https://www.nih.gov/amp/amp-projects",
+      "title": "AMP Projects",
+      "publish_date": "2025-07-10",
+      "excerpts": [
+        "U.S. flag\n\nAn official website of the United States government\n\nHere\u2019s how you know\n\nHere\u2019s how you know\n\n## Breadcrumb\n\n1. Home\n2. Accelerating Medicines Partnership (AMP)\n\n* AMP Partners\n* AMP Projects\n\n# AMP Projects\n\n# AMP Projects\n\n## Alzheimer\u2019s Disease (AD)\n\n[AMP AD](https://www.nia.nih.gov/research/amp-ad) uses a precision medicine approach to validate existing targets and discover novel targets and biomarkers. [AD 1.0](https://www.nia.nih.gov/research/amp-ad-first-iteration) launched in 2014 and applied cutting-edge systems and network biology approaches to integrate multidimensional human \u201comic\u201d data for more than 2,000 human brains at all stages of AD. Using clinical and pathological data, researchers aimed to discover novel therapeutic targets for AD; gain a systems-level understanding of the gene, protein, and metabolic networks within which these novel targets operate; and conduct experimental validation of candidate targets in multiple model systems.\n\n...\n\nThe program is providing the resources and tools needed to determine which biomarkers show the greatest potential for predicting diagnosis, progression, and potential therapeutic targets for these diseases.\n\nThe AMP PD program performed large-scale harmonization of previously collected clinical data and analyzed biospecimens from over 10,000 subjects. Whole genome sequencing, transcriptomics, proteomics, and post-mortem tissue sequencing are now publicly available for use by the scientific community and this dataset is currently expanding to include multi-omic molecular profiling from other \u03b1-synucleinopathies and atypical parkinsonisms. This resource enables researchers to pursue large-scale biomarker discovery, dissect new targets and disease subtypes, track and predict disease progression, and identify biomarkers of Parkinson\u2019s progression and assess their potential as targets for therapies.\n\n...\n\ngov%7Ccc0027155eb54b66248108ddb8aade1b%7C14b77578977342d58507251ca2dc2b06%7C0%7C0%7C638869766182979591%7CUnknown%7CTWFpbGZsb3d8eyJFbXB0eU1hcGkiOnRydWUsIlYiOiIwLjAuMDAwMCIsIlAiOiJXaW4zMiIsIkFOIjoiTWFpbCIsIldUIjoyfQ%3D%3D%7C0%7C%7C%7C&sdata=nVsOaz23iMm6Ep30UtHbFyqs3ACRyISgmEYk0u4kA3U%3D&reserved=0) \u2014 Contains data from cerebrospinal fluid, RNA, plasma, DNA, and postmortem brain samples from nearly 11,000 Parkinson\u2019s disease patients and healthy controls accessible to academic and industry researchers for the identification and validation of biomarkers for Parkinson\u2019s disease.\n\nLearn more: [NINDS AMP PDRD](https://www.ninds.nih.gov/current-research/focus-disorders/parkinsons-disease-research/amp-parkinsons-disease-and-related-disorders) | [FNIH AMP Parkinson\u2019s Disease and Related Disorders](https://gcc02.safelinks.protection.outlook.com/?url=https%3A%2F%2Ffnih.\norg%2Four-programs%2Faccelerating-medicines-partnership-amp%2Fparkinsons-disease-and-related-disorders%2F&data=05%7C02%7Cjess.hiller%40nih.gov%7Ccc0027155eb54b66248108ddb8aade1b%7C14b77578977342d58507251ca2dc2b06%7C0%7C0%7C638869766182998793%7CUnknown%7CTWFpbGZsb3d8eyJFbXB0eU1hcGkiOnRydWUsIlYiOiIwLjAuMDAwMCIsIlAiOiJXaW4zMiIsIkFOIjoiTWFpbCIsIldUIjoyfQ%3D%3D%7C0%7C%7C%7C&sdata=Y3XxZq%2BD1ax%2FbZPTBMK0vOjkg6skuqrHF8cl%2FikpL3Q%3D&reserved=0)\n\n## Autoimmune Diseases of Rheumatoid Arthritis (RA) and Systemic Lupus Erythematosus (SLE)\n\n[AMP RA/SLE](https://www.niams.nih.gov/grants-funding/funded-research/accelerating-medicines/RA-SLE) is analyzing, at the single cell level, tissue and blood samples from people with RA and lupus to pinpoint genes, proteins, biological pathways, and signaling networks. This type of analysis will allow insights into key aspects of diseases processes and allow comparisons between diseases.\n\n...\n\n* [Office of Inspector General](https://oig.hhs.gov/)\n* Nondiscrimination Notice\n\nLooking for U.S. government information and services?\n\n[Visit USA.gov](https://www.usa.gov/)"
+      ]
+    },
+    {
+      "url": "https://amp-pdrd.org/",
+      "title": "Home | AMP-PDRD",
+      "publish_date": null,
+      "excerpts": [
+        "This repository is under review for potential modification in compliance with Administration directives.\n\nThe AMP PD Knowledge Portal was developed to host and share resources related to Parkinson\u2019s disease research and remains fully operational. We continue to maintain and accept Parkinson\u2019s disease and related disorders data and resources throughout this review process.\n\n# Accelerating Medicines Partnership \u00ae Parkinson's Disease and Related Disorders\n\nCollaborating toward biomarker discovery to advance the development of Parkinson\u2019s disease therapies\n\nGet the AMP PD story\n\nRegister for Access\n\nAlready registered? \n\nAMP-PD - AMP-PDRD Timeline\n\nUnified AMP PD Cohorts\n\n## Unified AMP PD Cohorts\n\nBefore clinical trials for new treatments can begin, researchers need thousands of volunteers building datasets and biosample banks, using the latest analysis methods and technologies.\n\nMeet the AMP PD Cohorts\n\nGenomic Visualization\n\nParallel Coordinates\n\n## Methods for Data Analysis\nAMP\u00ae PD gives researchers access to a large, harmonized dataset with:\n\n* common clinical and genomic data\n* select clinical- and genetic- population information\n\nplus proprietary, research-developed applications for visualizing and harmonizing data\n\nExplore the AMP PD datasets\n\nExplore the Researcher Tools\n\n## News & Updates\n\nRead latest news and updates related to AMP PD\n\n* AMP PD in the news\n* Advancements in research using AMP PD\n* Grant and funding opportunities\n* Program milestones and roadmap\n\nView all News & Updates\n\n### Accelerating Medicine Partnership in Parkinson's Disease Webinar\n\nAMP PD has officially launched and made available the first series of webinar training videos. These videos provide information on key concepts and live demonstrations, including:\n\n* Signing up for access via the online portal\n* Overview of the Google Cloud Platform (GCP)\n* Interacting with AMP PD data via BigQuery\n* Researcher Workbench (Terra) deep-dive\n* Working with official AMP PD Workspaces\n* NIH STRIDES Cloud overview\n\nLearn More\n\n### New Large-Scale Data Portal Will Promote Parkinson\u2019s Treatment Development\n\nThe [Accelerating Medicines Partnership](https://www.nih.gov/research-training/accelerating-medicines-partnership-amp) (AMP) [for Parkinson\u2019s](https://www.nih.gov/research-training/accelerating-medicines-partnership-amp/parkinsons-disease) (PD) has opened a [data portal](https://amp-pd.org/) with de-identified information from 4,298 [Parkinson\u2019s](https://parkinsonsnewstoday.com/what-is-parkinsons-disease/) patients and healthy control subjects for use by scientists seeking new [treatments](https://parkinsonsnewstoday.com/parkinsons-disease-treatments/) for the progressive neurodegenerative disease.\n\n[Read More](https://amp-pd.org/news/new-large-scale-data-portal-will-promote-parkinsons-treatment-development)\n\nSource:\n\nParkinson's News Today\n\n### Accelerating Medicines Partnership launches data knowledge portal for Parkinson\u2019s disease"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction",
+      "title": "AMP\u00ae-Parkinson's Disease Progression Prediction | Kaggle",
+      "publish_date": "2023-02-16",
+      "excerpts": [
+        "AMP\u00ae-Parkinson's Disease Progression Prediction | Kaggle\nFeb 16, 2023 \u00b7 The goal of this competition is to predict MDS-UPDR scores, which measure progression in patients with Parkinson's disease. The Movement"
+      ]
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/12815652",
+      "title": "The Unified Parkinson's Disease Rating Scale (UPDRS)",
+      "publish_date": null,
+      "excerpts": [
+        "The Unified Parkinson's Disease Rating Scale (UPDRS)\n2003 \u00b7 Cited by 1594 \u2014 The Movement Disorder Society Task Force for Rating Scales for Parkinson's Disease prepared a critique of the Unified Parkinson's Disease Rating Scale ( UPDRS )."
+      ]
+    },
+    {
+      "url": "https://www.ninds.nih.gov/current-research/focus-disorders/parkinsons-disease-research/amp-parkinsons-disease-and-related-disorders",
+      "title": "AMP Parkinson's Disease and Related Disorders | National Institute of Neurological Disorders and Stroke",
+      "publish_date": null,
+      "excerpts": [
+        "gov/) , pharmaceutical and biotechnology companies, and non-profit organizations to facilitate therapeutic target validation from human samples and the discovery of new biomarkers for Parkinson\u2019s disease (PD). In July 2024, this effort moved into its second phase with the launch of the Accelerating Medicines Partnership(R) in Parkinson\u2019s Disease and Related Disorders (AMP(R) PDRD). This partnership builds on the foundation of [AMP PD](http://amp-pd.org) to find ways to better differentiate PD from related neurodegenerative disorders such as multiple system atrophy, Lewy body dementia, and progressive supranuclear palsy. The goal of this program is to enable earlier diagnoses, more timely interventions, and better outcomes for people living with these disorders.\n\n## About Parkinson\u2019s Disease and Related Disorders\n\n...\n\n, movement) and the autonomic nervous system, which controls functions like blood pressure and digestion;\n* Lewy body dementia , which is characterized by the presence of Lewy bodies, which contain alpha-synuclein, a protein also linked to PD, in the brain and results in cognitive decline that worsens over time; and\n* progressive supranuclear palsy , which is a rare disorder that affects body movements, walking and balance, and eye movements. The disorder can also affect mood, behavior, and thinking.\n\n## Need for New Biomarkers\n\nBecause PD results from the degeneration of nerves within the brain, early diagnosis is crucial for initiating treatments that can have the greatest impact. This diagnosis typically relies on the person\u2019s medical history, imaging tests, and neurological exams that can help distinguish between PD and other conditions with similar symptoms..\n\n...\n\nThe data portal can be accessed from the [AMP PD website](https://amp-pd.org/) .\n\n[Visit the AMP PD website and data portal](https://amp-pd.org/ \"Visit the AMP PD website and data portal\")\n\nAMP PDRD will expand these collections to include data from a wider range of people living with both PD and related disorders. This will aid in the identification of new biomarkers and targets for drug development and improve our ability to classify more precisely various disease stages and subtypes.\n\n### Goals\n\nThe goals of AMP PDRD are as follows:\n\n1. The discovery and validation of PD and related synucleinopathy biomarkers\n2. The integration of existing and new multi-omics data to identify molecular signatures within brain tissue and patient biosamples.\n3. The establishment of a multi-scale analysis framework that leverages bioinformatics to create predictive modeling and analytical tools to identify and validate disorder subtypes.\n\n### PWLE Involvement and PD Advocacy Community"
+      ]
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/18951537",
+      "title": "UPDRS activity of daily living score as a marker of Parkinson's disease progression",
+      "publish_date": "2009-01-30",
+      "excerpts": [
+        "* PMCID: [PMC3103833](https://pmc.ncbi.nlm.nih.gov/articles/PMC3103833/)\n* DOI: [10\\.1002/mds.22335](https://doi.org/10.1002/mds.22335)\n\n## Abstract\n\nThe activities of daily living (ADL) subscore of the Unified Parkinson's Disease Rating Scale (UPDRS) captures the impact of Parkinson's disease (PD) on daily function and may be less affected than other subsections by variability associated with drug cycle and motor fluctuations. We examined UPDRS mentation, ADL and motor subscores in 888 patients with idiopathic PD. Multiple linear regression analyses determined the association between disease duration and UPDRS subscores as a function of medication status at examination and in a subset of patients with multiple examinations. Independent of medication status and across cross-sectional and longitudinal analyses, ADL subscores showed a stronger and more stable association with disease duration than other UPDRS subscores after adjusting for age of disease onset."
+      ]
+    },
+    {
+      "url": "https://www.physio-pedia.com/Unified_Parkinson%27s_Disease_Rating_Scale_%28UPDRS%29",
+      "title": "Unified Parkinson's Disease Rating Scale (UPDRS)",
+      "publish_date": null,
+      "excerpts": [
+        "1 Equipment Required:\n    + 3\\.2 Duration:\n    + 3\\.3 Scoring:\n* 4 Evidence\n  \n    + 4\\.1 Reliability\n    + 4\\.2 Validity\n* 5 Miscellaneous\n* 6 Links\n* 7 References\n\n## Objective [ [edit](https://www.physio-pedia.com/index.php?title=Unified_Parkinson%27s_Disease_Rating_Scale_\\(UPDRS\\)&veaction=edit&section=1 \"Edit section: Objective\u00a0\") | [edit source](https://www.physio-pedia.com/index.php?title=Unified_Parkinson%27s_Disease_Rating_Scale_\\(UPDRS\\)&action=edit&section=1 \"Edit section: Objective\u00a0\") ]\n\nUnified Parkinson's Disease Rating Scale (UPDRS) is a rating tool used to gauge the the severity and progression of Parkinson\u2019s disease in patients [[1]]() .  The UPDRS scale consists of the following six segments: 1) Mentation, Behavior, and Mood, 2) ADL, 3) Motor sections, 4)  Complications of Therapy (in the past week) 5) Modified Hoehn and Yahr Scale , and 6) Schwab and England ADL scale. The first four segments are made up of 42 items grouped into four subscales."
+      ]
+    },
+    {
+      "url": "https://www.parkinsons.va.gov/resources/UPDRS.asp",
+      "title": "UPDRS - Parkinson\u2019s Disease Research, Education and Clinical Centers",
+      "publish_date": "2007-01-11",
+      "excerpts": [
+        "Any sleep disturbances, such as insomnia or hypersomnolence?\n\n0 = No  \n1 = Yes\n\n42\\. Does the patient have symptomatic orthostasis? ( Record the patient's blood pressure, height and weight on the scoring form)\n\n0 = No  \n1 = Yes\n\nDownloadable forms available at http://www.mdvu.org/library/ratingscales/pd/default.htm\n\nreturn to top go\n\nU.S. Department of Veterans Affairs | 810 Vermont Avenue, NW Washington DC 20420\n\nLast updated April 22, 2026\n\n## Get help from Veterans Crisis Line\n\n* [Call **988 (Press 1)**](tel:988)\n* Text to **838255**\n* [Chat **confidentially now**](https://www.veteranscrisisline.net/ChatTermsOfService.aspx?account=Veterans%20Chat)\n* [Call TTY if you have hearing loss **1-800-799-4889**](tel:18007994889)\n\nIf you are in crisis or having thoughts of suicide,\nvisit [VeteransCrisisLine.net](https://www.veteranscrisisline.net/) for more resources.\n\nClose this modal"
+      ]
+    },
+    {
+      "url": "https://www.bibliomed.org/?mno=152804",
+      "title": "Correlation of Age and Severity of Clinical Manifestation Assessed by UPDRS in Patients with Idiopathic Parkinsons Disease\n | Medical Archives",
+      "publish_date": "2014-02-20",
+      "excerpts": [
+        "... gotodoi.php?mno=152804&gdoi=10.5455/medarh.2014.68.44-46)\n\n  \n  \n##### Correlation of Age and Severity of Clinical Manifestation Assessed by UPDRS in Patients with Idiopathic Parkinsons Disease\n\n_Arben Taravari, Fatmir Medziti, Bojana ..."
+      ]
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5898442",
+      "title": "Progression of MDS\u2010UPDRS Scores Over Five Years in De Novo ... - PMC",
+      "publish_date": "2013-11-17",
+      "excerpts": [
+        "Progression of MDS\u2010UPDRS Scores Over Five Years in De Novo ... - PMC\nThe maximum total UPDRS score is 199, indicating the worst possible disability from PD. The UPDRS demonstrates good reliability and validity as well as"
+      ]
+    },
+    {
+      "url": "https://mds.movementdisorders.org/updrs",
+      "title": "MDS-UPDRS Training",
+      "publish_date": null,
+      "excerpts": [
+        "... International Parkinson and Movement Disorder Society](https://www.movementdisorders.org)\n\nMain Content\n\n# MDS-UPDRS Training\n\n[Training Home/Login](/updrs/) [About MDS-UPDRS](/updrs/about.php) [Copyright/Permissions ..."
+      ]
+    },
+    {
+      "url": "https://fairsharing.org/5546",
+      "title": "Accelerating Medicines Partnership\u00ae Parkinson's Disease",
+      "publish_date": "2024-07-01",
+      "excerpts": [
+        "Accelerating Medicines Partnership\u00ae Parkinson's Disease\nJul 1, 2024 \u2014 The Accelerating Medicines Partnership \u2013 Parkinson's Disease (AMP PD) is a public-private partnership formed for the purpose of identifying and"
+      ]
+    },
+    {
+      "url": "https://mds.movementdisorders.org/updrs/about.php",
+      "title": "MDS-UPDRS Training",
+      "publish_date": null,
+      "excerpts": [
+        "... International Parkinson and Movement Disorder Society](https://www.movementdisorders.org)\n\nMain Content\n\n# MDS-UPDRS Training\n\n[Training Home/Login](/updrs/) [About MDS-UPDRS](/updrs/about.php) [Copyright/Permissions ..."
+      ]
+    },
+    {
+      "url": "https://verily.com/solutions/platform/data-catalog/amp-pd-pdrd",
+      "title": "AMP PD / PDRD | FNIH | Data Catalog",
+      "publish_date": null,
+      "excerpts": [
+        "AMP PD / PDRD | FNIH | Data Catalog\nDiscovering and validating biomarkers capable of accurately differentiating Parkinson's disease from related synucleinopathies and atypical Parkinsonisms."
+      ]
+    },
+    {
+      "url": "https://amp-pdrd.org/about",
+      "title": "About AMP PDRD and AMP PD | AMP-PDRD",
+      "publish_date": null,
+      "excerpts": [
+        "AMP PDRD builds upon the infrastructure established during its first phase, <strong>AMP Parkinson</strong>\u2019s Disease (AMP PD), which established a centralized data portal to enhance the broad sharing of harmonized data from diverse natural history and clinical trial studies to advance the discovery and development of therapeutics for people living with Parkinson\u2019s disease."
+      ]
+    },
+    {
+      "url": "https://www.amp-pd.org/",
+      "title": "Home | AMP-PD",
+      "publish_date": null,
+      "excerpts": [
+        "... medicines-partnership-amp) (AMP) [for Parkinson\u2019s](https://www.nih.gov/research-training/accelerating-medicines-partnership-amp/parkinsons-disease) (PD) has opened a [data portal](https://amp-pd.org/) with de-identified information from 4,298 [Pa"
+      ]
+    }
+  ],
+  "usage": [
+    {
+      "name": "sku_search",
+      "count": 1
+    },
+    {
+      "name": "sku_extract_excerpts",
+      "count": 10
+    }
+  ],
+  "warnings": []
+}

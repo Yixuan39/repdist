@@ -1,0 +1,178 @@
+{
+  "search_id": "search_8f22b54e4ccd00b5fceb05dd3fbe65dc",
+  "session_id": "session_8f22b54e4ccd00b5fceb05dd3fbe65dc",
+  "status": "ok",
+  "results": [
+    {
+      "url": "https://www.kaggle.com/competitions/amp-parkinsons-disease-progression-prediction/data",
+      "title": "AMP\u00ae-Parkinson's Disease Progression Prediction | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "... predictive value are likely worth investigating further. The core of the dataset consists of protein abundance values derived from mass spectrometry readings of cerebrospinal fluid (CSF) samples gathered from several hundred patients. Each patien"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions?listOption=active&sortOption=recentlyLaunched",
+      "title": "Kaggle Competitions",
+      "publish_date": null,
+      "excerpts": [
+        "Kaggle uses cookies from Google to deliver and enhance the quality of its services and to analyze traffic.\n\nLearn more\n\nOK, Got it.\n\nSomething went wrong and this page crashed!\n\n###### Something went wrong and this page crashed!\n\nIf the issue persists, it's likely a problem on our side.\n\n```\nLoading chunk 4483 failed.\n(error: https://www.kaggle.com/static/assets/4483.23506493096dd6b7.js)\n\nkeyboard_arrow_up content_copy\n\nChunkLoadError\n    at i.f.j (https://www.kaggle.com/static/assets/runtime.js?v=bd29751a3eebe6c9:1:13415)\n    at https://www.kaggle.com/static/assets/runtime.js?v=bd29751a3eebe6c9:1:898\n    at Array.reduce (<anonymous>)\n    at i.e (https://www.kaggle.com/static/assets/runtime.js?v=bd29751a3eebe6c9:1:877)\n    at Object.requireAsync (https://www.kaggle.com/static/assets/app.js?v=276513eabeef3c21:1:2919973)\n    at v (https://www.kaggle.com/static/assets/app.js?v=276513eabeef3c21:1:4918927)\n    at r.resolveAsync (https://www.kaggle.com/static/assets/app.js?v=276513eabeef3c21:1:4921142)\n    at r.loadAsync (https://www.kaggle.com/static/assets/app.js?v=276513eabeef3c21:1:4920886)\n    at r.componentDidMount (https://www.kaggle.com/static/assets/app.js?v=276513eabeef3c21:1:4920001)\n    at sg (https://www.kaggle.com/static/assets/vendor.js?v=e74ff7334a03237e:240:747964)\n```\n\nRefresh"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/datasets/kirillpe/breast-cancer-proteomics",
+      "title": "Breast Cancer Proteomics",
+      "publish_date": "2021-08-15",
+      "excerpts": [
+        "Kaggle uses cookies from Google to deliver and enhance the quality of its services and to analyze traffic. ... OK, Got it. ... In this experiment we wanted to compare between tumor and healthy status in breast cancer. To achieve this goal we performed a mass-spectrometry based proteomic analysis of two breast cancer cell lines (HCC) and one healthy cell line (HMEC) as control."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/datasets/angarmo3/proteomics",
+      "title": "Proteomics",
+      "publish_date": null,
+      "excerpts": [
+        "Checking your browser before accessing www.kaggle.com"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions?tagIds",
+      "title": "Kaggle Competitions",
+      "publish_date": null,
+      "excerpts": [
+        "menu\n\n[Skip to content](#site-content)\n\n[Kaggle](/)\n\nCreate\n\nsearch \u200b\n\n* [explore Home](/)\n* [emoji\\_events Competitions](/competitions)\n\n* [leaderboard Benchmarks](/benchmarks)\n* [smart\\_toy Game Arena](/game-arena)\n\n\n* [code Data  ..."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions/harmonizing-the-data-of-your-data/data",
+      "title": "Harmonizing the Data of your Data | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "... NumberBiologicalReplicates).\n\n## References and Resources\n\n[1] Perez-Riverol Y; European Bioinformatics Community for Mass Spectrometry. Toward a Sample Metadata Standard in Public Proteomics Repositories. J Proteome  ..."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/datasets/markmaksi/proteomic-abundances",
+      "title": "Checking your browser - reCAPTCHA",
+      "publish_date": "2024-05-08",
+      "excerpts": [
+        "Kaggle uses cookies from Google to deliver and enhance the quality of its services and to analyze traffic.\n\nLearn more\n\nOK, Got it."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions?group=all&page=1&pageSize=20&segment=gettingStarted&sortBy=deadline",
+      "title": "Kaggle Competitions",
+      "publish_date": null,
+      "excerpts": [
+        "menu\n\n[Skip to content](#site-content)\n\n[Kaggle](/)\n\nCreate\n\nsearch \u200b\n\n* [explore Home](/)\n* [emoji\\_events Competitions](/competitions)\n\n* [leaderboard Benchmarks](/benchmarks)\n* [smart\\_toy Game Arena](/game-arena)\n\n\n* [code Data  ..."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/datasets/sandipan99/protein-dataset",
+      "title": "Protein dataset",
+      "publish_date": "2020-09-11",
+      "excerpts": [
+        "Discover what actually works in AI. Join millions of builders, researchers, and labs evaluating agents, models, and frontier technology through crowdsourced benchmarks, competitions, and hackathons."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/discussions/getting-started/346355",
+      "title": "Using R for Mass spectrometry data analysis | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "Would anyone clarify me on the packages and databases which will be useful for the analysis of data obtained from mass spectrometry??"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions?searchQuery=ML%20Olympiad",
+      "title": "Kaggle Competitions",
+      "publish_date": null,
+      "excerpts": [
+        "menu\n\n[Skip to content](#site-content)\n\n[Kaggle](/)\n\nCreate\n\nsearch \u200b\n\n* [explore Home](/)\n* [emoji\\_events Competitions](/competitions)\n\n* [leaderboard Benchmarks](/benchmarks)\n* [smart\\_toy Game Arena](/game-arena)\n\n\n* [code Data  ... Teams \u00b7 2 yea"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/discussions/questions-and-answers/255678",
+      "title": "Proteomics AI & ML challenge for solving biological problems | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "Proteomics AI &amp; ML challenge for solving biological problems."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/questions-and-answers/255678",
+      "title": "Proteomics AI & ML challenge for solving biological problems",
+      "publish_date": null,
+      "excerpts": [
+        "Checking your browser before accessing www.kaggle.com"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions/cafa-5-protein-function-prediction/discussion/466917",
+      "title": "1st Place Solution for the CAFA5 | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "... al. NetGO 3.0: Protein Language Model Improves Large-scale Functional Annotations. Genomics, Proteomics & Bioinformatics, Volume 21, Issue 2, 2023, 349-358.\n\nAuthors\n\n[](/wang0027)\n\n[\u738b\u5c11\u94a7](/wang0027)\n\nwang0027\n\n[](/brucezhai)\n\n[BruceZhai ..."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions/cafa-5-protein-function-prediction/overview",
+      "title": "CAFA 5 Protein Function Prediction | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "... of gene expression data [website](https://www.ncbi.nlm.nih.gov/geo/)\n7. PRIDE, a database of proteins identified via mass-spectrometry experiments [website](https://www.ebi.ac.uk/pride/)\n\nMost of these resources also have publications, sometimes "
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/datasets?search=proteomics",
+      "title": "Find Open Datasets and Machine Learning Projects | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "Browse and download hundreds of thousands of open datasets for AI research, model training, and analysis. Join a community of millions of researchers, developers, and builders to share and collaborate on Kaggle."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions/cafa-5-protein-function-prediction",
+      "title": "CAFA 5 Protein Function Prediction | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "... GEO, a database of gene expression data website\n    * PRIDE, a database of proteins identified via mass-spectrometry experiments website\n\nMost of these resources also have publications, sometimes many, associated with the resource ..."
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions?tagIds=13215-Data%2BAnalytics",
+      "title": "Kaggle Competitions",
+      "publish_date": null,
+      "excerpts": [
+        "menu\n\nSkip to content\n\nCreate\n\nauto\\_awesome\\_motion\n\nView Active Events\n\nmenu\n\nSkip to content\n\nsearch \u200b\n\nKaggle uses cookies from Google to deliver and enhance the quality of its services and to analyze traffic.\n\nLearn more\n\nOK, Got it.\n\n# Competitions\n\nsearch\n\nfilter\\_list Filters\n\n\u200b\n\nData Analytics close\n\n## Results\n\nRecently Launched\n\nview\\_module\n\n* 2022 Kaggle Machine Learning & Data Science Survey The most comprehensive dataset available on the state of ML and data science Analytics \u00b7 0 Teams \u00b7 3 years ago\n  \n  $30,000\n  \n  more\\_horiz\n* Big Data Derby 2022 Analyze horse racing data to improve the health of the horse and strategy of competition Analytics \u00b7 0 Teams \u00b7 3 years ago\n  \n  $50,000\n  \n  more\\_horiz\n* Excellence in Research Award (Phase II) WiDS Datathon Further Examines the Impacts of Climate Change Analytics \u00b7 0 Teams \u00b7 4 years ago\n  \n  Kudos\n  \n  more\\_horiz\n* 2021 Kaggle Machine Learning & Data Science Survey The most comprehensive dataset available on the state of ML and data science Analytics \u00b7 0 Teams \u00b7 4 years ago\n  \n  $30,000\n  \n  more\\_horiz\n* LearnPlatform COVID-19 Impact on Digital Learning Use digital learning data to analyze the impact of COVID-19 on student learning Analytics \u00b7 0 Teams \u00b7 4 years ago\n  \n  $20,000\n  \n  more\\_horiz\n* Acea Smart Water Analytics Can you help preserve \"blue gold\" using data to predict water availability? Analytics \u00b7 0 Teams \u00b7 5 years ago\n  \n  $25,000\n  \n  more\\_horiz\n* 2020 Kaggle Machine Learning & Data Science Survey The most comprehensive dataset available on the state of ML and data science Analytics \u00b7 0 Teams \u00b7 5 years ago\n  \n  $30,000\n  \n  more\\_horiz\n* NFL Big Data Bowl 2021 Help evaluate defensive performance on passing plays Analytics \u00b7 0 Teams \u00b7 5 years ago\n  \n  $100,000\n  \n  more\\_horiz"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/competitions?listOption=active",
+      "title": "Kaggle Competitions",
+      "publish_date": null,
+      "excerpts": [
+        "menu\n\n[Skip to content](#site-content)\n\n[Kaggle](/)\n\nCreate\n\nsearch \u200b\n\n* [explore Home](/)\n* [emoji\\_events Competitions](/competitions)\n\n* [leaderboard Benchmarks](/benchmarks)\n* [smart\\_toy Game Arena](/game-arena ... Ongoing](/competitions/nlp-get"
+      ]
+    },
+    {
+      "url": "https://www.kaggle.com/c/cafa-5-protein-function-prediction",
+      "title": "CAFA 5 Protein Function Prediction | Kaggle",
+      "publish_date": null,
+      "excerpts": [
+        "... of gene expression data [website](https://www.ncbi.nlm.nih.gov/geo/)\n7. PRIDE, a database of proteins identified via mass-spectrometry experiments [website](https://www.ebi.ac.uk/pride/)\n\nMost of these resources also have publications, sometimes "
+      ]
+    }
+  ],
+  "usage": [
+    {
+      "name": "sku_search",
+      "count": 1
+    },
+    {
+      "name": "sku_extract_excerpts",
+      "count": 10
+    }
+  ],
+  "warnings": []
+}

@@ -1516,8 +1516,16 @@ names(raw)[1:5] &lt;- c(&quot;code&quot;, &quot;protein_id&quot;, &quot;aa_lengt
 raw &lt;- raw[raw$code == &quot;Microbiome&quot;, ]
 
 counts &lt;- vapply(raw[, -(1:5)], function(x) {
-  v &lt;- as.numeric(x); v[is.na(v)] &lt;- 0; v      # blank cell = protein not seen
+  blank &lt;- !nzchar(trimws(x))                  # blank cell = protein not seen
+  v &lt;- suppressWarnings(as.numeric(x))
+  bad &lt;- is.na(v) &amp; !blank                      # a parse failure that ISN&#39;T blank is
+  if (any(bad))                                 # unexpected data, not a documented zero
+    stop(&quot;Non-numeric, non-blank count cell(s): &quot;,
+         paste(unique(x[bad]), collapse = &quot;, &quot;), call. = FALSE)
+  v[blank] &lt;- 0
+  v
 }, numeric(nrow(raw)))
+stopifnot(all(counts &gt;= 0), all(counts == round(counts)))  # PSM counts only
 storage.mode(counts) &lt;- &quot;integer&quot;
 dimnames(counts) &lt;- list(raw$protein_id, names(raw)[-(1:5)])
 

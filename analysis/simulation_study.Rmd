@@ -8,7 +8,7 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE,
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE, autodep = TRUE,
                       fig.width = 8, fig.height = 3.4, message = FALSE)
 knitr::opts_knit$set(root.dir = "..")
 ```
@@ -20,19 +20,23 @@ no accession, and Bray-Curtis cannot tell that apart from any other difference.
 Here two groups of samples differ **only** in protein function. Depth, richness
 and abundance profile are identical by construction, and no accession appears
 in more than one sample. Three distances are compared: Bray-Curtis, weighted
-UniFrac on a protein tree, and `weightedRep()` with a TM-Vec ground metric.
+UniFrac on the inferred protein phylogeny, and weighted UniFrac on a tree fitted
+to a TM-Vec structural ground metric (`repdist_bin()$tree`).
+
+Both UniFrac arms are the same estimator in the same (unnormalized) form, so they
+differ in exactly one thing -- the tree -- which is what makes this a ground-metric
+ablation rather than a contest between estimators. This dataset is also the one
+place the phylogenetic arm is honest: 480 proteins from four families genuinely
+align, where the case studies' ~19,000-protein communities do not.
 
 ```{r libs, cache = FALSE}
-Sys.setenv(KMP_DUPLICATE_LIB_OK = "TRUE")
-reticulate::use_python(Sys.which("python3"), required = TRUE)
-
 library(phyloseq)
 library(Biostrings)
 library(vegan)
 library(ggplot2)
 library(gt)
 library(here)
-for (f in list.files(here("R"), full.names = TRUE)) {source(f)}
+devtools::load_all(here(), quiet = TRUE)
 set.seed(1)
 ```
 
@@ -132,17 +136,36 @@ TM-Vec1: its head was trained to regress the TM-score of protein pairs, so cosin
 similarity between two vectors is a predicted TM-score.
 
 ```{r embed}
-Z <- embed_proteins(as.character(refseq(ps)), batch_size = 16)[taxa_names(ps), ]
+Z <- embed_proteins(as.character(refseq(ps)))[taxa_names(ps), ]
 ```
 
 ## Results
 
 ```{r distances}
 cnt <- as(otu_table(ps), "matrix")
+
+# The ground metric is built once and reused by everything downstream. The
+# structure tree is the complete-linkage hierarchy used for the structural bins.
+G    <- seq_repdist(Z)                                     # 1 - predicted TM-score
+tree <- repdist_bin(cnt, G)$tree
+tree_fidelity <- cor(as.vector(G),
+                     as.vector(as.dist(ape::cophenetic.phylo(tree)[labels(G), labels(G)])))
+
+# repdist fits the tree; phyloseq computes the UniFrac. Raw (normalized = FALSE)
+# is the form that equals W1 under the tree's path metric. Unlike the case
+# studies, this dataset has a real phylogeny -- 480 proteins from four families
+# genuinely align -- so the phylogenetic arm here is an inferred tree, not the
+# alignment-free stand-in those reports have to use.
+ps_str <- phyloseq(otu_table(ps), sample_data(ps), phy_tree(tree))
+
+# Both UniFrac arms are normalized = FALSE. phyloseq::distance(ps, "wunifrac")
+# would give the *normalized* form, which divides by a scale factor and is no
+# longer a transport cost -- pairing it with an unnormalized structure arm would
+# make the two arms differ in two things instead of one.
 D <- list(
   `Bray-Curtis`              = phyloseq::distance(ps, method = "bray"),
-  `w-UniFrac (protein tree)` = phyloseq::distance(ps, method = "wunifrac"),
-  `weightedRep + TM-Vec1`    = weightedRep(cnt, Z, method = "mmd")
+  `w-UniFrac (phylogenetic)` = UniFrac(ps,     weighted = TRUE, normalized = FALSE),
+  `w-UniFrac (structure)`    = UniFrac(ps_str, weighted = TRUE, normalized = FALSE)
 )
 ```
 
@@ -173,8 +196,8 @@ gt(do.call(rbind, lapply(names(D), function(n) {
 
 ```{r pcoa, warning = FALSE}
 plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["Bray-Curtis"]]), color = "group") + theme_bw()
-plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["w-UniFrac (protein tree)"]]), color = "group") + theme_bw()
-plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["weightedRep + TM-Vec1"]]), color = "group") + theme_bw()
+plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["w-UniFrac (phylogenetic)"]]), color = "group") + theme_bw()
+plot_ordination(ps, ordinate(ps, "PCoA", distance = D[["w-UniFrac (structure)"]]), color = "group") + theme_bw()
 ```
 
 ## Conclusion
@@ -184,8 +207,8 @@ express any grouping, so PERMANOVA lands on the exact null $1/(n-1) = 0.017$ wit
 $p = 1$. It is not weak here, it is blind: no accession is shared, and accessions
 are all it reads.
 
-`weightedRep()` with a TM-Vec1 ground metric recovers the difference from sequence
-alone, with no alignment, no tree and no annotation. `R2_raw` and `R2_adjusted`
+Weighted UniFrac on the TM-Vec1 structure tree recovers the difference from sequence
+alone, without an alignment or annotation. `R2_raw` and `R2_adjusted`
 are close, which is the point of building two length scales into each group:
 with a single family per group, family and group were the same variable and
 length adjustment was doing real work to separate them; here it barely moves

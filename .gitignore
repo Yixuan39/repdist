@@ -31,6 +31,6 @@ Rplots.pdf
 *.tar.gz
 inst/doc/
 wiki/
-tests/
 *.Rproj
 .claude/settings.local.json
+repdist.BiocCheck/
