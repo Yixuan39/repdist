@@ -11,18 +11,13 @@ counts <- matrix(
   dimnames = list(paste0("s", 1:6), rownames(Z)))
 
 test_that("sample_repdist accepts embeddings or a precomputed ground distance", {
-  # sample_repdist() defaults to euclidean, seq_repdist() to cosine, so the
-  # precomputed ground distance has to be asked for the same metric to match.
   expect_equal(
     sample_repdist(counts, Z),
     sample_repdist(counts, seq_repdist(Z, "euclidean")))
-  expect_equal(
-    sample_repdist(counts, Z, distance = "cosine"),
-    suppressWarnings(sample_repdist(counts, seq_repdist(Z, "cosine"))))
 })
 
-test_that("a non-metric precomputed ground distance warns", {
-  expect_warning(sample_repdist(counts, seq_repdist(Z, "cosine")), "indefinite")
+test_that("a non-Euclidean precomputed ground distance is rejected", {
+  expect_error(sample_repdist(counts, seq_repdist(Z, "cosine")), "Euclidean")
   expect_silent(sample_repdist(counts, seq_repdist(Z, "euclidean")))
 })
 
@@ -60,11 +55,8 @@ test_that("weighted = FALSE uses support rather than abundance", {
   cc <- rbind(a = c(98, 1, 1), b = c(1, 1, 98))
   colnames(cc) <- rownames(Zb)
 
-  for (distance in c("cosine", "euclidean")) {
-    expect_gt(as.numeric(sample_repdist(cc, Zb, distance)), 0.1)
-    expect_equal(
-      as.numeric(sample_repdist(cc, Zb, distance, weighted = FALSE)), 0)
-  }
+  expect_gt(as.numeric(sample_repdist(cc, Zb)), 0.1)
+  expect_equal(as.numeric(sample_repdist(cc, Zb, weighted = FALSE)), 0)
 })
 
 test_that("weighted = FALSE is exactly sign(abundance)", {
@@ -84,7 +76,7 @@ test_that("RBF-MMD sees mass rearranged at a fixed weighted mean", {
   colnames(cc) <- rownames(Zb)
   P <- cc / rowSums(cc)
   expect_equal(sqrt(sum((P[1, ] %*% Zb - P[2, ] %*% Zb)^2)), 0)
-  expect_gt(as.numeric(sample_repdist(cc, Zb, distance = "euclidean")), 0)
+  expect_gt(as.numeric(sample_repdist(cc, Zb)), 0)
 })
 
 test_that("rarefaction shrinks depth-driven distance at fixed composition", {
@@ -132,13 +124,13 @@ test_that("globally zero-count proteins are dropped before the ground distance",
   cc <- cbind(counts, junk = 0L)
   expect_equal(sample_repdist(cc, extra), sample_repdist(counts, Z))
 
-  C <- as.matrix(seq_repdist(Z))
+  C <- as.matrix(seq_repdist(Z, "euclidean"))
   C <- rbind(cbind(C, junk = 1), junk = c(rep(1, ncol(C)), 0))
-  # Both sides are cosine ground distances, so both warn; the point here is that
-  # the globally-zero protein is dropped identically either way.
+  C <- stats::as.dist(C)
+  attr(C, "method") <- "euclidean"
   expect_equal(
-    suppressWarnings(sample_repdist(cc, stats::as.dist(C))),
-    suppressWarnings(sample_repdist(counts, seq_repdist(Z))))
+    sample_repdist(cc, C),
+    sample_repdist(counts, seq_repdist(Z, "euclidean")))
 })
 
 test_that("one retained protein gives zero sample distance", {
@@ -205,4 +197,54 @@ test_that("condensed distances can be subset and reordered directly", {
                as.matrix(full)[keep, keep], ignore_attr = TRUE)
   expect_identical(attr(observed, "Labels"), keep)
   expect_error(.repdist_subset_dist(full, "missing"), "missing requested")
+})
+test_that("identity ground metric reproduces Bray-Curtis", {
+  skip_if_not_installed("vegan")
+  set.seed(1)
+  cnt <- t(apply(matrix(rpois(60, 8), 6, 10), 1, function(x) rmultinom(1, 500, x)[, 1]))
+  dimnames(cnt) <- list(paste0("s", 1:6), paste0("p", 1:10))   # equal depth: exact
+  D <- matrix(1, 10, 10, dimnames = list(colnames(cnt), colnames(cnt)))
+  diag(D) <- 0
+  expect_equal(as.numeric(sample_repdist_OT(cnt, D)),
+               as.numeric(vegan::vegdist(cnt, "bray")))
+})
+
+test_that("the scale runs from 0 to 1 with the ground metric, not with accession overlap", {
+  cnt <- rbind(s1 = c(10, 10, 0, 0), s2 = c(0, 0, 10, 10))
+  colnames(cnt) <- paste0("p", 1:4)
+  far <- matrix(1, 4, 4, dimnames = list(colnames(cnt), colnames(cnt))); diag(far) <- 0
+  near <- matrix(0.02, 4, 4, dimnames = list(colnames(cnt), colnames(cnt))); diag(near) <- 0
+
+  # no protein in common either way; only the ground metric differs
+  expect_equal(as.numeric(sample_repdist_OT(cnt, far)), 1)
+  expect_equal(as.numeric(sample_repdist_OT(cnt, near)), 0.02)
+})
+
+test_that("a ground metric missing a protein is an error, not a silent drop", {
+  cnt <- rbind(s1 = c(1, 1), s2 = c(1, 1)); colnames(cnt) <- c("p1", "p2")
+  D <- matrix(0, 1, 1, dimnames = list("p1", "p1"))
+  expect_error(sample_repdist_OT(cnt, D), "missing from the ground metric")
+})
+
+test_that("floating-point noise in a cosine ground metric is tolerated, real negatives are not", {
+  set.seed(3)
+  Z <- matrix(rnorm(40 * 8), 40, 8, dimnames = list(paste0("p", 1:40), NULL))
+  G <- as.matrix(seq_repdist(Z))          # 1 - cosine: a few entries sit at ~ -1e-15
+  cnt <- matrix(rpois(6 * 40, 3), 6, 40,
+                dimnames = list(paste0("s", 1:6), rownames(Z)))
+  expect_s3_class(sample_repdist_OT(cnt, G), "dist")
+
+  G[1, 2] <- G[2, 1] <- -0.5
+  expect_error(sample_repdist_OT(cnt, G), "negative")
+})
+
+test_that("on unit-norm embeddings the euclidean RBF is a kernel in cosine distance", {
+  set.seed(13)
+  Z <- matrix(rnorm(30 * 8), 30, 8, dimnames = list(paste0("p", 1:30), NULL))
+  Z <- Z / sqrt(rowSums(Z^2))
+  Ceuc <- as.matrix(seq_repdist(Z, "euclidean"))
+  Ccos <- as.matrix(seq_repdist(Z, "cosine"))
+  expect_equal(Ceuc^2, 2 * Ccos, tolerance = 1e-6)
+  sigma <- stats::median(Ceuc[upper.tri(Ceuc)])
+  expect_equal(rbf_kernel(Ceuc, sigma), exp(-Ccos / sigma^2), tolerance = 1e-6)
 })

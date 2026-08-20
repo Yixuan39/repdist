@@ -5,9 +5,11 @@ Authors@R: person("Yixuan", "Yang", email = "yixuanyang309@icloud.com", role = c
 Description: Sample distances for metaproteomics that represent each sample as an
     abundance-weighted distribution over protein embeddings in a frozen protein
     language model space, then compares samples by maximum mean discrepancy
-    under an RBF kernel. The ground distance is defined for any sequence,
-    including proteins with no tree position or annotation. Returns 'dist'
-    objects for direct use with vegan::adonis2().
+    under an RBF kernel. An optimal-transport distance under the same ground
+    metric is also provided, of which Bray-Curtis is the special case where all
+    distinct proteins are equidistant. The ground distance is defined for any
+    sequence, including proteins with no tree position or annotation. Returns
+    'dist' objects for direct use with vegan::adonis2().
 License: MIT + file LICENSE
 URL: https://github.com/Yixuan39/repdist
 BugReports: https://github.com/Yixuan39/repdist/issues
@@ -16,14 +18,16 @@ biocViews: Proteomics, Metagenomics, Microbiome, Clustering, Software
 Roxygen: list(markdown = TRUE)
 Depends: R (>= 4.5.0)
 Imports:
-    ape,
     basilisk,
     BiocFileCache,
     Biostrings,
     digest,
     fastcluster,
     jsonlite,
-    reticulate
+    reticulate,
+    stats,
+    T4transport,
+    utils
 Suggests:
     BiocStyle,
     phyloseq,

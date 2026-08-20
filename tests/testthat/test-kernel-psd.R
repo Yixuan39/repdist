@@ -1,7 +1,7 @@
 # MMD is a distance only when the kernel is positive semi-definite. A Gaussian
 # RBF guarantees that on a true metric (Schoenberg), and `1 - cosine` is not
-# one -- it violates the triangle inequality. So sample_repdist() defaults to
-# "euclidean" while seq_repdist()/repdist_bin() default to "cosine", which is
+# one -- it violates the triangle inequality. So sample_repdist() only uses
+# Euclidean while seq_repdist()/repdist_bin() default to "cosine", which is
 # the calibrated TM-score scale cluster_threshold is expressed in.
 #
 # These embeddings are the shape that broke the old cosine default: four
@@ -41,10 +41,10 @@ test_that("the default ground metric yields a PSD kernel on disjoint samples", {
   }
 })
 
-test_that("sample_repdist defaults to euclidean, seq_repdist to cosine", {
+test_that("sample_repdist only accepts a Euclidean ground metric", {
   x <- sim_universe(1)
-  expect_equal(sample_repdist(x$counts, x$Z),
-               sample_repdist(x$counts, x$Z, distance = "euclidean"))
+  expect_silent(sample_repdist(x$counts, x$Z))
+  expect_error(sample_repdist(x$counts, seq_repdist(x$Z)), "Euclidean")
   expect_equal(seq_repdist(x$Z), seq_repdist(x$Z, distance = "cosine"))
 })
 

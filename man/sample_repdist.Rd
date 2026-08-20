@@ -4,13 +4,7 @@
 \alias{sample_repdist}
 \title{RBF-MMD distance between samples}
 \usage{
-sample_repdist(
-  counts,
-  embeddings,
-  distance = c("euclidean", "cosine"),
-  weighted = TRUE,
-  sigma = NULL
-)
+sample_repdist(counts, embeddings, weighted = TRUE, sigma = NULL)
 }
 \arguments{
 \item{counts}{Integer matrix of counts, or relative abundances, samples in
@@ -18,18 +12,8 @@ rows, proteins in columns. Every row must have a positive total.}
 
 \item{embeddings}{Numeric matrix, one row per protein with rownames matching
 \code{colnames(counts)}, or a named protein \code{\link[stats:dist]{stats::dist()}} object such as the
-result of \code{\link[=seq_repdist]{seq_repdist()}}.}
-
-\item{distance}{Ground metric used to build the RBF kernel from an embedding
-matrix. \code{"euclidean"} (the default) is a true metric, so the RBF kernel is
-guaranteed positive semi-definite and the MMD is guaranteed a distance.
-\code{"cosine"} (\verb{1 - predicted TM-score}) is \emph{not} a metric and can yield an
-indefinite kernel, which this function will reject rather than return a
-meaningless number; on the unit-norm embeddings \code{embed_proteins()} returns
-the two rank protein pairs identically, so \code{"euclidean"} costs nothing.
-Ignored when \code{embeddings} is already a \code{dist} object -- in that case the
-metric was fixed when \code{\link[=seq_repdist]{seq_repdist()}} built it, so pass
-\code{seq_repdist(Z, "euclidean")} for a kernel.}
+result of \code{seq_repdist(Z, "euclidean")}. Non-Euclidean precomputed
+distances are rejected.}
 
 \item{weighted}{Use abundance as the weight (default). \code{FALSE} replaces each
 sample's abundances with \code{sign(abundance)}, so every expressed protein
@@ -54,11 +38,15 @@ Proteins with zero abundance in every sample are dropped before the weights,
 kernel, or bandwidth are computed -- they carry no signal and would
 otherwise be free to distort the median-heuristic bandwidth.
 
-The ground metric defaults to \code{"euclidean"} here, unlike \code{\link[=seq_repdist]{seq_repdist()}} and
-\code{\link[=repdist_bin]{repdist_bin()}}, which default to \code{"cosine"}. MMD is only a distance when
-the kernel is positive semi-definite, and a Gaussian RBF guarantees that
-only on a true metric; \code{1 - cosine} is not one. See \code{\link[=seq_repdist]{seq_repdist()}} for why
-this costs nothing on unit-norm embeddings.
+The ground metric is always Euclidean here. MMD is only a distance when the
+kernel is positive semi-definite, and a Gaussian RBF on \code{1 - cosine} can be
+indefinite. Nothing is lost on unit-norm embeddings, because their
+Euclidean RBF \emph{is} a kernel in
+cosine distance: \code{d_euclid^2 = 2 * d_cosine} exactly, so
+\verb{exp(-d_euclid^2 / 2 sigma^2) = exp(-d_cosine / sigma^2)}. Choosing
+\code{"euclidean"} is therefore not a retreat from predicted TM-score -- it is
+\code{exp(-(1 - TM) / sigma^2)}, with the exponent linear in TM-distance rather
+than squared.
 
 Rarefy \code{counts} first (e.g. \code{vegan::rrarefy()}) if samples weren't
 collected at a common depth.

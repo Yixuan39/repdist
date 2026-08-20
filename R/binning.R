@@ -36,15 +36,7 @@
        reps = rep_df)
 }
 
-.prune_bin_tree <- function(x, tree) {
-  if (nrow(x$reps) == 1L)
-    return(ape::stree(1L, type = "star", tip.label = x$reps$bin))
-  out <- ape::keep.tip(tree, x$reps$protein)
-  out$tip.label <- x$reps$bin[match(out$tip.label, x$reps$protein)]
-  out
-}
-
-#' Cluster proteins and build structure-similarity trees
+#' Cluster proteins into structural bins
 #'
 #' Collapses `counts` from protein-level to structural-bin level by clustering
 #' `embeddings` and summing abundance within each bin -- the structural
@@ -59,15 +51,13 @@
 #' Zhang, Bioinformatics 2010).
 #'
 #' Pass a vector of thresholds to compare several cuts. They share one pairwise
-#' distance. Complete linkage defines bin membership so every protein pair in a
-#' bin meets the requested TM-score threshold. The returned full tree is this
-#' same complete-linkage hierarchy, and each binned tree is obtained by pruning
-#' it to the bin representatives and relabelling those tips as bins. These trees
-#' describe similarity, not evolutionary time.
+#' distance and one dendrogram. Complete linkage defines bin membership so every
+#' protein pair in a bin meets the requested TM-score threshold.
 #'
-#' `bin_dist` is the ground distance between bin *representatives*, so
-#' `sample_repdist(out$bins$counts, out$bins$bin_dist)` computes RBF-MMD at bin
-#' resolution for a scalar threshold.
+#' `bin_dist` is the cosine distance between bin representatives. For
+#' bin-resolution MMD, index the original embedding matrix by
+#' `out$bins$reps$protein`, rename those rows with `out$bins$reps$bin`, and pass
+#' them with `out$bins$counts` to [sample_repdist()].
 #'
 #' Cost: the ground distance contains n(n-1)/2 doubles (roughly 400 MB at
 #' 10,000 proteins). It remains condensed through clustering and medoid
@@ -85,16 +75,12 @@
 #'   dendrogram at each value.
 #' @param seqs Optional named character vector or [Biostrings::AAStringSet] of
 #'   protein sequences. It must contain every protein in `counts`.
-#' @return A list with four elements:
+#' @return A list with two elements:
 #'   \describe{
-#'     \item{`tree`}{Complete-linkage `phylo` tree over the original proteins.}
 #'     \item{`bins`}{For a scalar threshold, a list containing `counts` (samples
 #'       x bins), `bin` (protein to bin membership), `bin_dist` (distance between
 #'       representative proteins), and `reps` (bin medoids and sizes). For a
 #'       threshold vector, a named list of these objects.}
-#'     \item{`binned_tree`}{The complete-linkage tree pruned to bin
-#'       representatives, with tips relabelled by bin; a named list of trees for
-#'       a threshold vector.}
 #'     \item{`representative_sequences`}{A bin-named
 #'       [Biostrings::AAStringSet] containing each medoid sequence, or `NULL` if
 #'       `seqs` was not supplied. For a threshold vector, a named list of these
@@ -124,7 +110,7 @@ repdist_bin <- function(counts, embeddings, cluster_threshold = 0.5, seqs = NULL
   if (!is.finite(sum(gm)))
     stop("The ground distance contains non-finite values.", call. = FALSE)
 
-  lone <- length(keep) < 2L   # hclust needs two tips; one protein is one bin
+  lone <- length(keep) < 2L   # hclust needs two objects; one protein is one bin
   # fastcluster allocates its own working copy of `gm`, so at 60k+ proteins the
   # two together approach R's vector limit. Drop the block-loop garbage from
   # seq_repdist() first -- without this the peak includes transients that are
@@ -132,20 +118,17 @@ repdist_bin <- function(counts, embeddings, cluster_threshold = 0.5, seqs = NULL
   # here, where the object handed to C is multiple GB.
   if (length(keep) > 20000L) gc(full = TRUE)
   hc <- if (!lone) fastcluster::hclust(gm, method = "complete")
-  tree <- if (lone) ape::stree(1L, "star", tip.label = keep) else ape::as.phylo(hc)
 
   out <- lapply(cluster_threshold, function(th) {
     x <- .bin_result(
       if (lone) stats::setNames(1L, keep) else stats::cutree(hc, h = 1 - th),
       counts, gm)
-    list(bins = x, binned_tree = .prune_bin_tree(x, tree),
+    list(bins = x,
          representative_sequences = if (!is.null(seqs))
            stats::setNames(seqs[x$reps$protein], x$reps$bin))
   })
-  if (length(out) == 1L) return(c(list(tree = tree), out[[1L]]))
+  if (length(out) == 1L) return(out[[1L]])
   names(out) <- as.character(cluster_threshold)
-  list(tree = tree,
-       bins = lapply(out, `[[`, "bins"),
-       binned_tree = lapply(out, `[[`, "binned_tree"),
+  list(bins = lapply(out, `[[`, "bins"),
        representative_sequences = lapply(out, `[[`, "representative_sequences"))
 }

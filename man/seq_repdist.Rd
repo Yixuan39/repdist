@@ -38,9 +38,9 @@ It is \strong{not} harmless for \code{\link[=sample_repdist]{sample_repdist()}}.
 positive-semi-definite only on a conditionally-negative-definite metric
 (Schoenberg), so \code{rbf_kernel(1 - cosine)} can be indefinite -- on real
 TM-Vec embeddings its smallest eigenvalue runs to \code{-5e-1} -- and MMD under
-an indefinite kernel is not a distance. That is why \code{\link[=sample_repdist]{sample_repdist()}}
-defaults to \code{"euclidean"} while this function and \code{\link[=repdist_bin]{repdist_bin()}} default to
-\code{"cosine"}.
+an indefinite kernel is not a distance. That is why \code{\link[=sample_repdist]{sample_repdist()}} always
+uses \code{"euclidean"}, while this function and \code{\link[=repdist_bin]{repdist_bin()}} default to
+\code{"cosine"} where that scale is valid.
 
 Nothing is given up by that split. \code{embed_proteins()} returns unit-norm
 rows, and for unit-norm vectors \verb{||a - b|| = sqrt(2 * (1 - cos))} -- the two

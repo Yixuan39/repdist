@@ -183,11 +183,10 @@ rbind(
   `repdist`     = vegan::adonis2(D  ~ group, data = md, permutations = 999)[1, c("R2", "Pr(>F)")])
 ```
 
-## Choosing the ground metric
+## The Euclidean ground metric
 
-`sample_repdist()` defaults to `"euclidean"`, while `seq_repdist()` and
-`repdist_bin()` default to `"cosine"`. That split is deliberate and worth
-understanding.
+`sample_repdist()` always uses Euclidean distance, while `seq_repdist()` and
+`repdist_bin()` default to cosine distance. That split is deliberate.
 
 MMD is a distance only when the kernel is positive semi-definite, and a
 Gaussian RBF guarantees that only on a true metric. `1 - cosine` is not one: it
@@ -211,9 +210,8 @@ read as a TM-score — that is, for `repdist_bin()`'s `cluster_threshold` — an
 `"euclidean"` wherever the distance feeds a kernel.
 
 This equivalence holds only for unit-norm rows. On an embedding matrix with
-varying row norms, `"euclidean"` also picks up magnitude, which `"cosine"`
-normalizes away. Passing a precomputed non-euclidean `dist` to
-`sample_repdist()` warns for the same reason.
+varying row norms, Euclidean distance also picks up magnitude. A precomputed
+non-Euclidean `dist` is rejected by `sample_repdist()`.
 
 # Structural bins
 
@@ -301,8 +299,9 @@ coarser route when that matrix is too large; in practice the ceiling for
 binning is around 75,000 proteins on 32 GB. Bin the *identified* subset of a
 catalog, never a whole search database.
 
-**Reuse the ground distance.** Both `sample_repdist()` and `repdist_bin()`
-accept a precomputed `seq_repdist()` object. Build it once.
+**Reuse a compatible ground distance.** `sample_repdist()` accepts
+`seq_repdist(Z, "euclidean")`; `repdist_bin()` uses the cosine default. They are
+different objects because only the Euclidean one defines a valid RBF-MMD.
 
 ```{r session}
 sessionInfo()

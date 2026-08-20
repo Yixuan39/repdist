@@ -10,25 +10,21 @@ counts <- matrix(
   rpois(4 * 15, 20) + 1L, 4, 15,
   dimnames = list(paste0("s", 1:4), rownames(Z)))
 
-test_that("repdist_bin returns trees, bins, and representative sequences", {
+test_that("repdist_bin returns bins and representative sequences", {
   out <- repdist_bin(counts, Z)
-  expect_named(out, c("tree", "bins", "binned_tree", "representative_sequences"),
-               ignore.order = FALSE)
-  expect_s3_class(out$tree, "phylo")
-  expect_s3_class(out$binned_tree, "phylo")
-  expect_setequal(out$tree$tip.label, colnames(counts))
-  expect_setequal(out$binned_tree$tip.label, colnames(out$bins$counts))
+  expect_named(out, c("bins", "representative_sequences"), ignore.order = FALSE)
+  expect_named(out$bins, c("counts", "bin", "bin_dist", "reps"))
+  expect_setequal(names(out$bins$bin), colnames(counts))
   expect_null(out$representative_sequences)
 
-  expected <- ape::as.phylo(fastcluster::hclust(seq_repdist(Z), method = "complete"))
-  observed_C <- ape::cophenetic.phylo(out$tree)[rownames(Z), rownames(Z)]
-  expected_C <- ape::cophenetic.phylo(expected)[rownames(Z), rownames(Z)]
-  expect_equal(observed_C, expected_C)
-
-  expected_binned <- ape::keep.tip(out$tree, out$bins$reps$protein)
-  expected_binned$tip.label <- out$bins$reps$bin[
-    match(expected_binned$tip.label, out$bins$reps$protein)]
-  expect_equal(out$binned_tree, expected_binned)
+  # the partition is exactly a complete-linkage cut of the ground metric.
+  # Compared by co-membership, since bin labels are ranked by abundance while
+  # cutree numbers by order of appearance -- same partition, different names.
+  expected <- stats::cutree(
+    fastcluster::hclust(seq_repdist(Z), method = "complete"), h = 1 - 0.5)
+  observed <- out$bins$bin[rownames(Z)]
+  expected <- expected[rownames(Z)]
+  expect_equal(outer(observed, observed, "=="), outer(expected, expected, "=="))
 })
 
 test_that("complete-linkage bins enforce the requested all-pairs TM threshold", {
@@ -63,13 +59,12 @@ test_that("missing embeddings fail loudly", {
   expect_error(repdist_bin(counts, Z[1:10, ]))
 })
 
-test_that("a single protein produces valid one-tip trees and one bin", {
+test_that("a single protein produces one bin", {
   cc <- counts[, 1, drop = FALSE]
   out <- repdist_bin(cc, Z)
   expect_equal(out$bins$bin, c(p1 = "bin1"))
   expect_equal(unname(out$bins$counts[, 1]), unname(cc[, 1]))
-  expect_equal(out$tree$tip.label, "p1")
-  expect_equal(out$binned_tree$tip.label, "bin1")
+  expect_equal(out$bins$reps$protein, "p1")
 })
 
 test_that("malformed counts or embeddings are rejected", {
@@ -90,21 +85,16 @@ test_that("malformed counts or embeddings are rejected", {
   expect_error(repdist_bin(unnamed, Z))
 })
 
-test_that("a threshold vector shares one full tree and returns named cuts", {
+test_that("a threshold vector shares one dendrogram and returns named cuts", {
   out <- repdist_bin(counts, Z, cluster_threshold = c(0.5, 0.999))
+  expect_named(out, c("bins", "representative_sequences"))
   expect_named(out$bins, c("0.5", "0.999"))
-  expect_named(out$binned_tree, c("0.5", "0.999"))
   expect_named(out$representative_sequences, c("0.5", "0.999"))
   expect_equal(out$bins[["0.5"]], repdist_bin(counts, Z, 0.5)$bins)
   expect_equal(out$bins[["0.999"]], repdist_bin(counts, Z, 0.999)$bins)
-  expect_equal(out$tree, repdist_bin(counts, Z, 0.5)$tree)
-
-  for (threshold in names(out$bins))
-    expect_setequal(out$binned_tree[[threshold]]$tip.label,
-                    colnames(out$bins[[threshold]]$counts))
 })
 
-test_that("bin_dist feeds sample_repdist at bin resolution", {
+test_that("representative embeddings feed sample_repdist at bin resolution", {
   bins <- repdist_bin(counts, Z, cluster_threshold = 0.5)$bins
   C <- as.matrix(seq_repdist(Z))
 
@@ -112,10 +102,9 @@ test_that("bin_dist feeds sample_repdist at bin resolution", {
   expect_setequal(labels(bins$bin_dist), colnames(bins$counts))
   expect_equal(as.matrix(bins$bin_dist),
                C[bins$reps$protein, bins$reps$protein], ignore_attr = TRUE)
-  # bin_dist is the cosine ground distance between medoids, on the TM-score
-  # scale cluster_threshold is expressed in, so feeding it to sample_repdist()
-  # warns: that scale is not a metric. The bin-resolution MMD is still built.
-  expect_warning(D <- sample_repdist(bins$counts, bins$bin_dist), "indefinite")
+  Z_bin <- Z[bins$reps$protein, , drop = FALSE]
+  rownames(Z_bin) <- bins$reps$bin
+  D <- sample_repdist(bins$counts, Z_bin)
   expect_equal(attr(D, "Size"), nrow(counts))
 })
 

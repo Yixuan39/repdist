@@ -21,9 +21,9 @@
 #' positive-semi-definite only on a conditionally-negative-definite metric
 #' (Schoenberg), so `rbf_kernel(1 - cosine)` can be indefinite -- on real
 #' TM-Vec embeddings its smallest eigenvalue runs to `-5e-1` -- and MMD under
-#' an indefinite kernel is not a distance. That is why [sample_repdist()]
-#' defaults to `"euclidean"` while this function and [repdist_bin()] default to
-#' `"cosine"`.
+#' an indefinite kernel is not a distance. That is why [sample_repdist()] always
+#' uses `"euclidean"`, while this function and [repdist_bin()] default to
+#' `"cosine"` where that scale is valid.
 #'
 #' Nothing is given up by that split. `embed_proteins()` returns unit-norm
 #' rows, and for unit-norm vectors `||a - b|| = sqrt(2 * (1 - cos))` -- the two
@@ -134,11 +134,15 @@ seq_repdist <- function(embeddings, distance = c("cosine", "euclidean")) {
 #' kernel, or bandwidth are computed -- they carry no signal and would
 #' otherwise be free to distort the median-heuristic bandwidth.
 #'
-#' The ground metric defaults to `"euclidean"` here, unlike [seq_repdist()] and
-#' [repdist_bin()], which default to `"cosine"`. MMD is only a distance when
-#' the kernel is positive semi-definite, and a Gaussian RBF guarantees that
-#' only on a true metric; `1 - cosine` is not one. See [seq_repdist()] for why
-#' this costs nothing on unit-norm embeddings.
+#' The ground metric is always Euclidean here. MMD is only a distance when the
+#' kernel is positive semi-definite, and a Gaussian RBF on `1 - cosine` can be
+#' indefinite. Nothing is lost on unit-norm embeddings, because their
+#' Euclidean RBF *is* a kernel in
+#' cosine distance: `d_euclid^2 = 2 * d_cosine` exactly, so
+#' `exp(-d_euclid^2 / 2 sigma^2) = exp(-d_cosine / sigma^2)`. Choosing
+#' `"euclidean"` is therefore not a retreat from predicted TM-score -- it is
+#' `exp(-(1 - TM) / sigma^2)`, with the exponent linear in TM-distance rather
+#' than squared.
 #'
 #' Rarefy `counts` first (e.g. `vegan::rrarefy()`) if samples weren't
 #' collected at a common depth.
@@ -147,17 +151,8 @@ seq_repdist <- function(embeddings, distance = c("cosine", "euclidean")) {
 #'   rows, proteins in columns. Every row must have a positive total.
 #' @param embeddings Numeric matrix, one row per protein with rownames matching
 #'   `colnames(counts)`, or a named protein [stats::dist()] object such as the
-#'   result of [seq_repdist()].
-#' @param distance Ground metric used to build the RBF kernel from an embedding
-#'   matrix. `"euclidean"` (the default) is a true metric, so the RBF kernel is
-#'   guaranteed positive semi-definite and the MMD is guaranteed a distance.
-#'   `"cosine"` (`1 - predicted TM-score`) is *not* a metric and can yield an
-#'   indefinite kernel, which this function will reject rather than return a
-#'   meaningless number; on the unit-norm embeddings `embed_proteins()` returns
-#'   the two rank protein pairs identically, so `"euclidean"` costs nothing.
-#'   Ignored when `embeddings` is already a `dist` object -- in that case the
-#'   metric was fixed when [seq_repdist()] built it, so pass
-#'   `seq_repdist(Z, "euclidean")` for a kernel.
+#'   result of `seq_repdist(Z, "euclidean")`. Non-Euclidean precomputed
+#'   distances are rejected.
 #' @param weighted Use abundance as the weight (default). `FALSE` replaces each
 #'   sample's abundances with `sign(abundance)`, so every expressed protein
 #'   carries equal weight -- the presence/absence counterpart, standing to
@@ -172,10 +167,8 @@ seq_repdist <- function(embeddings, distance = c("cosine", "euclidean")) {
 #' @export
 sample_repdist <- function(counts,
                            embeddings,
-                           distance = c("euclidean", "cosine"),
                            weighted = TRUE,
                            sigma = NULL) {
-  distance <- match.arg(distance)
   counts <- as.matrix(counts)
   proteins <- .repdist_labels(embeddings)
 
@@ -187,21 +180,11 @@ sample_repdist <- function(counts,
     is.logical(weighted), length(weighted) == 1L, !is.na(weighted)
   )
 
-  # A precomputed `dist` carries its own metric, so `distance` cannot apply. The
-  # default from seq_repdist() is "cosine", which is not a metric and so is not
-  # safe under a kernel -- say so here rather than let it surface as a confusing
-  # non-PSD error further down, or not at all.
-  if (inherits(embeddings, "dist") &&
-      !identical(attr(embeddings, "method"), "euclidean")) {
-    how <- attr(embeddings, "method")
-    warning("`embeddings` is a ",
-            if (is.null(how) || !nzchar(how)) "`dist` of unknown metric"
-            else paste0(how, " `dist`"),
-            ", which is not known to satisfy the triangle inequality; the RBF ",
-            "kernel it induces may be indefinite. Pass ",
-            "seq_repdist(Z, \"euclidean\") for a sample-level distance.",
-            call. = FALSE)
-  }
+  is_dist <- inherits(embeddings, "dist")
+  if (is_dist && !identical(attr(embeddings, "method"), "euclidean"))
+    stop("`embeddings` must be a matrix or a Euclidean `dist`; cosine and ",
+         "unknown precomputed distances do not define a valid RBF-MMD.",
+         call. = FALSE)
 
   if (!weighted) counts <- sign(counts)
 
@@ -209,7 +192,7 @@ sample_repdist <- function(counts,
   keep <- colnames(counts)
   P <- counts / rowSums(counts)   # the weights, one row per sample
 
-  G <- as.matrix(.repdist_ground(embeddings, keep, distance))
+  G <- as.matrix(.repdist_ground(embeddings, keep, "euclidean"))
   D <- mmd_matrix(P, rbf_kernel(G, sigma))
   dimnames(D) <- list(rownames(counts), rownames(counts))
   stats::as.dist(D)
@@ -264,4 +247,95 @@ mmd_matrix <- function(P, K) {
          "valid positive-semidefinite kernel.", call. = FALSE)
   diag(M2) <- 0
   sqrt(pmax(M2, 0))
+}
+
+#' Optimal-transport distance between samples
+#'
+#' Earth mover's distance between samples, where each sample is the distribution
+#' of its relative abundance over proteins and the cost of moving abundance from
+#' one protein to another is supplied as a ground metric. Where Bray-Curtis can
+#' only ask whether two samples hold the *same* protein, this asks how far apart
+#' the proteins they hold actually are. Under a ground metric that puts every
+#' pair of distinct proteins exactly 1 apart, it *is* Bray-Curtis, to machine
+#' precision; under one that measures function, samples built from different
+#' accessions doing the same job come out close together.
+#'
+#' @section Scale:
+#' The result inherits the scale of `D`. Supply a ground metric already on 0-1 --
+#' `1 - GO similarity`, `1 - TM-score` and `1 - cosine` all are -- and the output
+#' is directly comparable with Bray-Curtis: two samples sharing no proteins, all
+#' of them maximally distant, score exactly 1.
+#'
+#' It reaches 1 only when *every* cross-sample protein pair is maximally distant.
+#' Samples that share no accession but whose proteins are merely different score
+#' lower, because transport routes abundance through whichever pairs are
+#' cheapest. That is the purpose of a ground metric rather than a defect: two
+#' samples with no accession in common but the same functions are genuinely not
+#' maximally far apart, and this is the sense in which Bray-Curtis, which calls
+#' them 1, is wrong.
+#'
+#' `D` is used as given, deliberately: dividing it by its largest entry would
+#' make the answer depend on which proteins happen to be present, stretching a
+#' set of functionally identical proteins 0.02 apart across the full range to
+#' score a maximal 1.
+#'
+#' @section Exact transport:
+#' Solved with \pkg{T4transport}'s `wassersteinD()`. Each sample pair is its own
+#' transport problem, sized to the two samples' supports rather than the whole
+#' ground metric, and at the sizes a beta-diversity comparison usually sees --
+#' tens to a few hundred distinct proteins per sample -- that is already fast:
+#' under a second for thousands of sample pairs.
+#'
+#' @param counts Sample-by-protein abundance matrix, samples in rows. Rows are
+#'   converted to relative abundance, so samples need not share a depth.
+#' @param D Protein ground metric, a `dist` or a square matrix, on whatever scale
+#'   the answer should be in. Names must match `colnames(counts)`. Proteins
+#'   absent from every sample are dropped.
+#' @return A `dist` object over the samples, for direct use with
+#'   `vegan::adonis2()` or [stats::cmdscale()].
+#' @seealso [sample_repdist()], the MMD counterpart.
+#'
+#' @examples
+#' counts <- rbind(s1 = c(10, 0, 0), s2 = c(0, 10, 0), s3 = c(0, 0, 10))
+#' colnames(counts) <- c("p1", "p2", "p3")
+#' # p1 and p2 are near-identical; p3 is unrelated to both
+#' D <- matrix(c(0, 0.1, 1, 0.1, 0, 1, 1, 1, 0), 3,
+#'             dimnames = list(colnames(counts), colnames(counts)))
+#' sample_repdist_OT(counts, D)
+#'
+#' @export
+sample_repdist_OT <- function(counts, D) {
+  counts <- as.matrix(counts)
+  if (inherits(D, "dist")) D <- as.matrix(D)
+  stopifnot(!is.null(colnames(counts)), nrow(counts) >= 2L,
+            is.numeric(counts), all(counts >= 0), all(rowSums(counts) > 0))
+
+  keep <- colnames(counts)[colSums(counts) > 0]
+  gone <- setdiff(keep, rownames(D))
+  if (length(gone))
+    stop(sprintf("%d protein(s) missing from the ground metric, e.g. %s",
+                 length(gone), paste(utils::head(gone, 3L), collapse = ", ")),
+         call. = FALSE)
+
+  D <- D[keep, keep, drop = FALSE]
+  if (anyNA(D) || min(D) < -1e-8)
+    stop("`D` must be complete and non-negative", call. = FALSE)
+  D[D < 0] <- 0                 # cosine round-off, not a real negative
+
+  P <- counts[, keep, drop = FALSE]
+  P <- P / rowSums(P)
+
+  # Supports are found once per sample rather than once per pair: every pair
+  # reuses them, and each transport problem is only as big as the two supports.
+  supp <- lapply(seq_len(nrow(P)), function(i) which(P[i, ] > 0))
+  pairs <- utils::combn(nrow(P), 2L)
+  vals <- apply(pairs, 2L, function(ij) {
+    a <- supp[[ij[1L]]]; b <- supp[[ij[2L]]]
+    T4transport::wassersteinD(D[a, b, drop = FALSE], p = 1,
+                              wx = P[ij[1L], a], wy = P[ij[2L], b])$distance
+  })
+
+  out <- matrix(0, nrow(P), nrow(P), dimnames = list(rownames(P), rownames(P)))
+  out[t(pairs)] <- vals
+  stats::as.dist(out + t(out))
 }

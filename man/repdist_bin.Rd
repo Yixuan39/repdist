@@ -2,7 +2,7 @@
 % Please edit documentation in R/binning.R
 \name{repdist_bin}
 \alias{repdist_bin}
-\title{Cluster proteins and build structure-similarity trees}
+\title{Cluster proteins into structural bins}
 \usage{
 repdist_bin(counts, embeddings, cluster_threshold = 0.5, seqs = NULL)
 }
@@ -23,16 +23,12 @@ dendrogram at each value.}
 protein sequences. It must contain every protein in \code{counts}.}
 }
 \value{
-A list with four elements:
+A list with two elements:
 \describe{
-\item{\code{tree}}{Complete-linkage \code{phylo} tree over the original proteins.}
 \item{\code{bins}}{For a scalar threshold, a list containing \code{counts} (samples
 x bins), \code{bin} (protein to bin membership), \code{bin_dist} (distance between
 representative proteins), and \code{reps} (bin medoids and sizes). For a
 threshold vector, a named list of these objects.}
-\item{\code{binned_tree}}{The complete-linkage tree pruned to bin
-representatives, with tips relabelled by bin; a named list of trees for
-a threshold vector.}
 \item{\code{representative_sequences}}{A bin-named
 \link[Biostrings:AAStringSet]{Biostrings::AAStringSet} containing each medoid sequence, or \code{NULL} if
 \code{seqs} was not supplied. For a threshold vector, a named list of these
@@ -54,15 +50,13 @@ neighbors. Default 0.5 is TM-score's conventional same-fold boundary (Xu &
 Zhang, Bioinformatics 2010).
 
 Pass a vector of thresholds to compare several cuts. They share one pairwise
-distance. Complete linkage defines bin membership so every protein pair in a
-bin meets the requested TM-score threshold. The returned full tree is this
-same complete-linkage hierarchy, and each binned tree is obtained by pruning
-it to the bin representatives and relabelling those tips as bins. These trees
-describe similarity, not evolutionary time.
+distance and one dendrogram. Complete linkage defines bin membership so every
+protein pair in a bin meets the requested TM-score threshold.
 
-\code{bin_dist} is the ground distance between bin \emph{representatives}, so
-\code{sample_repdist(out$bins$counts, out$bins$bin_dist)} computes RBF-MMD at bin
-resolution for a scalar threshold.
+\code{bin_dist} is the cosine distance between bin representatives. For
+bin-resolution MMD, index the original embedding matrix by
+\code{out$bins$reps$protein}, rename those rows with \code{out$bins$reps$bin}, and pass
+them with \code{out$bins$counts} to \code{\link[=sample_repdist]{sample_repdist()}}.
 
 Cost: the ground distance contains n(n-1)/2 doubles (roughly 400 MB at
 10,000 proteins). It remains condensed through clustering and medoid
