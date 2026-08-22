@@ -36,5 +36,22 @@
       "dropout": 0.1,
       "activation": "relu"
     }
+  },
+  "scikit-bio/tmvec-2": {
+    "head": "tmvec2",
+    "backbone": "asalam91/lobster_24M",
+    "training_max_length": 510,
+    "weights_repo": "scikit-bio/TMVec-2",
+    "weights_file": "tmvec-2.ckpt",
+    "config": {
+      "d_model": 408,
+      "nhead": 8,
+      "num_layers": 4,
+      "dim_feedforward": 2048,
+      "out_dim": 512,
+      "dropout": 0.2,
+      "activation": "gelu",
+      "projection_hidden_dim": 1024
+    }
   }
 }
