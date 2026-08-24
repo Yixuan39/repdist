@@ -4,7 +4,14 @@
 \alias{repdist_bin}
 \title{Cluster proteins into structural bins}
 \usage{
-repdist_bin(counts, embeddings, cluster_threshold = 0.5, seqs = NULL)
+repdist_bin(
+  counts,
+  embeddings,
+  cluster_threshold = 0.5,
+  method = c("complete", "dbscan", "hdbscan"),
+  min_size = 5L,
+  seqs = NULL
+)
 }
 \arguments{
 \item{counts}{Integer matrix of counts, or relative abundances, samples in
@@ -17,7 +24,13 @@ mean anything.}
 
 \item{cluster_threshold}{Similarity score defining the bin boundary
 (default 0.5, TM-score's same-fold threshold). A vector cuts the same
-dendrogram at each value.}
+dendrogram at each value. Ignored when \code{method = "hdbscan"}.}
+
+\item{method}{Clustering method, see \code{\link[=repdist_cluster]{repdist_cluster()}}. Default
+\code{"complete"}.}
+
+\item{min_size}{Minimum points forming a dense region, for the two density
+methods.}
 
 \item{seqs}{Optional named character vector or \link[Biostrings:AAStringSet]{Biostrings::AAStringSet} of
 protein sequences. It must contain every protein in \code{counts}.}

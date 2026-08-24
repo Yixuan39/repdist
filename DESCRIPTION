@@ -21,6 +21,7 @@ Imports:
     basilisk,
     BiocFileCache,
     Biostrings,
+    dbscan,
     digest,
     fastcluster,
     jsonlite,

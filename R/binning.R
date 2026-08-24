@@ -36,6 +36,60 @@
        reps = rep_df)
 }
 
+# Cluster proteins from a condensed ground distance. Complete linkage cuts a
+# dendrogram at a fixed height, so one global threshold applies everywhere;
+# the density methods let each cluster keep its own, which matters when
+# within-family similarity varies (it ranges 0.47-0.99 across CATH FunFams).
+.repdist_cluster_labels <- function(gm, keep, method, cluster_threshold,
+                                    min_size, hc = NULL) {
+  if (length(keep) < 2L) return(stats::setNames(1L, keep))
+  cl <- switch(
+    method,
+    complete = stats::cutree(
+      if (is.null(hc)) fastcluster::hclust(gm, method = "complete") else hc,
+      h = 1 - cluster_threshold),
+    dbscan = dbscan::dbscan(gm, eps = 1 - cluster_threshold,
+                            minPts = min_size)$cluster,
+    hdbscan = dbscan::hdbscan(gm, minPts = min_size)$cluster
+  )
+  # Density methods mark unclustered points 0. A protein that belongs with
+  # nothing is its own bin, not a dropped observation.
+  cl[cl == 0L] <- max(cl) + seq_len(sum(cl == 0L))
+  stats::setNames(as.integer(cl), keep)
+}
+
+#' Cluster proteins by structural similarity
+#'
+#' Returns bin membership without collapsing an abundance table. This is the
+#' clustering step of [repdist_bin()], exposed for benchmarking a partition
+#' against a reference grouping.
+#'
+#' @param embeddings Numeric matrix, one row per protein, or a precomputed
+#'   protein `dist` from [seq_repdist()].
+#' @param cluster_threshold Similarity score defining the bin boundary. Used by
+#'   `"complete"` and `"dbscan"`; ignored by `"hdbscan"`.
+#' @param method `"complete"` (complete-linkage hierarchical clustering at one
+#'   global cut), `"dbscan"` (density-based at one global radius), or
+#'   `"hdbscan"` (density-based, each cluster keeping its own radius).
+#' @param min_size Minimum points forming a dense region, for the two density
+#'   methods.
+#' @return A named integer vector of cluster ids, one per protein.
+#' @examples
+#' Z <- rbind(p1 = c(1, 0), p2 = c(0.95, 0.05), p3 = c(0, 1))
+#' repdist_cluster(Z)
+#' @export
+repdist_cluster <- function(embeddings, cluster_threshold = 0.5,
+                            method = c("complete", "dbscan", "hdbscan"),
+                            min_size = 5L) {
+  method <- match.arg(method)
+  proteins <- .repdist_labels(embeddings)
+  stopifnot(!is.null(proteins), length(cluster_threshold) == 1L,
+            is.finite(cluster_threshold), min_size >= 1L)
+  .repdist_cluster_labels(
+    .repdist_ground(embeddings, proteins), proteins, method,
+    cluster_threshold, min_size)
+}
+
 #' Cluster proteins into structural bins
 #'
 #' Collapses `counts` from protein-level to structural-bin level by clustering
@@ -72,7 +126,11 @@
 #'   mean anything.
 #' @param cluster_threshold Similarity score defining the bin boundary
 #'   (default 0.5, TM-score's same-fold threshold). A vector cuts the same
-#'   dendrogram at each value.
+#'   dendrogram at each value. Ignored when `method = "hdbscan"`.
+#' @param method Clustering method, see [repdist_cluster()]. Default
+#'   `"complete"`.
+#' @param min_size Minimum points forming a dense region, for the two density
+#'   methods.
 #' @param seqs Optional named character vector or [Biostrings::AAStringSet] of
 #'   protein sequences. It must contain every protein in `counts`.
 #' @return A list with two elements:
@@ -92,14 +150,18 @@
 #' colnames(counts) <- rownames(Z)
 #' repdist_bin(counts, Z)
 #' @export
-repdist_bin <- function(counts, embeddings, cluster_threshold = 0.5, seqs = NULL) {
+repdist_bin <- function(counts, embeddings, cluster_threshold = 0.5,
+                        method = c("complete", "dbscan", "hdbscan"),
+                        min_size = 5L, seqs = NULL) {
+  method <- match.arg(method)
   counts <- as.matrix(counts)
   proteins <- .repdist_labels(embeddings)
   stopifnot(
     !is.null(rownames(counts)), !is.null(colnames(counts)),
     !is.null(proteins), all(colnames(counts) %in% proteins),
     ncol(counts) >= 1L, is.numeric(counts), all(is.finite(counts)), all(counts >= 0),
-    length(cluster_threshold) >= 1L, all(is.finite(cluster_threshold))
+    length(cluster_threshold) >= 1L, all(is.finite(cluster_threshold)),
+    length(min_size) == 1L, min_size >= 1L
   )
   keep <- colnames(counts)
   if (!is.null(seqs)) seqs <- .repdist_qc_sequences(seqs, keep)
@@ -117,11 +179,14 @@ repdist_bin <- function(counts, embeddings, cluster_threshold = 0.5, seqs = NULL
   # dead but not yet collected. ponytail: explicit gc() earns its place only
   # here, where the object handed to C is multiple GB.
   if (length(keep) > 20000L) gc(full = TRUE)
-  hc <- if (!lone) fastcluster::hclust(gm, method = "complete")
+  # One dendrogram is shared across cuts; the density methods are re-run per
+  # threshold, which is cheap next to the distance itself.
+  hc <- if (!lone && method == "complete")
+    fastcluster::hclust(gm, method = "complete")
 
   out <- lapply(cluster_threshold, function(th) {
     x <- .bin_result(
-      if (lone) stats::setNames(1L, keep) else stats::cutree(hc, h = 1 - th),
+      .repdist_cluster_labels(gm, keep, method, th, min_size, hc),
       counts, gm)
     list(bins = x,
          representative_sequences = if (!is.null(seqs))
