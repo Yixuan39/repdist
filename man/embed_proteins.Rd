@@ -19,10 +19,8 @@ letters like \code{J}, empty sequences, and missing values are rejected.}
 
 \item{model}{A key from \code{\link[=known_models]{known_models()}} -- \code{"tmvec-swissmodel-large"} (the
 default, trained through 1000 residues), \code{"scikit-bio/tmvec-swissmodel"} (300
-residues, for in-range sensitivity analyses), \code{"scikit-bio/tmvec-2"} (510
-residues, over a 24M-parameter backbone instead of ProtT5-XL's 3B),
-\code{"esm2"}, \code{"esm2-small"} -- or any HuggingFace encoder repo, embedded
-generically.}
+residues, for in-range sensitivity analyses), \code{"esm2"}, \code{"esm2-small"} -- or
+any HuggingFace encoder repo, embedded generically.}
 
 \item{device}{\code{"auto"} picks CUDA, then MPS, then CPU. An explicit \code{"mps"},
 \code{"cuda"} or \code{"cpu"} errors if unavailable rather than falling back.}

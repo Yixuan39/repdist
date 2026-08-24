@@ -152,11 +152,10 @@ read_embeddings <- function(path, embedding_key = NULL, id_key = NULL) {
 #' @return Named list keyed by model, each entry carrying `head` (architecture,
 #'   or `"generic"`), `backbone` (HuggingFace repo), `training_max_length`
 #'   (the range used to train the head) and, when the architecture
-#'   has one, `context_max_length` (an architectural limit). A bare checkpoint
-#'   ships no architecture, so it also carries the `config` to rebuild it with,
-#'   plus either the `url` its weights come from and the `sha256` they are
-#'   verified against, or the `weights_repo` and `weights_file` naming them on
-#'   the HuggingFace Hub.
+#'   has one, `context_max_length` (an architectural limit). A
+#'   head with no HuggingFace release also carries the `url` its weights come
+#'   from, the `sha256` they are verified against, and the `config` to rebuild
+#'   the architecture with, since a bare checkpoint ships none.
 #' @examples
 #' str(known_models())
 #' @export
@@ -217,10 +216,8 @@ known_models <- function() jsonlite::fromJSON(
 #'   letters like `J`, empty sequences, and missing values are rejected.
 #' @param model A key from [known_models()] -- `"tmvec-swissmodel-large"` (the
 #'   default, trained through 1000 residues), `"scikit-bio/tmvec-swissmodel"` (300
-#'   residues, for in-range sensitivity analyses), `"scikit-bio/tmvec-2"` (510
-#'   residues, over a 24M-parameter backbone instead of ProtT5-XL's 3B),
-#'   `"esm2"`, `"esm2-small"` -- or any HuggingFace encoder repo, embedded
-#'   generically.
+#'   residues, for in-range sensitivity analyses), `"esm2"`, `"esm2-small"` -- or
+#'   any HuggingFace encoder repo, embedded generically.
 #' @param device `"auto"` picks CUDA, then MPS, then CPU. An explicit `"mps"`,
 #'   `"cuda"` or `"cpu"` errors if unavailable rather than falling back.
 #' @param memory_fraction Fraction of currently available device memory that
@@ -257,7 +254,6 @@ embed_proteins <- function(
   weights <- switch(spec$head,
     generic        = "",
     tmvec1         = model,
-    tmvec2         = spec$weights_repo,
     `tmvec1-large` = .repdist_cached_weights(spec, model),
     stop("Unknown head type `", spec$head, "` for model `", model, "`.",
          call. = FALSE))

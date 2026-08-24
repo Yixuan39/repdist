@@ -1,11 +1,10 @@
 """Protein-embedding backends for the repdist R package.
 
 Called from R through reticulate inside a basilisk environment; `embed()` is the
-only entry point. Every path returns one L2-normalised row per sequence.
-`tmvec1` and `tmvec2` are trained TM-Vec heads -- over a frozen ProtT5 and a
-frozen Lobster-24M backbone respectively -- whose cosine similarity is a
-predicted TM-score. `generic` is mean-pooled AutoModel hidden states for any
-other HuggingFace encoder, with no such calibration claim.
+only entry point. Two paths, both returning one L2-normalised row per sequence:
+`tmvec1`, a trained TM-Vec head over a frozen ProtT5 backbone whose cosine
+similarity is a predicted TM-score, and `generic`, mean-pooled AutoModel hidden
+states for any other HuggingFace encoder, with no such calibration claim.
 """
 
 import json
@@ -25,8 +24,7 @@ from huggingface_hub import hf_hub_download  # noqa: E402
 from safetensors.torch import load_file  # noqa: E402
 from torch import nn  # noqa: E402
 from transformers import (  # noqa: E402
-    AutoModel, AutoTokenizer, EsmConfig, EsmModel, EsmTokenizer,
-    T5EncoderModel, T5Tokenizer)
+    AutoModel, AutoTokenizer, T5EncoderModel, T5Tokenizer)
 
 def resolve_device(requested):
     """Map "auto" onto the best available accelerator, or check an explicit one."""
@@ -44,71 +42,28 @@ def resolve_device(requested):
     return requested
 
 
-def _encoder_stack(cfg):
-    """The transformer encoder both TM-Vec generations put over the backbone."""
-    layer = nn.TransformerEncoderLayer(
-        d_model=cfg["d_model"], nhead=cfg["nhead"],
-        dim_feedforward=cfg["dim_feedforward"], dropout=cfg["dropout"],
-        activation=cfg["activation"], batch_first=True)
-    # enable_nested_tensor's fast path calls an op MPS does not implement
-    # (aten::_nested_tensor_from_mask_left_aligned) -- off on every device.
-    return nn.TransformerEncoder(
-        layer, num_layers=cfg["num_layers"], enable_nested_tensor=False)
-
-
-def _masked_mean(x, pad):
-    """Mean over the unpadded positions of each row."""
-    x = x.masked_fill(pad.unsqueeze(-1), 0.0)
-    return x.sum(1) / torch.logical_not(pad).sum(1, keepdim=True)
-
-
 class _TMVecHead(nn.Module):
-    """TM-Vec1's transformer head over frozen per-residue backbone states."""
+    """TM-Vec's transformer head over frozen per-residue backbone states."""
 
     def __init__(self, cfg):
         super().__init__()
         self.d_model = cfg["d_model"]
         self.nhead = cfg["nhead"]
         self.dim_feedforward = cfg["dim_feedforward"]
-        self.out_dim = cfg["out_dim"]
-        self.encoder = _encoder_stack(cfg)
+        layer = nn.TransformerEncoderLayer(
+            d_model=cfg["d_model"], nhead=cfg["nhead"],
+            dim_feedforward=cfg["dim_feedforward"], dropout=cfg["dropout"],
+            activation=cfg["activation"], batch_first=True)
+        # enable_nested_tensor's fast path calls an op MPS does not implement
+        # (aten::_nested_tensor_from_mask_left_aligned) -- off on every device.
+        self.encoder = nn.TransformerEncoder(
+            layer, num_layers=cfg["num_layers"], enable_nested_tensor=False)
         self.mlp = nn.Linear(cfg["d_model"], cfg["out_dim"])
 
     def forward(self, x, pad):
-        return self.mlp(_masked_mean(self.encoder(x, src_key_padding_mask=pad), pad))
-
-
-class _TMVec2Head(nn.Module):
-    """TM-Vec2's head: the same encoder, then a two-layer MLP projection.
-
-    Mirrors TMScorePredictor.encode_sequence in paarth-b/tmvec-bench. Two
-    details are not guessable from the checkpoint and are wrong if assumed:
-    the projection's non-linearity is ReLU, *not* the config's `activation`
-    (which belongs to the encoder layers), and slot 2 must stay a Dropout --
-    inert at eval, but it is what makes the trained weights land on
-    `projection.3` rather than `projection.2`.
-    """
-
-    def __init__(self, cfg):
-        super().__init__()
-        self.d_model = cfg["d_model"]
-        self.nhead = cfg["nhead"]
-        self.dim_feedforward = cfg["dim_feedforward"]
-        self.out_dim = cfg["out_dim"]
-        self.encoder = _encoder_stack(cfg)
-        self.projection = nn.Sequential(
-            nn.Linear(cfg["d_model"], cfg["projection_hidden_dim"]),
-            nn.ReLU(),
-            nn.Dropout(cfg["dropout"]),
-            nn.Linear(cfg["projection_hidden_dim"], cfg["out_dim"]))
-
-    def forward(self, x, pad):
-        pooled = _masked_mean(self.encoder(x, src_key_padding_mask=pad), pad)
-        return self.projection(pooled)
-
-
-_HEAD_CLASSES = {"tmvec1": _TMVecHead, "tmvec1-large": _TMVecHead,
-                 "tmvec2": _TMVec2Head}
+        x = self.encoder(x, src_key_padding_mask=pad)
+        x = x.masked_fill(pad.unsqueeze(-1), 0.0)
+        return self.mlp(x.sum(1) / torch.logical_not(pad).sum(1, keepdim=True))
 
 
 # Cached so one embed() call loads the multi-GB backbone once, not per batch.
@@ -125,65 +80,8 @@ def _load_generic(repo, device):
             AutoModel.from_pretrained(repo).eval().to(device))
 
 
-# Lobster-24M is HuggingFace's own ESM architecture published under a private
-# name: its config says model_type "pmlm" and its tensors carry an "LMBase."
-# prefix, so `AutoModel` refuses the repo outright. Everything underneath is
-# ESM -- the same module tree, the same 32-token vocabulary in the same order,
-# rotary positions -- so rebuilding it as an `EsmModel` reproduces LBSTER's own
-# forward pass to 5e-07 and keeps `lbster` (and lightning, litdata, hydra,
-# deepspeed, wandb with it) out of the pinned environment entirely.
-_LOBSTER_CONFIG_KEYS = (
-    "vocab_size", "hidden_size", "num_hidden_layers", "num_attention_heads",
-    "intermediate_size", "hidden_act", "hidden_dropout_prob",
-    "attention_probs_dropout_prob", "max_position_embeddings",
-    "layer_norm_eps", "position_embedding_type", "pad_token_id",
-    "mask_token_id")
-# The only four parameters ESM always builds and this checkpoint never stored,
-# because its config declares each of them absent. An all-zero bias is then not
-# an approximation, it is the same function.
-_LOBSTER_ABSENT_BIASES = (
-    "attention.self.query.bias", "attention.self.key.bias",
-    "attention.self.value.bias", "intermediate.dense.bias")
-
-
 @lru_cache(maxsize=None)
-def _load_lobster(backbone, device):
-    raw = json.load(open(hf_hub_download(backbone, "config.json")))
-    cfg = EsmConfig(
-        token_dropout=bool(raw["token_dropout"]),
-        emb_layer_norm_before=bool(raw["emb_layer_norm_before"]),
-        **{k: raw[k] for k in _LOBSTER_CONFIG_KEYS})
-    body = EsmModel(cfg, add_pooling_layer=False)
-
-    weights = torch.load(hf_hub_download(backbone, "pytorch_model.bin"),
-                         map_location="cpu", weights_only=True)
-    state = {k[len("LMBase."):]: v
-             for k, v in weights.items() if k.startswith("LMBase.")}
-    # A buffer newer transformers no longer keeps in the state dict.
-    state.pop("embeddings.position_ids", None)
-    for name, param in body.state_dict().items():
-        if name not in state and name.endswith(_LOBSTER_ABSENT_BIASES):
-            state[name] = torch.zeros_like(param)
-
-    report = body.load_state_dict(state, strict=False)
-    # Everything must line up except the contact head, which this checkpoint
-    # keeps outside the encoder and which embedding never calls. Anything else
-    # missing or unexpected means the repo changed shape under us.
-    unresolved = set(report.missing_keys) - {
-        "contact_head.regression.weight", "contact_head.regression.bias"}
-    if unresolved or report.unexpected_keys:
-        raise ValueError(
-            "backbone '{}' does not match the ESM layout: missing {}, "
-            "unexpected {}".format(backbone, sorted(unresolved),
-                                   sorted(report.unexpected_keys)))
-    # Built from vocab.txt rather than the repo's tokenizer_config, which names
-    # a PmlmTokenizer class only lbster ships. The vocabulary is ESM's already.
-    tok = EsmTokenizer(vocab_file=hf_hub_download(backbone, "vocab.txt"))
-    return tok, body.eval().to(device)
-
-
-@lru_cache(maxsize=None)
-def _load_head(kind, weights, device, cfg_json):
+def _load_head(weights, device, cfg_json):
     """An empty cfg_json means `weights` is a repo carrying its own config.json."""
     if cfg_json:
         cfg = json.loads(cfg_json)
@@ -191,7 +89,7 @@ def _load_head(kind, weights, device, cfg_json):
     else:
         cfg = json.load(open(hf_hub_download(weights, "config.json")))
         state = load_file(hf_hub_download(weights, "model.safetensors"))
-    head = _HEAD_CLASSES[kind](cfg)
+    head = _TMVecHead(cfg)
     # strict=True checks every shape cfg implies; only nhead and activation,
     # which leave no shape behind, would pass silently if the registry were wrong.
     head.load_state_dict(state, strict=True)
@@ -213,17 +111,6 @@ def _run_tmvec(seqs, device, backbone, head):
         x[i, :n] = h[i, :n].float()
         pad[i, :n] = False
     return head(x, pad)
-
-
-def _run_tmvec2(seqs, device, backbone, head):
-    tok, body = _load_lobster(backbone, device)
-    enc = tok(list(seqs), padding=True, return_tensors="pt")
-    ids, attn = enc["input_ids"].to(device), enc["attention_mask"].to(device)
-    h = body(input_ids=ids, attention_mask=attn).last_hidden_state
-    # Upstream pools over every attended token, <cls> and <eos> included. The
-    # head was trained on exactly that, so they are not stripped here -- unlike
-    # the TM-Vec1 path, where ProtT5's trailing </s> is dropped.
-    return head(h.float(), attn == 0)
 
 
 def _run_generic(seqs, device, tok, model):
@@ -363,30 +250,19 @@ def _available_device_memory(device):
     return _cpu_available_memory()
 
 
-def _backbone_shape(cfg):
-    """(heads, attention width, feed-forward width, hidden width).
-
-    T5 and ESM name the same four quantities differently, and `d_kv` is the
-    one field only T5 has.
-    """
-    if hasattr(cfg, "d_kv"):
-        return cfg.num_heads, cfg.num_heads * cfg.d_kv, cfg.d_ff, cfg.d_model
-    return (cfg.num_attention_heads, cfg.hidden_size,
-            cfg.intermediate_size, cfg.hidden_size)
-
-
 def _tmvec_working_bytes(batch, length, body, head):
     """Conservative peak-memory estimate for one TM-Vec forward pass."""
     batch, length = int(batch), int(length)
-    heads, inner, d_ff, d_model = _backbone_shape(body.config)
+    cfg = body.config
+    inner = cfg.num_heads * cfg.d_kv
 
     # T5 keeps one relative-position matrix and materializes attention scores
     # plus softmax weights. Linear terms cover q/k/v, feed-forward states, and
     # hidden outputs. Layers run serially under no_grad(), so layer count does
     # not multiply peak activation memory.
-    body_quadratic = (2 * batch + 1) * heads * length * length
+    body_quadratic = (2 * batch + 1) * cfg.num_heads * length * length
     body_linear = batch * length * (
-        4 * inner + 2 * d_ff + 4 * d_model)
+        4 * inner + 2 * cfg.d_ff + 4 * cfg.d_model)
 
     head_quadratic = 2 * batch * head.nhead * length * length
     head_linear = batch * length * (
@@ -435,8 +311,6 @@ def embed(seqs, spec_json, weights, device, memory_fraction):
     HuggingFace head repo for "tmvec1", or a local Lightning checkpoint (already
     hash-verified on the R side) for "tmvec1-large" -- which, carrying no
     config.json of its own, takes its architecture from the registry's `config`.
-    "tmvec2" is a Lightning checkpoint too, but one released on the Hub, so the
-    registry names the `weights_file` to pull from the `weights` repo.
     """
     spec = json.loads(spec_json)
     head, backbone = spec["head"], spec["backbone"]
@@ -447,18 +321,12 @@ def embed(seqs, spec_json, weights, device, memory_fraction):
         run = lambda batch: _run_generic(batch, device, tok, model)
         out_dim = model.config.hidden_size
         memory_budget = memory_estimate = None
-    elif head in _HEAD_CLASSES:
+    elif head in ("tmvec1", "tmvec1-large"):
         cfg_json = json.dumps(spec["config"]) if "config" in spec else ""
-        weights = (hf_hub_download(weights, spec["weights_file"])
-                   if "weights_file" in spec else weights)
-        top = _load_head(head, weights, device, cfg_json)
-        if head == "tmvec2":
-            _, body = _load_lobster(backbone, device)
-            run = lambda batch: _run_tmvec2(batch, device, backbone, top)
-        else:
-            _, body = _load_prott5(backbone, device)
-            run = lambda batch: _run_tmvec(batch, device, backbone, top)
-        out_dim = top.out_dim
+        top = _load_head(weights, device, cfg_json)
+        _, body = _load_prott5(backbone, device)
+        run = lambda batch: _run_tmvec(batch, device, backbone, top)
+        out_dim = top.mlp.out_features
         available = _available_device_memory(device)
         memory_budget = int(float(memory_fraction) * available)
         memory_estimate = lambda count, width: _tmvec_working_bytes(
@@ -527,26 +395,4 @@ if __name__ == "__main__":
     square = lambda batch, width: batch * width * width
     assert list(_batches([10, 10, 10], 250, square)) == [
         (0, 2), (2, 3)]
-
-    cfg = dict(d_model=8, nhead=2, num_layers=1, dim_feedforward=16,
-               out_dim=4, dropout=0.0, activation="gelu",
-               projection_hidden_dim=6)
-    pad = torch.tensor([[False, False, True], [False, True, True]])
-    x = torch.arange(2 * 3 * 8, dtype=torch.float32).reshape(2, 3, 8)
-    # Padded positions must not reach the mean: row 1 sees only its first token.
-    assert torch.allclose(_masked_mean(x, pad)[1], x[1, 0])
-    assert torch.allclose(_masked_mean(x, pad)[0], x[0, :2].mean(0))
-    for kind, names in (("tmvec1", {"mlp.weight"}),
-                        ("tmvec2", {"projection.0.weight", "projection.3.weight"})):
-        head = _HEAD_CLASSES[kind](cfg).eval()
-        keys = set(head.state_dict())
-        assert names <= keys, (kind, sorted(keys))
-        with torch.no_grad():
-            assert head(x, pad).shape == (2, 4)
-    # A T5 config exposes d_kv; an ESM one does not. Both must be readable.
-    t5 = type("cfg", (), dict(num_heads=2, d_kv=4, d_ff=16, d_model=8))
-    esm = type("cfg", (), dict(num_attention_heads=2, hidden_size=8,
-                               intermediate_size=16))
-    assert _backbone_shape(t5) == (2, 8, 16, 8)
-    assert _backbone_shape(esm) == (2, 8, 16, 8)
     print("ok")

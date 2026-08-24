@@ -25,49 +25,6 @@ test_that("registry keeps architectural limits separate from training ranges", {
   expect_null(models[["tmvec-swissmodel-large"]]$context_max_length)
   expect_equal(models[["tmvec-swissmodel-large"]]$training_max_length, 1000)
   expect_equal(models$esm2$context_max_length, 1022)
-  # TM-Vec2's backbone is rotary, so 510 is the head's training range and not a
-  # positional table it can run off the end of. Registering it as a context
-  # would silently drop every longer protein.
-  expect_null(models[["scikit-bio/tmvec-2"]]$context_max_length)
-  expect_equal(models[["scikit-bio/tmvec-2"]]$training_max_length, 510)
-})
-
-test_that("every registered head has weights the R side knows how to resolve", {
-  for (model in names(known_models())) {
-    spec <- known_models()[[model]]
-    expect_true(spec$head %in%
-      c("generic", "tmvec1", "tmvec1-large", "tmvec2"), info = model)
-    # A bare checkpoint ships no architecture, so the registry must carry it.
-    if (spec$head %in% c("tmvec1-large", "tmvec2"))
-      expect_true(is.list(spec$config), info = model)
-    if (spec$head == "tmvec2") {
-      expect_true(nzchar(spec$weights_repo), info = model)
-      expect_true(nzchar(spec$weights_file), info = model)
-    }
-  }
-})
-
-test_that("TM-Vec2 reproduces the upstream reference embeddings", {
-  skip_on_cran()
-  skip_if_offline()
-  # Globins against a structurally unrelated repressor. The values come from
-  # LBSTER's own backbone driving tmvec-bench's own TMScorePredictor head, so
-  # this pins both halves of the reimplementation: the ESM rebuild of
-  # Lobster-24M, and the ReLU/Dropout ordering inside the head's projection.
-  seqs <- c(
-    HBB = paste0(
-      "MVHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKV",
-      "KAHGKKVLGAFSDGLAHLDNLKGTFATLSELHCDKLHVDPENFRLLGNVLVCVLAHHFGKE",
-      "FTPPVQAAYQKVVAGVANALAHKYH"),
-    MYG = paste0(
-      "MGLSDGEWQLVLNVWGKVEADIPGHGQEVLIRLFKGHPETLEKFDKFKHLKSEDEMKASED",
-      "LKKHGATVLTALGGILKKKGHHEAEIKPLAQSHATKHKIPVKYLEFISECIIQVLQSKHPG",
-      "DFGADAQGAMNKALELFRKDMASNYKELGFQG"))
-  Z <- embed_proteins(seqs, model = "scikit-bio/tmvec-2", device = "cpu")
-
-  expect_equal(dim(Z), c(2L, 512L))
-  expect_equal(sqrt(rowSums(Z^2)), c(HBB = 1, MYG = 1), tolerance = 1e-6)
-  expect_equal(sum(Z[1, ] * Z[2, ]), 0.9549, tolerance = 1e-3)
 })
 
 test_that("the embedding memory control rejects invalid values before model loading", {

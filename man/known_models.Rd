@@ -10,11 +10,10 @@ known_models()
 Named list keyed by model, each entry carrying \code{head} (architecture,
 or \code{"generic"}), \code{backbone} (HuggingFace repo), \code{training_max_length}
 (the range used to train the head) and, when the architecture
-has one, \code{context_max_length} (an architectural limit). A bare checkpoint
-ships no architecture, so it also carries the \code{config} to rebuild it with,
-plus either the \code{url} its weights come from and the \code{sha256} they are
-verified against, or the \code{weights_repo} and \code{weights_file} naming them on
-the HuggingFace Hub.
+has one, \code{context_max_length} (an architectural limit). A
+head with no HuggingFace release also carries the \code{url} its weights come
+from, the \code{sha256} they are verified against, and the \code{config} to rebuild
+the architecture with, since a bare checkpoint ships none.
 }
 \description{
 A trained head and the backbone it was trained on are separate repos, and the
