@@ -5,7 +5,17 @@
 #
 # Bumping any pin here changes the embeddings, so treat it as a version bump of
 # the ground metric, not as routine maintenance.
-.repdist_env <- basilisk::BasiliskEnvironment(
+#
+# This file is sourced standalone by configureBasiliskEnv() from ./configure, so
+# it must not assume the rest of the package is loaded. `repdist_env` carries no
+# leading dot on purpose: configureBasiliskEnv() collects environments with
+# ls(), which skips dot-prefixed names, and would silently build nothing.
+#
+# One environment, not one per model: every entry in inst/extdata/models.json
+# runs on these pins. Split only when a model needs pins that genuinely cannot
+# coexist with these -- configure builds every environment declared here, so an
+# extra one costs another multi-GB torch on the Bioconductor builders.
+repdist_env <- basilisk::BasiliskEnvironment(
   envname = "repdist-embed",
   pkgname = "repdist",
   packages = "python=3.11.11",
@@ -22,12 +32,4 @@
     "sentencepiece==0.2.0",
     "protobuf==5.29.1"
   )
-)
-
-# Reading NumPy archives should not install or load the much larger model stack.
-.repdist_io_env <- basilisk::BasiliskEnvironment(
-  envname = "repdist-io",
-  pkgname = "repdist",
-  packages = "python=3.11.11",
-  pip = "numpy==1.26.4"
 )

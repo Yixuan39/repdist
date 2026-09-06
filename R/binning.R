@@ -1,199 +1,209 @@
-.repdist_medoid <- function(members, gm) {
+# Medoid of `members`: the one closest to all the others, read straight out of
+# the condensed dist so the full matrix is never expanded.
+.repdist_medoid <- function(members, D) {
   k <- length(members)
   if (k == 1L) return(members)
-  idx <- match(members, attr(gm, "Labels"))
+  idx <- match(members, attr(D, "Labels"))
   totals <- numeric(k)
   for (j in seq_len(k - 1L)) {
     at <- seq.int(j + 1L, k)
-    values <- .repdist_dist_values(gm, idx[[j]], idx[at])
+    values <- usedist::dist_get(D, idx[[j]], idx[at])
     totals[[j]] <- totals[[j]] + sum(values)
     totals[at] <- totals[at] + values
   }
   members[[which.min(totals)]]
 }
 
-# One dendrogram cut. `gm` is the condensed ground metric shared across cuts.
-.bin_result <- function(clust, counts, gm) {
-  keep <- names(clust)
-  totals <- tapply(colSums(counts), clust, sum)
-  rank_id <- rank(-totals, ties.method = "first")
-  bin <- stats::setNames(paste0("bin", rank_id[as.character(clust)]), keep)
-
-  # split() and rowsum() both order groups lexically (bin1, bin10, bin2), so
-  # everything below is put back in bin order -- counts, reps and bin_dist line
-  # up positionally, not just by name.
-  members <- split(keep, bin)
-  members <- members[order(as.integer(sub("^bin", "", names(members))))]
-  reps <- vapply(members, .repdist_medoid, character(1), gm = gm)
-
-  rolled <- t(base::rowsum(t(counts), group = bin[colnames(counts)]))
-  rolled <- rolled[, names(members), drop = FALSE]
-
-  rep_df <- data.frame(
-    bin = names(reps), protein = unname(reps), size = lengths(members))
-  list(counts = rolled, bin = bin,
-       bin_dist = .repdist_subset_dist(gm, unname(reps), names(reps)),
-       reps = rep_df)
-}
-
-# Cluster proteins from a condensed ground distance. Complete linkage cuts a
-# dendrogram at a fixed height, so one global threshold applies everywhere;
-# the density methods let each cluster keep its own, which matters when
-# within-family similarity varies (it ranges 0.47-0.99 across CATH FunFams).
-.repdist_cluster_labels <- function(gm, keep, method, cluster_threshold,
-                                    min_size, hc = NULL) {
-  if (length(keep) < 2L) return(stats::setNames(1L, keep))
-  cl <- switch(
-    method,
-    complete = stats::cutree(
-      if (is.null(hc)) fastcluster::hclust(gm, method = "complete") else hc,
-      h = 1 - cluster_threshold),
-    dbscan = dbscan::dbscan(gm, eps = 1 - cluster_threshold,
-                            minPts = min_size)$cluster,
-    hdbscan = dbscan::hdbscan(gm, minPts = min_size)$cluster
-  )
-  # Density methods mark unclustered points 0. A protein that belongs with
-  # nothing is its own bin, not a dropped observation.
-  cl[cl == 0L] <- max(cl) + seq_len(sum(cl == 0L))
-  stats::setNames(as.integer(cl), keep)
-}
-
-#' Cluster proteins by structural similarity
-#'
-#' Returns bin membership without collapsing an abundance table. This is the
-#' clustering step of [repdist_bin()], exposed for benchmarking a partition
-#' against a reference grouping.
-#'
-#' @param embeddings Numeric matrix, one row per protein, or a precomputed
-#'   protein `dist` from [seq_repdist()].
-#' @param cluster_threshold Similarity score defining the bin boundary. Used by
-#'   `"complete"` and `"dbscan"`; ignored by `"hdbscan"`.
-#' @param method `"complete"` (complete-linkage hierarchical clustering at one
-#'   global cut), `"dbscan"` (density-based at one global radius), or
-#'   `"hdbscan"` (density-based, each cluster keeping its own radius).
-#' @param min_size Minimum points forming a dense region, for the two density
-#'   methods.
-#' @return A named integer vector of cluster ids, one per protein.
-#' @examples
-#' Z <- rbind(p1 = c(1, 0), p2 = c(0.95, 0.05), p3 = c(0, 1))
-#' repdist_cluster(Z)
-#' @export
-repdist_cluster <- function(embeddings, cluster_threshold = 0.5,
-                            method = c("complete", "dbscan", "hdbscan"),
-                            min_size = 5L) {
-  method <- match.arg(method)
-  proteins <- .repdist_labels(embeddings)
-  stopifnot(!is.null(proteins), length(cluster_threshold) == 1L,
-            is.finite(cluster_threshold), min_size >= 1L)
-  .repdist_cluster_labels(
-    .repdist_ground(embeddings, proteins), proteins, method,
-    cluster_threshold, min_size)
-}
-
 #' Cluster proteins into structural bins
 #'
-#' Collapses `counts` from protein-level to structural-bin level by clustering
-#' `embeddings` and summing abundance within each bin -- the structural
-#' analogue of collapsing an ASV table to a coarser rank. Point this at a
-#' per-bin differential-abundance test (corncob, ALDEx2, ANCOM-BM, ...)
-#' instead of comparing raw proteins one at a time.
+#' Cluster a [repdist_matrix()] cosine distance. The default complete-linkage
+#' tree is cut at `1 - min_sim`, so every within-bin pair has similarity at
+#' least `min_sim`. Optional graph and density methods explore groups for
+#' annotation; none of these methods guarantees shared function. Bins are named
+#' `bin1`, `bin2`, ... from largest to smallest.
 #'
-#' Cosine similarity between TM-Vec vectors is the predicted TM-score, so
-#' `1 - cluster_threshold` is a distance cutoff. Clustering is complete
-#' linkage, so every pair within a bin meets the threshold, not just nearest
-#' neighbors. Default 0.5 is TM-score's conventional same-fold boundary (Xu &
-#' Zhang, Bioinformatics 2010).
+#' MCL clusters an undirected graph weighted by `1 - D`, keeping positive edges
+#' with similarity at least `min_sim`. Self-loops retain isolated proteins;
+#' MCL applies its default loop weighting.
+#' Inflation controls granularity; increasing it usually yields smaller groups.
+#' `min_sim = 0` keeps all positive edges but can make the graph very large.
+#' MCL needs the external `mcl` executable, available from
+#' <https://micans.org/mcl/>. Edges are streamed from the condensed distance.
 #'
-#' Pass a vector of thresholds to compare several cuts. They share one pairwise
-#' distance and one dendrogram. Complete linkage defines bin membership so every
-#' protein pair in a bin meets the requested TM-score threshold.
+#' DBSCAN uses neighbourhood radius `1 - min_sim`; this is still a global
+#' parameter, not an all-pairs bound. By default, border points are noise
+#' (DBSCAN*) to avoid arbitrary assignment between dense groups. HDBSCAN
+#' selects stable density clusters across radii and ignores `min_sim`.
+#' Density methods need the optional `dbscan` R package. Every noise protein
+#' becomes its own singleton bin and is also listed in `noise`, so abundance
+#' is preserved without treating unrelated noise as one functional group.
+#' Compare annotation agreement together with non-singleton coverage and
+#' fragmentation before transferring annotations to uncharacterised members.
 #'
-#' `bin_dist` is the cosine distance between bin representatives. For
-#' bin-resolution MMD, index the original embedding matrix by
-#' `out$bins$reps$protein`, rename those rows with `out$bins$reps$bin`, and pass
-#' them with `out$bins$counts` to [sample_repdist()].
+#' Collapse a sample-by-protein counts table to bin level with the returned
+#' membership, e.g. `t(rowsum(t(counts), bin[colnames(counts)]))` where `bin`
+#' maps protein to bin name.
 #'
-#' Cost: the ground distance contains n(n-1)/2 doubles (roughly 400 MB at
-#' 10,000 proteins). It remains condensed through clustering and medoid
-#' selection. Pass a precomputed [seq_repdist()] as `embeddings` to build it
-#' once across calls.
-#'
-#' @param counts Integer matrix of counts, or relative abundances, samples in
-#'   rows, proteins in columns.
-#' @param embeddings Numeric matrix, one row per protein, rownames matching
-#'   `colnames(counts)` -- or a precomputed protein `dist` from [seq_repdist()].
-#'   Must be cosine-calibrated to a similarity score for `cluster_threshold` to
-#'   mean anything.
-#' @param cluster_threshold Similarity score defining the bin boundary
-#'   (default 0.5, TM-score's same-fold threshold). A vector cuts the same
-#'   dendrogram at each value. Ignored when `method = "hdbscan"`.
-#' @param method Clustering method, see [repdist_cluster()]. Default
-#'   `"complete"`.
-#' @param min_size Minimum points forming a dense region, for the two density
-#'   methods.
-#' @param seqs Optional named character vector or [Biostrings::AAStringSet] of
-#'   protein sequences. It must contain every protein in `counts`.
-#' @return A list with two elements:
+#' @param D Protein `dist` from [repdist_matrix()], or a square distance matrix
+#'   on the same `1 - similarity` scale. A euclidean `dist` is rejected,
+#'   because `1 - min_sim` would be a meaningless cut height on it.
+#' @param min_sim Similarity threshold (default 0.7): all-pairs minimum for
+#'   `"hclust"`, edge minimum for `"mcl"`, neighbourhood minimum for
+#'   `"dbscan"`. In `(0, 1]`, or `[0, 1]` for MCL. Ignored by HDBSCAN.
+#' @param method `"hclust"` (default), `"mcl"`, `"dbscan"`, or `"hdbscan"`.
+#' @param min_pts Integer at least 2, including the point itself, defining a
+#'   dense neighbourhood for DBSCAN/HDBSCAN (default 5).
+#' @param border_points Include DBSCAN border points (default `FALSE`, DBSCAN*).
+#' @param inflation MCL inflation, a finite number greater than 1 (default 2).
+#' @param mcl_bin Name or path of the MCL executable (default `"mcl"`).
+#' @return A list:
 #'   \describe{
-#'     \item{`bins`}{For a scalar threshold, a list containing `counts` (samples
-#'       x bins), `bin` (protein to bin membership), `bin_dist` (distance between
-#'       representative proteins), and `reps` (bin medoids and sizes). For a
-#'       threshold vector, a named list of these objects.}
-#'     \item{`representative_sequences`}{A bin-named
-#'       [Biostrings::AAStringSet] containing each medoid sequence, or `NULL` if
-#'       `seqs` was not supplied. For a threshold vector, a named list of these
-#'       objects.}
+#'     \item{`clusters`}{Named list, one character vector of member accessions
+#'       per bin.}
+#'     \item{`similarity`}{Bin-by-bin similarity matrix between the
+#'       representatives.}
+#'     \item{`representatives`}{Bin-named character vector of medoid
+#'       accessions -- each bin's member closest to all the others.}
+#'     \item{`tree`}{The complete-linkage [stats::hclust] tree over all
+#'       proteins. Cut it at `1 - s` with [stats::cutree()] to explore other
+#'       thresholds without reclustering. `NULL` for other methods.}
+#'     \item{`min_sim`}{The similarity parameter; `NULL` for HDBSCAN. Only
+#'       hclust guarantees this minimum within bins.}
+#'     \item{`method`}{The selected clustering method.}
+#'     \item{`parameters`}{Additional parameters used by the selected method.}
+#'     \item{`noise`}{Accessions rejected by a density method, each retained
+#'       in its own singleton bin. Empty for hclust and MCL.}
 #'   }
 #' @examples
 #' Z <- rbind(p1 = c(1, 0), p2 = c(0.95, 0.05), p3 = c(0, 1))
-#' counts <- rbind(s1 = c(5, 3, 0), s2 = c(0, 2, 7))
-#' colnames(counts) <- rownames(Z)
-#' repdist_bin(counts, Z)
+#' bin_proteins(repdist_matrix(Z), min_sim = 0.7)
 #' @export
-repdist_bin <- function(counts, embeddings, cluster_threshold = 0.5,
-                        method = c("complete", "dbscan", "hdbscan"),
-                        min_size = 5L, seqs = NULL) {
+bin_proteins <- function(D, min_sim = 0.7,
+                         method = c("hclust", "mcl", "dbscan", "hdbscan"),
+                         min_pts = 5L, border_points = FALSE,
+                         inflation = 2, mcl_bin = "mcl") {
   method <- match.arg(method)
-  counts <- as.matrix(counts)
-  proteins <- .repdist_labels(embeddings)
-  stopifnot(
-    !is.null(rownames(counts)), !is.null(colnames(counts)),
-    !is.null(proteins), all(colnames(counts) %in% proteins),
-    ncol(counts) >= 1L, is.numeric(counts), all(is.finite(counts)), all(counts >= 0),
-    length(cluster_threshold) >= 1L, all(is.finite(cluster_threshold)),
-    length(min_size) == 1L, min_size >= 1L
-  )
-  keep <- colnames(counts)
-  if (!is.null(seqs)) seqs <- .repdist_qc_sequences(seqs, keep)
-  gm <- .repdist_ground(embeddings, keep)
-  # sum(), not all(is.finite()): the latter allocates a logical vector the size
-  # of the ground metric (8 GB at 64k proteins). Distances are non-negative, so
-  # nothing cancels and any NA/NaN/Inf propagates to the sum.
-  if (!is.finite(sum(gm)))
-    stop("The ground distance contains non-finite values.", call. = FALSE)
+  if (!inherits(D, "dist")) {
+    if (!is.matrix(D) || !is.numeric(D) || nrow(D) != ncol(D) ||
+        !isSymmetric(D) || any(diag(D) != 0))
+      stop("`D` must be a symmetric numeric distance matrix with zero diagonal.",
+           call. = FALSE)
+    D <- stats::as.dist(D)
+  }
+  labels <- attr(D, "Labels")
+  n <- attr(D, "Size")
+  stopifnot(length(n) == 1L, is.finite(n), n >= 2L, n == floor(n),
+            is.numeric(D), length(D) == n * (n - 1) / 2,
+            length(labels) == n, !anyNA(labels), all(nzchar(labels)),
+            !anyDuplicated(labels))
+  .repdist_check_n(n, "proteins")
+  if (method != "hdbscan")
+    stopifnot(is.numeric(min_sim), length(min_sim) == 1L,
+              is.finite(min_sim), min_sim <= 1,
+              if (method == "mcl") min_sim >= 0 else min_sim > 0)
+  else if (!missing(min_sim))
+    warning("`min_sim` is ignored by HDBSCAN.", call. = FALSE)
+  if (identical(attr(D, "method"), "euclidean"))
+    stop("`D` must be on the 1 - similarity scale, not euclidean; ",
+         "use repdist_matrix(Z, \"cosine\").", call. = FALSE)
+  # sum(), not all(is.finite()): the latter allocates a logical the size of the
+  # ground metric. Distances are non-negative, so any NA/NaN/Inf reaches the sum.
+  if (!is.finite(sum(D)))
+    stop("`D` contains non-finite values.", call. = FALSE)
+  if (min(D) < 0 || max(D) > 2 + 1e-8)
+    stop("`D` must contain cosine distances in [0, 2].", call. = FALSE)
 
-  lone <- length(keep) < 2L   # hclust needs two objects; one protein is one bin
-  # fastcluster allocates its own working copy of `gm`, so at 60k+ proteins the
-  # two together approach R's vector limit. Drop the block-loop garbage from
-  # seq_repdist() first -- without this the peak includes transients that are
-  # dead but not yet collected. ponytail: explicit gc() earns its place only
-  # here, where the object handed to C is multiple GB.
-  if (length(keep) > 20000L) gc(full = TRUE)
-  # One dendrogram is shared across cuts; the density methods are re-run per
-  # threshold, which is cheap next to the distance itself.
-  hc <- if (!lone && method == "complete")
-    fastcluster::hclust(gm, method = "complete")
+  tree <- NULL
+  noise <- character()
+  parameters <- list()
+  if (method == "hclust") {
+    tree <- fastcluster::hclust(D, method = "complete")
+    cl <- stats::cutree(tree, h = 1 - min_sim)
+  } else if (method == "mcl") {
+    stopifnot(is.numeric(inflation), length(inflation) == 1L,
+              is.finite(inflation), inflation > 1)
+    cl <- .repdist_mcl(D, min_sim, inflation, mcl_bin)
+    parameters <- list(inflation = inflation, mcl_bin = mcl_bin)
+  } else {
+    stopifnot(is.numeric(min_pts), length(min_pts) == 1L,
+              is.finite(min_pts), min_pts >= 2, min_pts <= .Machine$integer.max,
+              min_pts == floor(min_pts), is.logical(border_points),
+              length(border_points) == 1L, !is.na(border_points))
+    if (!requireNamespace("dbscan", quietly = TRUE))
+      stop("This method needs the dbscan R package.", call. = FALSE)
+    parameters <- list(min_pts = min_pts)
+    if (method == "dbscan") {
+      cl <- dbscan::dbscan(D, eps = 1 - min_sim, minPts = min_pts,
+                           borderPoints = border_points)$cluster
+      parameters <- c(parameters, list(border_points = border_points))
+    } else {
+      cl <- if (min_pts > n) integer(n) else
+        dbscan::hdbscan(D, minPts = min_pts)$cluster
+      min_sim <- NULL
+    }
+    noise <- labels[cl == 0L]
+    cl[cl == 0L] <- max(cl) + seq_along(noise)
+  }
+  clusters <- unname(split(labels, cl))
+  # cluster names are assigned by the size of clusters.
+  clusters <- clusters[order(-lengths(clusters))]
+  names(clusters) <- paste0("bin", seq_along(clusters))
+  reps <- vapply(clusters, .repdist_medoid, character(1), D = D)
+  similarity <- 1 - as.matrix(usedist::dist_subset(D, unname(reps)))
+  dimnames(similarity) <- list(names(reps), names(reps))
+  list(clusters = clusters,
+       similarity = similarity,
+       representatives = reps,
+       tree = tree,
+       min_sim = min_sim,
+       method = method,
+       parameters = parameters,
+       noise = noise)
+}
 
-  out <- lapply(cluster_threshold, function(th) {
-    x <- .bin_result(
-      .repdist_cluster_labels(gm, keep, method, th, min_size, hc),
-      counts, gm)
-    list(bins = x,
-         representative_sequences = if (!is.null(seqs))
-           stats::setNames(seqs[x$reps$protein], x$reps$bin))
-  })
-  if (length(out) == 1L) return(out[[1L]])
-  names(out) <- as.character(cluster_threshold)
-  list(bins = lapply(out, `[[`, "bins"),
-       representative_sequences = lapply(out, `[[`, "representative_sequences"))
+# Use the installed MCL implementation, with integer node IDs so arbitrary
+# accessions cannot change the ABC file format or the command being executed.
+.repdist_mcl <- function(D, min_sim, inflation, mcl_bin) {
+  if (!is.character(mcl_bin) || length(mcl_bin) != 1L || is.na(mcl_bin) ||
+      !nzchar(mcl_bin) || !nzchar(Sys.which(mcl_bin)))
+    stop("MCL executable not found; install mcl and/or set `mcl_bin`.",
+         call. = FALSE)
+  work <- tempfile("repdist-mcl-")
+  dir.create(work)
+  on.exit(unlink(work, recursive = TRUE), add = TRUE)
+  input <- file.path(work, "graph.abc")
+  output <- file.path(work, "clusters.txt")
+  log <- file.path(work, "mcl.log")
+  con <- file(input, "wt")
+  tryCatch({
+    n <- attr(D, "Size")
+    writeLines(paste(seq_len(n), seq_len(n), 1, sep = "\t"), con)
+    offset <- 0
+    # ponytail: scans all O(n^2) distances; accept a sparse neighbour graph
+    # directly if catalogs outgrow the existing condensed-distance API.
+    for (j in seq_len(n - 1L)) {
+      at <- seq_len(n - j)
+      similarity <- 1 - D[offset + at]
+      keep <- which(similarity > 0 & similarity >= min_sim)
+      if (length(keep))
+        writeLines(paste(j, j + keep, sprintf("%.17g", similarity[keep]),
+                         sep = "\t"), con)
+      offset <- offset + length(at)
+    }
+  }, finally = close(con))
+  status <- system2(mcl_bin, c(shQuote(input), "--abc", "-I",
+                              format(inflation, scientific = FALSE),
+                              "-o", shQuote(output)), stdout = log, stderr = log)
+  if (status != 0L || !file.exists(output))
+    stop("MCL failed: ", paste(utils::tail(readLines(log, warn = FALSE), 5L),
+                               collapse = "\n"), call. = FALSE)
+  groups <- strsplit(readLines(output, warn = FALSE), "[[:space:]]+")
+  ids <- suppressWarnings(as.integer(unlist(groups)))
+  if (length(ids) != n || anyNA(ids) || anyDuplicated(ids) ||
+      !setequal(ids, seq_len(n)))
+    stop("MCL output does not partition every input protein exactly once.",
+         call. = FALSE)
+  cl <- integer(n)
+  cl[ids] <- rep(seq_along(groups), lengths(groups))
+  cl
 }
