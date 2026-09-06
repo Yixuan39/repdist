@@ -1,29 +1,8 @@
 {
-  "esm2": {
-    "head": "generic",
-    "backbone": "facebook/esm2_t33_650M_UR50D",
-    "training_max_length": 1022,
-    "context_max_length": 1022
-  },
-  "esm2-small": {
-    "head": "generic",
-    "backbone": "facebook/esm2_t6_8M_UR50D",
-    "training_max_length": 1022,
-    "context_max_length": 1022
-  },
-  "scikit-bio/tmvec": {
-    "head": "tmvec1",
-    "backbone": "Rostlab/prot_t5_xl_uniref50",
-    "training_max_length": 1022
-  },
-  "scikit-bio/tmvec-swissmodel": {
-    "head": "tmvec1",
-    "backbone": "Rostlab/prot_t5_xl_uniref50",
-    "training_max_length": 300
-  },
-  "tmvec-swissmodel-large": {
+  "tmvec": {
     "head": "tmvec1-large",
     "backbone": "Rostlab/prot_t5_xl_uniref50",
+    "description": "Structural similarity, the default: cosine of two rows is a predicted TM-score. TM-Vec head trained on SWISS-MODEL pairs through 1000 residues.",
     "training_max_length": 1000,
     "url": "https://ndownloader.figshare.com/files/49181530",
     "sha256": "59584bbfa81dd7756fef0b5f385fb7bccd78d7c30785ca1de6f26d199e6c8755",
@@ -36,5 +15,30 @@
       "dropout": 0.1,
       "activation": "relu"
     }
+  },
+  "tmvec-300": {
+    "head": "tmvec1",
+    "head_repo": "scikit-bio/tmvec-swissmodel",
+    "backbone": "Rostlab/prot_t5_xl_uniref50",
+    "description": "The same TM-score head trained only through 300 residues; for in-range sensitivity analyses against `tmvec`.",
+    "training_max_length": 300
+  },
+  "esm2-8m": {
+    "head": "generic",
+    "backbone": "facebook/esm2_t6_8M_UR50D",
+    "description": "General sequence features (homology, family), not calibrated to structure. 8M parameters: quick tests and smoke runs, weak structural signal.",
+    "training_max_length": 1022
+  },
+  "esm2-150m": {
+    "head": "generic",
+    "backbone": "facebook/esm2_t30_150M_UR50D",
+    "description": "General sequence features at mid scale; a compromise when esm2-650m is too heavy for the device.",
+    "training_max_length": 1022
+  },
+  "esm2-650m": {
+    "head": "generic",
+    "backbone": "facebook/esm2_t33_650M_UR50D",
+    "description": "General sequence features (homology, family, function-adjacent) when structural similarity is not the question; distances are not calibrated to any named quantity.",
+    "training_max_length": 1022
   }
 }

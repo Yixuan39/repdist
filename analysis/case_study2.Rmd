@@ -1,0 +1,435 @@
+---
+title: "Full case study 2: homology-aware beta diversity with repdist"
+author: "Yixuan Yang"
+package: repdist
+output:
+  BiocStyle::html_document:
+    toc_float: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 4, message = FALSE, warning = FALSE)
+knitr::opts_knit$set(root.dir = "..")
+```
+
+# Why a representation distance
+
+Bray-Curtis, Jaccard and their relatives compare samples through protein
+*identity*: two proteins are either the same accession or maximally different.
+Metaproteomes break that assumption. Two communities can carry the same
+enzymatic function on accessions that never overlap, and an identity-based
+distance cannot tell that case apart from any other difference.
+
+`repdist` replaces identity with distance in a protein language model's
+representation space. Each sample becomes an abundance-weighted distribution
+over protein embeddings, and two samples are compared by maximum mean
+discrepancy (MMD) under an RBF kernel.
+
+This report follows the package vignette's workflow on a marine
+plastic-substrate metaproteome:
+
+1. **Beta diversity** with MMD and PERMANOVA.
+2. **Structural bins** at a predicted TM-score of 0.7.
+3. **Differential abundance** on the bins with DESeq2.
+4. **Functional reading** of the most responsive annotated bins.
+
+```{r libs}
+library(repdist)
+library(ggplot2)
+library(phyloseq)
+```
+
+# The full dataset
+
+The study contains three independent incubations for each of eight substrates:
+four plastics, two PHBH formulations, filter paper and ambient sediment. PLA is
+removed before rarefaction because its three runs have exceptionally low and
+inconsistent depth (92, 766 and 1,832 counts). The other 21 samples are retained
+and rarefied to the shallowest remaining sample.
+
+```{r data}
+path <- here::here("data", "case_study2")
+MAX_AA <- 3000L
+
+ps <- readRDS(file.path(path, "ps.rds"))
+ps <- prune_samples(data.frame(sample_data(ps))$substrate != "PLA", ps)
+ps <- prune_taxa(taxa_sums(ps) > 0, ps)
+sample_data(ps)$substrate <- droplevels(sample_data(ps)$substrate)
+floor_depth <- min(sample_sums(ps))
+
+set.seed(1)
+psd <- rarefy_even_depth(ps, sample.size = floor_depth, rngseed = 1,
+                         replace = FALSE, verbose = FALSE)
+psd <- prune_taxa(taxa_sums(psd) > 0, psd)
+
+n_after_rarefaction <- ntaxa(psd)
+protein_length <- Biostrings::width(refseq(psd)[taxa_names(psd)])
+too_long <- protein_length > MAX_AA
+long_abundance <- sum(taxa_sums(psd)[too_long]) / sum(taxa_sums(psd))
+psd <- prune_taxa(!too_long, psd)
+
+cached <- readRDS(file.path(path, "embeddings_tmvec1_large.rds"))$Z
+without_embeddings <- setdiff(taxa_names(psd), rownames(cached))
+psd <- prune_taxa(taxa_names(psd) %in% rownames(cached), psd)
+keep <- taxa_names(psd)
+psu <- prune_taxa(taxa_names(ps) %in% keep, ps)
+
+counts <- Matrix::Matrix(t(as(otu_table(psd), "matrix")), sparse = TRUE)
+counts_raw <- t(as(otu_table(psu), "matrix"))[rownames(counts), keep, drop = FALSE]
+
+md <- data.frame(sample_data(psd))[rownames(counts), ]
+md$substrate <- relevel(factor(md$substrate), "Sediment")
+
+tx <- as.data.frame(as(tax_table(psd), "matrix"))[keep, ]
+annotation_cols <- c("MantisName", "MicrobeName", "PlasticDB",
+                     "Depolymerase", "Description")
+annotation <- apply(tx[, annotation_cols, drop = FALSE], 1, function(x) {
+  x <- unique(x[!is.na(x) & nzchar(trimws(x)) & !x %in% c("-", "NA")])
+  if (length(x)) x[1] else NA_character_
+})
+
+taxa <- data.frame(
+  protein = keep,
+  genome = tx$GenomeID,
+  annotation = annotation,
+  plastic_db = tx$PlasticDB,
+  depolymerase = tx$Depolymerase,
+  length = Biostrings::width(refseq(psd)[keep]),
+  row.names = keep, stringsAsFactors = FALSE)
+
+d <- list(counts = counts, counts_raw = counts_raw, metadata = md, taxa = taxa,
+          sequences = setNames(as.character(refseq(psd)[keep]), keep))
+
+c(samples = nrow(counts), proteins = ncol(counts),
+  rarefaction_depth = floor_depth,
+  removed_over_3000aa = sum(too_long),
+  removed_abundance_pct = round(100 * long_abundance, 3))
+table(md$substrate)
+```
+
+Rarefaction provides the abundance filter: proteins absent after subsampling
+are removed. It retained `r n_after_rarefaction` proteins; the 3,000aa ceiling
+then removed `r sum(too_long)` more, representing only
+`r sprintf("%.3f", 100 * long_abundance)`% of rarefied abundance. The beta-diversity
+matrix is sparse; `counts_raw` contains unrarefied counts for exactly the same
+proteins and samples.
+
+The current source files are reconstructed by
+`Rscript analysis/case_study2_annotation.R`. Their abundance values are mean
+PUP over technical replicates; the legacy workflow rounds these values before
+rarefaction. The original means are preserved in `mean_pup.rds`; rounded means
+are not recovered raw spectral counts. Annotation comparisons do not refit DA.
+With these files, `r length(without_embeddings)` retained proteins lack cached
+embeddings and are excluded consistently from the current distance analysis.
+Their IDs and abundances are exported by the reconstruction script. Changes
+to the input protein set and its order can change the seeded rarefaction, so
+bin numbers in a new render need not identify the same members as older renders.
+
+# Embedding
+
+`embed_proteins()` embeds every sequence whole. The full TM-Vec embeddings are
+cached outside the render because model inference is not part of the statistical
+analysis.
+
+```{r Z}
+stopifnot(all(keep %in% rownames(cached)))
+Z <- cached[keep, , drop = FALSE]
+dim(Z)
+```
+
+TM-Vec's head was trained to regress TM-score, so cosine similarity between two
+embeddings is a predicted TM-score. `known_models()` lists the other registered
+representations.
+
+```{r models}
+names(known_models())
+```
+
+# The protein ground distance
+
+`repdist_matrix()` builds the condensed protein-by-protein cosine distance used
+by binning and QC. This is the expensive object in the full analysis.
+
+```{r ground}
+G_cos <- repdist_matrix(Z)
+```
+
+`bin_proteins()` reads this scale as predicted TM-score. `sample_repdist()`
+instead builds a Euclidean RBF internally so the kernel remains positive
+semi-definite. On unit-norm TM-Vec embeddings the two ground distances are
+monotone transforms of one another.
+
+```{r scales}
+c(median_predicted_TM = round(1 - median(G_cos), 3),
+  pairs_above_0.7 = sum(G_cos <= 0.3))
+```
+
+# Step 1: beta diversity
+
+Bray-Curtis is the protein-identity baseline. MMD asks how far apart different
+proteins actually are. The sparse count matrix stays sparse throughout the MMD
+calculation.
+
+```{r distances}
+D <- list(
+  `Bray-Curtis` = vegan::vegdist(as.matrix(d$counts), "bray"),
+  `MMD` = sample_repdist(d$counts, Z))
+```
+
+Both are abundance-weighted, so richness is checked before interpreting the
+substrate effect.
+
+```{r qc-richness}
+rich <- vegan::specnumber(as.matrix(d$counts))
+round(vapply(D, function(x) cor(rich, rowMeans(as.matrix(x))), numeric(1)), 2)
+```
+
+## PERMANOVA
+
+The incubations are independent replicates, so permutations are not blocked.
+
+```{r permanova}
+res <- do.call(rbind, lapply(names(D), function(n) {
+  set.seed(1)
+  a <- vegan::adonis2(D[[n]] ~ substrate, data = md,
+                      by = "terms", permutations = 999)
+  data.frame(distance = n, R2 = round(a["substrate", "R2"], 3),
+             F = round(a["substrate", "F"], 2), p = a["substrate", "Pr(>F)"])
+}))
+knitr::kable(res, row.names = FALSE)
+```
+
+## Ordination
+
+```{r pcoa, fig.height = 3.8, fig.width = 7, fig.alt = "PCoA under Bray-Curtis and RBF-MMD, coloured by incubation substrate"}
+ord <- do.call(rbind, lapply(names(D), function(n) {
+  e <- cmdscale(D[[n]], k = 2, eig = TRUE)
+  rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
+  data.frame(
+    Axis1 = e$points[, 1], Axis2 = e$points[, 2],
+    substrate = md[rownames(e$points), "substrate"],
+    panel = sprintf("%s  (PCo1 %.1f%%, PCo2 %.1f%%)", n, rel[1], rel[2]))
+}))
+
+ggplot(ord, aes(Axis1, Axis2, colour = substrate)) +
+  geom_point(size = 2, alpha = 0.85) +
+  stat_ellipse(type = "t", linewidth = 0.3) +
+  facet_wrap(~ panel, scales = "free") +
+  labs(x = "PCo1", y = "PCo2", colour = "substrate") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+# Step 2: structural bins at TM-score 0.7
+
+`bin_proteins()` uses complete linkage, so every pair inside a bin meets the
+threshold. A 0.7 cut is stricter than the conventional same-fold boundary of
+0.5: bins are tighter, at the cost of more singletons.
+
+```{r bins}
+b <- bin_proteins(G_cos, min_sim = 0.7)
+```
+
+```{r qc-bins, fig.height = 5, fig.alt = "Nearest-neighbour similarity and structural-bin profiles"}
+plot_similarity_profile(G_cos, min_sim = 0.7)
+plot_bin_profile(b, min_sim = 0.7)
+```
+
+The unrarefied counts roll up to bin level with one `rowsum()`.
+
+```{r bin-counts}
+bin <- setNames(rep(names(b$clusters), lengths(b$clusters)), unlist(b$clusters))
+bin_counts <- t(rowsum(t(d$counts_raw), bin[colnames(d$counts_raw)]))
+c(proteins = ncol(d$counts_raw), bins = ncol(bin_counts))
+```
+
+```{r bin-sizes}
+sizes <- lengths(b$clusters)
+table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
+          labels = c("1", "2", "3-5", "6-10", ">10")))
+```
+
+`r sum(sizes == 1)` proteins remain singleton bins. The other
+`r sum(sizes > 1)` bins combine structurally related accessions, reducing the
+number of tested units by a factor of
+`r round(ncol(d$counts_raw) / ncol(bin_counts), 1)`.
+
+# Step 3: differential abundance with DESeq2
+
+DESeq2 fits a negative-binomial model per bin on unrarefied counts. Substrate is
+tested by likelihood ratio against an intercept-only model.
+
+```{r deseq}
+dds <- DESeq2::DESeqDataSetFromMatrix(t(bin_counts), md,
+                                      design = ~ substrate)
+dds <- DESeq2::DESeq(dds, test = "LRT", reduced = ~ 1,
+                     sfType = "poscounts", quiet = TRUE)
+res_lrt <- DESeq2::results(dds)
+
+c(bins_tested = nrow(res_lrt),
+  substrate_significant = sum(res_lrt$padj <= 0.05, na.rm = TRUE))
+```
+
+Each significant bin is assigned its largest shrunken substrate-vs-sediment
+fold change for ranking and display.
+
+```{r effects}
+lev <- setdiff(levels(md$substrate), "Sediment")
+coef_names <- setNames(paste0("substrate_", make.names(lev), "_vs_Sediment"), lev)
+ddsw <- DESeq2::nbinomWaldTest(dds, quiet = TRUE)
+stopifnot(all(coef_names %in% DESeq2::resultsNames(ddsw)))
+shrunk <- lapply(coef_names, function(coef)
+  DESeq2::lfcShrink(ddsw, coef = coef, type = "normal", quiet = TRUE))
+names(shrunk) <- lev
+fc <- vapply(shrunk, function(o) o$log2FoldChange, numeric(nrow(res_lrt)))
+rownames(fc) <- rownames(res_lrt)
+
+sig <- rownames(res_lrt)[!is.na(res_lrt$padj) & res_lrt$padj <= 0.05]
+best <- apply(abs(fc[sig, , drop = FALSE]), 1, which.max)
+top <- data.frame(
+  bin = sig,
+  members = sizes[sig],
+  padj = formatC(res_lrt[sig, "padj"], digits = 2, format = "e"),
+  substrate = lev[best],
+  log2FC = round(fc[cbind(sig, lev[best])], 2))
+top <- top[order(-abs(top$log2FC)), ]
+knitr::kable(head(top, 8), row.names = FALSE)
+```
+
+```{r volcano, fig.height = 4.6, fig.width = 9, fig.alt = "Substrate-vs-sediment volcano plots for structural bins"}
+volc <- do.call(rbind, lapply(lev, function(l) {
+  o <- shrunk[[l]]
+  data.frame(bin = rownames(o), substrate = l,
+             log2FoldChange = o$log2FoldChange, pvalue = o$pvalue,
+             reject = !is.na(o$padj) & o$padj <= 0.05)
+}))
+
+ggplot(volc, aes(log2FoldChange, -log10(pvalue), color = reject)) +
+  geom_point(alpha = 0.6, size = 1) +
+  facet_wrap(~ substrate, nrow = 2) +
+  scale_color_manual(values = c(`FALSE` = "grey70", `TRUE` = "firebrick"),
+                     guide = "none") +
+  labs(x = "log2 fold change vs sediment", y = expression(-log[10](p))) +
+  theme_bw()
+```
+
+# Step 4: responsive bins, read functionally
+
+Select the three most responsive multi-member bins with at least two annotated
+proteins.
+
+```{r pick}
+n_ann <- vapply(b$clusters[top$bin],
+                function(m) sum(!is.na(d$taxa[m, "annotation"])), integer(1))
+picks <- head(top[top$members > 1 & n_ann >= 2, ], 3)
+knitr::kable(picks, row.names = FALSE)
+```
+
+```{r members}
+info <- do.call(rbind, lapply(seq_len(nrow(picks)), function(i) {
+  m <- b$clusters[[picks$bin[i]]]
+  data.frame(
+    bin = picks$bin[i],
+    genome = d$taxa[m, "genome"],
+    annotation = substr(d$taxa[m, "annotation"], 1, 52),
+    PlasticDB = d$taxa[m, "plastic_db"],
+    depolymerase = d$taxa[m, "depolymerase"],
+    mean_Sediment = round(colMeans(d$counts_raw[md$substrate == "Sediment", m,
+                                                  drop = FALSE]), 1),
+    mean_top = round(colMeans(d$counts_raw[md$substrate == picks$substrate[i], m,
+                                             drop = FALSE]), 1))
+}))
+knitr::kable(info, row.names = FALSE)
+```
+
+The complete-linkage guarantee can be inspected directly for the leading
+annotated bin.
+
+```{r floor, fig.height = 4.5, fig.alt = "Pairwise predicted TM-score heatmap for the leading annotated bin"}
+plot_bin_similarity(b, picks$bin[1], G_cos)
+```
+
+# Annotation-focused clustering (optional comparison)
+
+The TM70 bins above remain the units for differential abundance. Their
+all-pairs structural similarity bound does not imply shared biochemical
+function. For annotation, compare alternative partitions of **all retained
+proteins together**: clustering each TM70 bin independently could never move
+a misplaced protein to a sibling TM70 bin in the same TM50 group.
+
+MCL uses flow through a weighted similarity graph; its edge filter and
+inflation still need sensitivity analysis. DBSCAN also retains a global
+neighbourhood radius, and a dense bridge can join different functions.
+HDBSCAN selects stable groups across density levels. None can guarantee
+functional purity from structural embeddings alone.
+
+The following optional chunk reuses `G_cos`, `keep`, and `annotation` from this
+report. Enable it after installing the optional backends (`dbscan` in R and
+the `mcl` executable). It leaves `b`, bin counts and the DA model unchanged.
+The full parameter grid and an EC benchmark are in
+`analysis/annotation_clustering.R`; the smaller grid here limits repeated work
+on this much larger dataset.
+
+The completed comparison on the current source files is in
+`case_study2_annotation_report.html`, generated by
+`case_study2_annotation.R` and `case_study2_annotation_report.Rmd`. It scores
+KO annotations separately by source and includes audited protein reassignment
+examples; the text-based chunk below remains an optional exploratory view.
+
+```{r annotation-comparison, eval = FALSE}
+source("analysis/annotation_clustering.R")
+grid <- rbind(
+  data.frame(method = "hclust", min_sim = c(.5, .7, .9),
+             min_pts = NA, inflation = NA),
+  data.frame(method = "mcl", expand.grid(min_sim = c(.5, .7),
+             min_pts = NA, inflation = c(2, 4))),
+  data.frame(method = "dbscan", min_sim = c(.7, .9),
+             min_pts = 5, inflation = NA),
+  data.frame(method = "hdbscan", min_sim = NA,
+             min_pts = c(3, 5), inflation = NA))
+
+# Text agreement is only a screening proxy; synonyms can disagree and broad
+# descriptions can agree without establishing the same molecular function.
+labels <- setNames(tolower(trimws(annotation)), keep)
+generic <- grepl("^(hypothetical|uncharacteri[sz]ed|unknown|predicted) protein$",
+                  labels)
+labels[generic] <- NA_character_
+comparison <- compare_annotation_clusters(G_cos, labels, grid)
+knitr::kable(comparison$summary, digits = 3, row.names = FALSE)
+
+out <- file.path("results", "case_study2_annotation_clustering")
+dir.create(out, recursive = TRUE, showWarnings = FALSE)
+write.csv(comparison$summary, file.path(out, "summary.csv"), row.names = FALSE)
+write.csv(comparison$membership, file.path(out, "membership.csv"),
+           row.names = FALSE)
+```
+
+`membership.csv` links every accession to every candidate bin, including the
+TM50 and TM70 baselines (`run1` and `run2`), and marks density noise separately.
+This lets collaborators trace splits and movement between sibling bins without
+truncating accession IDs or annotation text. Unknown annotations are excluded
+from agreement scores, while their proteins remain in the clustering. Purity
+is scored only in bins with at least two labelled proteins; coverage, singleton
+fraction and pair recall show the cost of splitting. Different text labels
+are candidates for review, not confirmed functional conflicts. Curated EC/KO
+labels should be evaluated separately at a consistent level of specificity
+before propagating annotations.
+
+# Practical notes
+
+**Rarefy first** for whole-community distances. The differential-abundance
+model uses the corresponding unrarefied counts and handles depth through size
+factors.
+
+**Memory.** `repdist_matrix()` remains quadratic because binning needs the
+condensed protein distance. `sample_repdist()` does not: it accumulates
+two-dimensional 1000-by-1000 kernel tiles directly into the sample Gram matrix,
+and sparse counts remain sparse.
+
+**Bandwidth.** `sample_repdist()` returns its bandwidth as `attr(, "sigma")`;
+pass it back when comparisons across studies need one fixed kernel.
+
+```{r session}
+sessionInfo()
+```
