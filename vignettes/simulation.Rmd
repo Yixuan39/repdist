@@ -1,0 +1,213 @@
+---
+title: "Simulation: shared function without shared accessions"
+author: "Yixuan Yang"
+package: repdist
+output:
+  BiocStyle::html_document:
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{Simulation: shared function without shared accessions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 10,
+                      fig.height = 3.4, message = FALSE, warning = FALSE)
+```
+
+# The question
+
+When different proteins contribute the same function, can a beta-diversity
+method tell two groups apart? Bray-Curtis compares samples through accession
+identity, so a functional shift spread across *non-overlapping* homologs is
+invisible to it by construction. This vignette builds exactly that case and
+runs four distances over it:
+
+1. **RBF-MMD** on TM-Vec embeddings (`sample_repdist()`).
+2. **Weighted UniFrac** on the structure tree `bin_proteins()` computes.
+3. **Bray-Curtis on structural bins** cut at a predicted TM-score of 0.7.
+4. **Bray-Curtis at the protein level** — the conventional baseline.
+
+The first three read protein relatedness, each through a different lens; the
+fourth reads identity only.
+
+```{r libs}
+library(repdist)
+library(ggplot2)
+```
+
+# The protein universe
+
+Ten CATH FunFams — functional families of structural domains — with 150
+members each, embedded with TM-Vec. The membership table and embeddings ship
+with the package; `analysis/prepare_simulation_data.R` in the source
+repository is the script that made the object.
+
+```{r universe}
+u <- readRDS(system.file("extdata", "funfam_universe.rds", package = "repdist"))
+members <- u$members
+Z <- u$embeddings
+ids <- members$protein
+table(members$label)
+```
+
+# The design
+
+Twenty samples, ten per group, and **every sample contains every protein**, so
+presence/absence carries no information and only abundance can be read. Each
+sample has ten proteins upregulated twenty-fold over lognormal baseline
+abundances:
+
+- **Group A** draws its ten at random across all ten families — diffuse noise
+  with no functional theme.
+- **Group B** draws its ten from a single family (SHMT) — a coherent
+  functional shift.
+
+Within each group the upregulated sets are **disjoint**, and group A never
+draws a protein group B uses, so *no two samples share a single upregulated
+accession*. Group B's samples have nothing in common at the accession level
+and everything in common at the family level — the case an identity-based
+distance cannot see.
+
+```{r design}
+n_per_group <- 10L; n_up <- 10L; fold <- 20; depth <- 100000L
+set.seed(20260901)
+
+group <- factor(rep(c("A", "B"), each = n_per_group))
+b_family <- members$family[members$label == "SHMT"][1]
+
+# Disjoint, not merely independent: draw once, then cut into blocks.
+draw_blocks <- function(pool) unname(split(
+  sample(pool, n_per_group * n_up), rep(seq_len(n_per_group), each = n_up)))
+up_B <- draw_blocks(ids[members$family == b_family])
+up_A <- draw_blocks(setdiff(ids, unlist(up_B)))
+up <- c(up_A, up_B)
+
+w <- matrix(rlnorm(length(group) * length(ids), sdlog = 0.7),
+            nrow = length(group),
+            dimnames = list(sprintf("s%02d", seq_along(group)), ids))
+for (i in seq_along(group)) w[i, up[[i]]] <- w[i, up[[i]]] * fold
+counts <- t(apply(w, 1, function(x) rmultinom(1, depth, x)[, 1]))
+
+c(shared_upregulated_accessions = sum(duplicated(unlist(up))),
+  observed_in_every_sample = mean(colSums(counts > 0) == length(group)))
+```
+
+# Four distances
+
+One cosine ground distance feeds everything structural: `bin_proteins()` cuts
+it at TM-score 0.7 for the bins *and* returns the complete-linkage tree, which
+becomes the UniFrac tree via `r BiocStyle::CRANpkg("ape")`. The MMD builds its
+euclidean ground metric from the same embeddings internally.
+
+```{r structures}
+G_cos <- repdist_matrix(Z)
+b <- bin_proteins(G_cos, min_sim = 0.7)
+bin <- setNames(rep(names(b$clusters), lengths(b$clusters)), unlist(b$clusters))
+bin_counts <- t(rowsum(t(counts), bin[colnames(counts)]))
+c(proteins = ncol(counts), bins = ncol(bin_counts))
+```
+
+The threshold nearly recovers the design: ten families come back as
+`r ncol(bin_counts)` bins without ever being told there were ten.
+
+## What RBF-MMD computes
+
+Each sample is a weighted point cloud in embedding space: protein $a$ enters
+with its relative abundance $w_a$. For samples $p$ and $q$,
+
+$$\mathrm{MMD}^2(p,q)\;=\;\sum_{a,b} w^p_a w^p_b\,k(a,b)
+\;-\;2\sum_{a,b} w^p_a w^q_b\,k(a,b)
+\;+\;\sum_{a,b} w^q_a w^q_b\,k(a,b),$$
+
+under a Gaussian kernel on the euclidean ground metric,
+$k(a,b)=\exp\!\left(-\lVert z_a-z_b\rVert^2/2\sigma^2\right)$, which on the
+unit-norm rows `embed_proteins()` returns is exactly
+$\exp\!\left(-(1-\mathrm{TM}_{ab})/\sigma^2\right)$.
+
+The middle term is the whole difference from Bray-Curtis. Two *different*
+proteins with $k(a,b)\approx 1$ cancel there almost as completely as the same
+accession would. Shrink $k$ to the indicator of $a=b$ and the expression
+collapses to $\lVert w^p - w^q\rVert^2$ — an identity-only distance, blind to
+any relationship between distinct proteins. That is the corner this simulation
+puts the protein-level baseline in by construction.
+
+`sigma` defaults to the median pairwise distance among the retained proteins
+(over a 2000-protein subsample once there are more), the usual median heuristic; the value actually used comes back as
+`attr(D, "sigma")`, and passing it back holds the bandwidth fixed across runs
+or studies.
+
+```{r distances}
+tree <- ape::as.phylo(b$tree)
+D <- list(
+  `RBF-MMD`                 = sample_repdist(counts, Z),
+  `UniFrac (structure tree)` = as.dist(
+    GUniFrac::GUniFrac(counts, tree, alpha = 1, verbose = FALSE)$unifracs[, , "d_1"]),
+  `Bray-Curtis (TM 0.7 bins)` = vegan::vegdist(bin_counts, "bray"),
+  `Bray-Curtis (protein)`     = vegan::vegdist(counts, "bray"))
+```
+
+# PERMANOVA
+
+```{r permanova}
+md <- data.frame(group = group)
+perma <- do.call(rbind, lapply(names(D), function(n) {
+  set.seed(1)
+  a <- vegan::adonis2(D[[n]] ~ group, data = md, permutations = 999)
+  data.frame(distance = n, R2 = round(a$R2[1], 3),
+             F = round(a$F[1], 2), p = a$`Pr(>F)`[1])
+}))
+knitr::kable(perma, row.names = FALSE)
+```
+
+Every distance that can read protein relatedness — through the kernel, the
+tree, or the bins — finds the group difference decisively. Protein-level
+Bray-Curtis finds nothing: each sample's upregulated set is private, so to an
+identity-based comparison every sample is equally unlike every other, in both
+groups.
+
+# Ordination
+
+PCoA on each distance, in the order above. The percentages in each panel
+heading are that axis's share of the total variation, computed per distance
+because each has its own eigenvalues.
+
+```{r pcoa, fig.width = 8, fig.height = 7, fig.alt = "PCoA of the simulated samples under RBF-MMD, structure-tree UniFrac, bin-level Bray-Curtis, and protein-level Bray-Curtis, coloured by group"}
+ord <- do.call(rbind, lapply(names(D), function(n) {
+  e   <- cmdscale(D[[n]], k = 2, eig = TRUE)
+  rel <- 100 * e$eig / sum(e$eig[e$eig > 0])   # negative eigenvalues excluded
+  data.frame(
+    Axis1 = e$points[, 1], Axis2 = e$points[, 2], group = group,
+    panel = sprintf("%s\n(PCo1 %.1f%%, PCo2 %.1f%%)", n, rel[1], rel[2]))
+}))
+ord$panel <- factor(ord$panel, unique(ord$panel))
+
+ggplot(ord, aes(Axis1, Axis2, colour = group)) +
+  geom_point(size = 2, alpha = 0.85) +
+  stat_ellipse(type = "t", linewidth = 0.3) +
+  facet_wrap(~ panel, nrow = 2, scales = "free") +
+  labs(x = "PCo1", y = "PCo2", colour = "group") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+In the first three panels group B collapses into a tight cluster away from
+group A, and the first axis — a third to a half of the total variation —
+carries the separation. In the protein-level Bray-Curtis panel the two groups
+sit interleaved, and the leading axes hold a few percent each: the distance is
+near-constant across all pairs, within group and between.
+
+# Reading
+
+The three structure-aware routes are not interchangeable in general — MMD
+weighs graded similarity through a kernel, UniFrac through shared branch
+length, and the bins through a hard threshold — but on a coherent functional
+shift they agree, and the conventional baseline is blind to it. When homologs
+rather than shared accessions carry a signal, the choice of representation is
+not a refinement; it is the difference between detecting the effect and
+missing it entirely.
+
+```{r session}
+sessionInfo()
+```

@@ -12,8 +12,8 @@ vignette: >
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6,
-                      fig.height = 4, message = FALSE)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 4, message = FALSE, warning = FALSE)
 ```
 
 # Why a representation distance
@@ -33,8 +33,23 @@ under an RBF kernel. The ground distance is defined for *any* pair of
 sequences, including proteins with no annotation, no tree position, and no
 homolog in the other sample.
 
-```{r load}
+This vignette runs the whole workflow on real data:
+
+1. **Beta diversity** with the MMD distance and a PERMANOVA in
+   `r BiocStyle::CRANpkg("vegan")`.
+2. **Structural bins** at a predicted TM-score of 0.7.
+3. **Differential abundance** on the bins with
+   `r BiocStyle::Biocpkg("DESeq2")`.
+4. **Reading the winner**: the functional annotations of the proteins in the
+   most responsive bin.
+
+A companion vignette, *Simulation: shared function without shared accessions*,
+shows on simulated data exactly when this matters — and when Bray-Curtis
+cannot see a real difference at all.
+
+```{r libs}
 library(repdist)
+library(ggplot2)
 ```
 
 # Installation
@@ -45,263 +60,404 @@ if (!requireNamespace("remotes", quietly = TRUE))
 remotes::install_github("Yixuan39/repdist")
 ```
 
-# The workflow
+# The example dataset
 
-Three steps, and the middle one is the expensive object worth reusing.
+The study is Blakeley-Ruiz *et al.*, *ISME J* **19**(1) wraf048: mouse faecal
+metaproteomes across six dietary protein sources, quantified by spectral
+counting. Does dietary protein source restructure the gut metaproteome, and
+which proteins carry the signal?
 
-1. **Embed** sequences with `embed_proteins()`, or import embeddings you
-   already have with `read_embeddings()`.
-2. **Build the protein ground distance** once with `seq_repdist()`.
-3. **Compare samples** with `sample_repdist()`, and/or **collapse proteins into
-   structural bins** with `repdist_bin()`.
+```{r data}
+d <- readRDS(system.file("extdata", "diet_metaproteome.rds", package = "repdist"))
+names(d)
+```
 
-## Embedding
+`counts` is rarefied to even depth and is what the beta-diversity step uses;
+`counts_raw` is the same samples and proteins before rarefaction, which is what
+the differential-abundance step uses. Rarefaction buys every sample the same
+footing for a whole-community distance, which is exactly what a per-bin model
+does not need — it fits its own per-sample normalization instead.
+
+```{r dims}
+dim(d$counts)
+table(d$metadata$diet)
+```
+
+Each mouse contributes several samples, so `subject` is carried through
+everything below as a blocking factor. The full study is 30,561 proteins;
+shipped here are the 2000 most abundant after rarefaction, which hold 80% of
+the total spectral counts. `analysis/prepare_vignette_data.R` in the source
+repository is the script that made this object.
+
+# Embedding
 
 `embed_proteins()` downloads a protein language model and runs it through a
 pinned Python environment managed by `r BiocStyle::Biocpkg("basilisk")`; you do
-not manage Python packages yourself. Because the default model is several
-gigabytes, the call is not evaluated here.
+not manage Python packages yourself. Every sequence is embedded whole and every
+sequence comes back, in input order — nothing is truncated, subset, or silently
+dropped. Because the default model is several gigabytes, the embeddings here
+are precomputed; on your own data this is the one call that needs the model:
 
 ```{r embed, eval = FALSE}
-seqs <- read_fasta("proteins.fasta")
-Z <- embed_proteins(seqs)                       # default: tmvec-swissmodel-large
+Z <- embed_proteins(d$sequences)      # default model: "tmvec"
 ```
 
-`known_models()` lists the registered models. TM-Vec heads are the reason the
-cosine scale is interpretable: the head was trained to regress the TM-score of
-protein pairs, so cosine similarity between two TM-Vec embeddings *is* a
-predicted TM-score.
+```{r Z}
+Z <- d$embeddings
+dim(Z)
+```
+
+`known_models()` lists the registered models, each with a `description` of
+what its embedding measures. Those keys are the whole of what `model` accepts:
+the pinned environment fixes which architectures load at all, so an arbitrary
+HuggingFace repo is rejected rather than embedded on a stack nobody has
+checked it against. TM-Vec heads are the reason the scale is
+interpretable: the head was trained to regress the TM-score of protein pairs,
+so cosine similarity between two TM-Vec embeddings *is* a predicted TM-score.
+When structural similarity is not the question, the `esm2-*` models embed
+general sequence features instead — at the cost of that calibration.
+
+Other trained heads exist, and some of them cluster proteins better than a
+TM-score head does. They are not the default here because their distance has
+no referent outside the model: it means similarity as that model was trained
+to define it, so a threshold on it cannot be read as anything in particular.
+A predicted TM-score can.
 
 ```{r models}
 names(known_models())
 ```
 
-Sequences are embedded complete, never truncated. `memory_fraction` is the
-single batching control — batch sizes are derived from currently available CPU,
-CUDA or MPS memory. A protein that cannot fit alone, or that exceeds the
-backbone's architectural context, is skipped with a warning rather than
-silently clipped.
+# The protein ground distance
 
-Embeddings computed elsewhere can be imported directly. Official TM-Vec `.npz`
-databases use `headers` rather than `ids`; both are detected.
-
-```{r read-emb, eval = FALSE}
-Z <- read_embeddings("protein_embeddings.npz")
-```
-
-# A worked example
-
-Everything below runs without a model download, on a small simulated protein
-universe built to make the identity/representation contrast visible.
-
-Four structural families, twelve proteins each. Embeddings are unit-norm, as
-`embed_proteins()` returns them.
-
-```{r universe}
-set.seed(1)
-n_fam <- 4L; per_fam <- 12L; d <- 32L
-
-centres <- matrix(0.12, n_fam, d)
-for (f in seq_len(n_fam)) centres[f, ((f - 1L) * 8L + 1L):(f * 8L)] <- 1.5
-family <- rep(seq_len(n_fam), each = per_fam)
-
-Z <- centres[family, ] +
-  matrix(abs(rnorm(n_fam * per_fam * d, 0, 0.2)), n_fam * per_fam, d)
-Z <- Z / sqrt(rowSums(Z^2))
-rownames(Z) <- sprintf("prot%02d", seq_len(nrow(Z)))
-dim(Z)
-```
-
-Eight samples in two groups. Group A expresses families 1 and 2, group B
-families 3 and 4 — but **every sample is given its own private set of
-accessions**, so no two samples share a single protein identifier.
-
-```{r counts}
-counts <- matrix(0L, 8L, nrow(Z),
-                 dimnames = list(sprintf("s%d", 1:8), rownames(Z)))
-for (i in seq_len(8L)) {
-  fams <- if (i <= 4L) c(1L, 2L) else c(3L, 4L)
-  k <- if (i <= 4L) i else i - 4L
-  idx <- unlist(lapply(fams,
-    function(f) (f - 1L) * per_fam + ((k - 1L) * 3L + 1:3)))
-  counts[i, idx] <- rpois(length(idx), 30) + 10L
-}
-group <- factor(rep(c("A", "B"), each = 4))
-
-# no accession is shared by any pair of samples
-max(sapply(1:7, function(i) max(sapply((i + 1):8,
-  function(j) sum(counts[i, ] > 0 & counts[j, ] > 0)))))
-```
-
-## The protein ground distance
-
-`seq_repdist()` builds the protein-by-protein distance everything else
-consumes. Compute it once and pass it around: at real proteome sizes it is the
-expensive object (roughly 400 MB at 10,000 proteins).
+`repdist_matrix()` builds the protein-by-protein distance that binning and the
+QC plots consume. Compute it once and reuse it — at real proteome sizes it is
+the expensive object (roughly 400 MB at 10,000 proteins).
 
 ```{r ground}
-G <- seq_repdist(Z)          # cosine: 1 - predicted TM-score
-M <- as.matrix(G)
-c(within_family  = 1 - mean(M[1:12, 1:12][lower.tri(diag(12))]),
-  between_family = 1 - mean(M[1:12, 13:24]))
+G_cos <- repdist_matrix(Z)                      # 1 - predicted TM-score
 ```
 
-Within a family the predicted TM-score is 0.98; across families 0.37. That
-straddles 0.5, TM-score's conventional same-fold threshold.
+`bin_proteins()` reads the *value* as a TM-score, which only `"cosine"` gives.
+`sample_repdist()` does not take this object: MMD needs a positive-semi-definite
+kernel, which a Gaussian RBF only guarantees on a true metric, and `1 - cosine`
+is not one. It computes the Euclidean RBF from the embeddings in two-dimensional
+tiles, so that matrix is never held whole. On the unit-norm rows
+`embed_proteins()` returns the two are monotone transforms of each other
+(`||a - b|| = sqrt(2 * (1 - cos))`) and rank protein pairs identically, so
+nothing is given up.
 
-## Beta diversity
-
-`sample_repdist()` returns a `dist`, so it drops straight into
-`r BiocStyle::CRANpkg("vegan")`. Compare it against Bray-Curtis on the same
-counts.
-
-```{r beta}
-D  <- sample_repdist(counts, Z)
-bc <- vegan::vegdist(counts, "bray")
-
-c(bray_curtis_min = min(bc), bray_curtis_max = max(bc))
+```{r scales}
+c(median_predicted_TM = round(1 - median(G_cos), 3),
+  pairs_above_0.7     = sum(G_cos <= 0.3))
 ```
 
-Bray-Curtis is exactly 1 for every pair. With no shared accessions it has
-nothing to work with, and the two groups are indistinguishable from any other
-pair of samples.
+# Step 1: beta diversity
 
-```{r beta-repdist}
-Dm <- as.matrix(D)
-c(within_group  = mean(Dm[1:4, 1:4][lower.tri(diag(4))]),
-  between_group = mean(Dm[1:4, 5:8]))
+Two distances over the same rarefied counts. Bray-Curtis is the protein-level
+baseline: it can only ask whether two samples hold the *same accession*. MMD
+asks how far apart the proteins they hold actually are.
+
+```{r distances}
+D <- list(
+  `Bray-Curtis` = vegan::vegdist(d$counts, "bray"),
+  `MMD`         = sample_repdist(d$counts, Z))
 ```
 
-`sample_repdist()` separates them by an order of magnitude, because it compares
-where the samples sit in representation space rather than which accessions they
-happen to carry.
+`sample_repdist()` treats each sample as an abundance-weighted distribution over
+embeddings and returns the maximum mean discrepancy between them. Both are
+`dist` objects, so they drop straight into `r BiocStyle::CRANpkg("vegan")`.
+
+Both are also abundance-weighted, so both inherit some dependence on how many
+proteins a sample carries — MMD doubly so, since a sample's own within-sample
+dispersion enters its self-term. One line before reading any $R^2$: how much of
+each distance richness alone explains.
+
+```{r qc-richness}
+rich <- vegan::specnumber(d$counts)
+round(vapply(D, function(x) cor(rich, rowMeans(as.matrix(x))), numeric(1)), 2)
+```
+
+Richness still spans `r round(max(rich) / min(rich), 1)`-fold after rarefaction
+and tracks both distances, MMD slightly *less* than the protein-identity
+baseline. That baseline is the thing to check against: a representation distance
+more richness-coupled than Bray-Curtis would be measuring depth, not structure.
+
+## PERMANOVA
+
+Amount of protein, sex and age stay in the model as covariates and diet goes
+last, so its reported $R^2$ is what survives *after* them — the conservative
+reading. Permutations are blocked within mouse.
 
 ```{r permanova}
-md <- data.frame(group = group)
-rbind(
-  `Bray-Curtis` = vegan::adonis2(bc ~ group, data = md, permutations = 999)[1, c("R2", "Pr(>F)")],
-  `repdist`     = vegan::adonis2(D  ~ group, data = md, permutations = 999)[1, c("R2", "Pr(>F)")])
+md <- d$metadata
+md$subject <- factor(md$subject)
+perm <- permute::how(blocks = md$subject, nperm = 999)
+
+res <- do.call(rbind, lapply(names(D), function(n) {
+  set.seed(1)
+  a <- vegan::adonis2(D[[n]] ~ dose + sex + age_week + diet, data = md,
+                      by = "terms", permutations = perm)
+  data.frame(distance = n, R2 = round(a["diet", "R2"], 3),
+             F = round(a["diet", "F"], 2), p = a["diet", "Pr(>F)"])
+}))
+knitr::kable(res, row.names = FALSE)
 ```
 
-## The Euclidean ground metric
+Both find dietary protein source highly significant. That is worth being
+precise about: these are cage-housed lab mice searched against one protein
+database, so samples really do share accessions, and accession identity is
+something Bray-Curtis can read directly. The representation distance is not
+rescuing a failed analysis here — it is being checked against a case where the
+conventional method already works, and it agrees. The simulation vignette
+shows the case where only one of them survives.
 
-`sample_repdist()` always uses Euclidean distance, while `seq_repdist()` and
-`repdist_bin()` default to cosine distance. That split is deliberate.
+## Ordination
 
-MMD is a distance only when the kernel is positive semi-definite, and a
-Gaussian RBF guarantees that only on a true metric. `1 - cosine` is not one: it
-violates the triangle inequality, and the kernel it induces can be indefinite —
-on real TM-Vec embeddings its smallest eigenvalue runs to `-5e-1`. Rather than
-return a meaningless number, `sample_repdist()` refuses.
+PCoA on each distance, one panel each, coloured by diet. The percentage in each
+panel heading is that axis's share of the total variation, computed per distance
+because each one has its own eigenvalues.
 
-Nothing is lost by the split. For unit-norm embeddings — what `embed_proteins()`
-returns — the two metrics are monotone transforms of one another:
+```{r pcoa, fig.height = 3.6, fig.width = 6.5, fig.alt = "PCoA of the samples under Bray-Curtis and MMD, coloured by dietary protein source"}
+ord <- do.call(rbind, lapply(names(D), function(n) {
+  e   <- cmdscale(D[[n]], k = 2, eig = TRUE)
+  rel <- 100 * e$eig / sum(e$eig[e$eig > 0])   # negative eigenvalues excluded
+  data.frame(
+    Axis1 = e$points[, 1], Axis2 = e$points[, 2],
+    diet  = md[rownames(e$points), "diet"],
+    panel = sprintf("%s  (PCo1 %.1f%%, PCo2 %.1f%%)", n, rel[1], rel[2]))
+}))
 
-```{r equivalence}
-dc <- seq_repdist(Z, "cosine")
-de <- seq_repdist(Z, "euclidean")
-max(abs(as.vector(de) - sqrt(2 * as.vector(dc))))          # ||a-b|| = sqrt(2(1-cos))
-cor(as.vector(dc), as.vector(de), method = "spearman")
+ggplot(ord, aes(Axis1, Axis2, colour = diet)) +
+  geom_point(size = 1.6, alpha = 0.85) +
+  stat_ellipse(type = "t", linewidth = 0.3) +
+  facet_wrap(~ panel, scales = "free") +
+  labs(x = "PCo1", y = "PCo2", colour = "diet") +
+  theme_bw() +
+  theme(legend.position = "bottom")
 ```
 
-They rank protein pairs identically; euclidean simply expresses that ordering
-on a scale that is a true metric. Use `"cosine"` where the *value* has to be
-read as a TM-score — that is, for `repdist_bin()`'s `cluster_threshold` — and
-`"euclidean"` wherever the distance feeds a kernel.
+# Step 2: structural bins at TM-score 0.7
 
-This equivalence holds only for unit-norm rows. On an embedding matrix with
-varying row norms, Euclidean distance also picks up magnitude. A precomputed
-non-Euclidean `dist` is rejected by `sample_repdist()`.
+PERMANOVA says diet structures the community; it says nothing about which
+proteins carry it. Testing 2000 proteins one at a time would pay a
+multiple-testing price on units that are not independent — homologous proteins
+are the same signal counted repeatedly.
 
-# Structural bins
+`bin_proteins()` collapses them into bins by complete-linkage clustering on the
+ground distance, so **every** pair inside a bin meets the threshold, not just
+nearest neighbours. Cosine similarity is a predicted TM-score, so
+`min_sim = 0.7` is a stricter cut than TM-score's conventional same-fold
+boundary of 0.5 — tighter, more homogeneous bins, at the cost of more of them.
 
-`repdist_bin()` collapses proteins into bins by complete-linkage clustering on
-the ground distance, so that *every* pair inside a bin meets the requested
-TM-score threshold. This is the route to differential abundance at the level of
-structure rather than accession, which is where biomarker discovery usually
-wants to be: a signal spread thinly across fifty homologous accessions is
-invisible to a per-protein test after multiple-testing correction, but
-concentrated in one bin it is not.
+Two QC plots inform the choice of threshold. `plot_similarity_profile()`
+histograms each protein's similarity to its nearest neighbour: everything left
+of the cut will end up a singleton bin, and a pile-up at 1 would mean
+near-duplicate sequences or a saturated model. `plot_bin_profile()` sweeps the
+threshold over the tree `bin_proteins()` computes anyway, and brackets the two
+ways binning stops saying anything: proteins collapsing into one bin as the
+threshold drops (chaining) and proteins falling out as singletons as it rises
+(no aggregation left). Pick from the valley between them, on a plateau of the
+bin count.
 
 ```{r bins}
-b <- repdist_bin(counts, G, cluster_threshold = 0.5)
-table(b$bins$bin)
+b <- bin_proteins(G_cos, min_sim = 0.7)
 ```
 
-The four families are recovered exactly, twelve proteins each, without ever
-being told there were four. The bin-level count table shows the group structure
-that the accession-level table could not:
+```{r qc-bins, fig.height = 5, fig.alt = "Nearest-neighbour similarity histogram, and bin count with chaining and singleton shares across binning thresholds"}
+plot_similarity_profile(G_cos, min_sim = 0.7)
+plot_bin_profile(b, min_sim = 0.7)
+```
+
+Rolling the unrarefied counts up to bin level is one `rowsum()` over the
+membership:
 
 ```{r bin-counts}
-b$bins$counts
+bin <- setNames(rep(names(b$clusters), lengths(b$clusters)), unlist(b$clusters))
+bin_counts <- t(rowsum(t(d$counts_raw), bin[colnames(d$counts_raw)]))
+c(proteins = ncol(d$counts_raw), bins = ncol(bin_counts))
 ```
 
-`repdist_bin()` also returns the complete-linkage tree over the original
-proteins, the same tree pruned to bin representatives, and — when `seqs` is
-supplied — the medoid sequence of each bin as an `AAStringSet`, ready for
-annotation.
-
-```{r bin-parts}
-b$tree
-b$bins$reps
+```{r bin-sizes}
+sizes <- lengths(b$clusters)
+table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
+          labels = c("1", "2", "3-5", "6-10", ">10")))
 ```
 
-The pruned tree is a similarity hierarchy, not a phylogeny; `repdist` fits it,
-and an external implementation such as `phyloseq::UniFrac()` can consume it.
+`r sum(sizes == 1)` of the `r ncol(d$counts_raw)` proteins have no structural
+relative at this threshold and stay in a bin of their own. The rest fall into
+`r sum(sizes > 1)` multi-member bins, which is where the collapse buys
+something: the number of things to test drops by a factor of
+`r round(ncol(d$counts_raw) / ncol(bin_counts), 1)`, and each surviving unit is
+a structural group rather than an accession.
 
-For a bin-resolution MMD, hand `sample_repdist()` the medoid *embeddings*
-rather than `bin_dist`. `bin_dist` is on the cosine scale by construction — the
-scale `cluster_threshold` is read against — and so is not the right input to a
-kernel; the medoid rows carry the same information and let the euclidean
-default apply.
+# Step 3: differential abundance with DESeq2
 
-```{r bin-mmd}
-Z_bin <- Z[b$bins$reps$protein, ]
-rownames(Z_bin) <- b$bins$reps$bin
-D_bin <- sample_repdist(b$bins$counts, Z_bin)
-round(as.matrix(D_bin), 3)
+`r BiocStyle::Biocpkg("DESeq2")` fits a negative-binomial model per bin on the
+**unrarefied** counts — its size factors are the model-based counterpart to
+rarefaction. The design is paired: `subject` enters as a fixed blocking factor,
+absorbing sex, cage, and every other between-mouse difference, and diet is
+tested *within* mice. Size factors use the `"poscounts"` estimator because,
+as in most metaproteomes, few bins are observed in every sample.
+
+Diet has six levels, so "the diet effect" on a bin is a likelihood-ratio test
+against the model without diet — the counterpart to `adonis2`'s `by = "terms"`,
+not a single contrast.
+
+```{r deseq}
+dds <- DESeq2::DESeqDataSetFromMatrix(t(bin_counts), md,
+                                      design = ~ subject + diet)
+dds <- DESeq2::DESeq(dds, test = "LRT", reduced = ~ subject,
+                     sfType = "poscounts", quiet = TRUE)
+res_lrt <- DESeq2::results(dds)
+
+c(bins_tested = nrow(res_lrt),
+  diet_significant = sum(res_lrt$padj <= 0.05, na.rm = TRUE))
 ```
 
-The within-group distances are near zero and the between-group ones sit at
-0.62, on four bins rather than forty-eight proteins.
+Nothing about the bins is DESeq2-specific — they are ordinary count columns, so
+a compositional model such as LinDA or ALDEx2 drops in the same way.
 
-Several thresholds can share one pairwise distance by passing a vector, which
-avoids recomputing the expensive object:
+The LRT has no size to it — no single number is "the" effect when diet has five
+contrasts against the Casein reference. So each significant bin is given, as
+its effect size, the largest fold change it shows against Casein on any diet.
+Two refinements matter here. `nbinomWaldTest()` re-uses the dispersions already
+fitted to give each contrast its own test, which the volcano below needs; and
+`lfcShrink()` pulls fold changes toward zero in proportion to how little
+supports them, so a bin seen in a handful of samples cannot post an enormous
+log-ratio on almost no evidence.
 
-```{r bins-multi}
-b2 <- repdist_bin(counts, G, cluster_threshold = c(0.5, 0.7))
-vapply(b2$bins, function(x) ncol(x$counts), integer(1))
+```{r effects}
+lev  <- setdiff(levels(md$diet), "Casein")
+ddsw <- DESeq2::nbinomWaldTest(dds, quiet = TRUE)
+shrunk <- lapply(lev, function(l)
+  DESeq2::lfcShrink(ddsw, coef = paste0("diet_", l, "_vs_Casein"),
+                    type = "normal", quiet = TRUE))
+names(shrunk) <- lev
+fc <- vapply(shrunk, function(o) o$log2FoldChange, numeric(nrow(res_lrt)))
+rownames(fc) <- rownames(res_lrt)
+
+sig <- rownames(res_lrt)[!is.na(res_lrt$padj) & res_lrt$padj <= 0.05]
+top <- data.frame(
+  bin     = sig,
+  members = sizes[sig],
+  padj    = formatC(res_lrt[sig, "padj"], digits = 2, format = "e"),
+  diet    = lev[apply(abs(fc[sig, ]), 1, which.max)],
+  log2FC  = round(fc[cbind(sig, lev[apply(abs(fc[sig, ]), 1, which.max)])], 2))
+top <- top[order(-abs(top$log2FC)), ]
+knitr::kable(head(top, 8), row.names = FALSE)
 ```
 
-# Quality control
+A volcano plot needs one effect size per point, so the five diet-vs-Casein
+contrasts are shown separately: one panel per diet, shrunken log2 fold change
+on the x-axis, each point one bin, red where that specific contrast rejects at
+`padj <= 0.05`.
 
-Embedding models have a training length range, and proteins beyond it are the
-ones most likely to be mis-embedded. `length_abundance_profile()` shows how
-much of the catalog *and* how much of the abundance lies past a candidate
-cutoff — the second curve is the one that matters, since a handful of very long
-proteins can carry a large share of the signal.
+```{r volcano, fig.height = 3.4, fig.width = 9, fig.alt = "Volcano plot of bins, one panel per diet: shrunken log2 fold change against Casein versus -log10 p, red where that contrast rejects"}
+volc <- do.call(rbind, lapply(lev, function(l) {
+  o <- shrunk[[l]]
+  data.frame(bin = rownames(o), diet = l, log2FoldChange = o$log2FoldChange,
+             pvalue = o$pvalue, reject = !is.na(o$padj) & o$padj <= 0.05)
+}))
 
-```{r qc, fig.alt = "Proportion of proteins and of abundance longer than each length"}
-set.seed(2)
-lengths <- setNames(round(exp(rnorm(nrow(Z), log(320), 0.6))) + 40, rownames(Z))
-length_abundance_profile(counts, lengths, max_length = 1000)
+ggplot(volc, aes(log2FoldChange, -log10(pvalue), color = reject)) +
+  geom_point(alpha = 0.6, size = 1) +
+  facet_wrap(~ diet, nrow = 1) +
+  scale_color_manual(values = c(`FALSE` = "grey70", `TRUE` = "firebrick"),
+                     guide = "none") +
+  labs(x = "log2 fold change vs Casein", y = expression(-log[10](p))) +
+  theme_bw()
+```
+
+# Step 4: the three most responsive bins, read functionally
+
+The very top of that table is telling in its own right: several of the most
+responsive bins contain only proteins with **no database annotation at all** —
+groups a lineage- or profile-based method cannot form, held together here by
+structure alone. But a bin with no annotations cannot demonstrate what the
+annotations of a bin look like, so take the three most responsive bins whose
+members carry them:
+
+```{r pick}
+n_ann <- vapply(b$clusters[top$bin],
+                function(m) sum(!is.na(d$taxa[m, "annotation"])), integer(1))
+picks <- head(top[top$members > 1 & n_ann >= 2, ], 3)
+knitr::kable(picks, row.names = FALSE)
+```
+
+Their members, with the counts that produced those fold changes:
+
+```{r members}
+info <- do.call(rbind, lapply(seq_len(nrow(picks)), function(i) {
+  m <- b$clusters[[picks$bin[i]]]
+  data.frame(
+    bin         = picks$bin[i],
+    genus       = d$taxa[m, "genus"],
+    annotation  = substr(d$taxa[m, "annotation"], 1, 52),
+    mean_Casein = round(colMeans(d$counts_raw[md$diet == "Casein", m, drop = FALSE]), 1),
+    mean_top    = round(colMeans(d$counts_raw[md$diet == picks$diet[i], m, drop = FALSE]), 1))
+}))
+knitr::kable(info, row.names = FALSE)
+```
+
+Read the annotation column one bin at a time. In **`r picks$bin[1]`** all four
+members carry the same call, *endo-alpha-N-acetylgalactosaminidase* — one
+mucin-O-glycan-cleaving activity supplied by four distinct accessions from four
+different genome bins. **`r picks$bin[2]`** is the same situation with the
+synonyms left in: a component of the oligopeptide permease and a
+dipeptide-binding protein are both substrate-binding subunits of peptide ABC
+importers, one job under two names, and the third member has no annotation at
+all. **`r picks$bin[3]`** is the pattern at scale — nine members, every one a
+*SusD-like protein*, the outer-membrane glycan-binding lipoprotein of the
+Bacteroidetes starch-utilization system, drawn from four named genera and two
+unclassified bins.
+
+That is the workflow's point. At the protein level each of these is several weak
+tests on units that are not independent; as a bin it is one unit, one test, and
+one functional reading — including for the members with no annotation, which
+inherit a specific, checkable hypothesis from their bin-mates instead of
+silence. All three fall on the same diet and in the same direction — glycan
+degradation and peptide uptake moving together — which is a property of that
+diet's proteome rather than of any one accession.
+
+The complete-linkage guarantee is that every member is within the threshold of
+every *other* member, not merely of a nearest neighbour. That is true by
+construction, but `plot_bin_similarity()` is where you see how far above the
+threshold a bin actually sits, and whether it is one tight group or two
+sub-groups that only just met it:
+
+```{r floor, fig.height = 4.5, fig.alt = "Pairwise predicted TM-score heatmap among the members of the most responsive annotated bin"}
+plot_bin_similarity(b, picks$bin[1], G_cos)
 ```
 
 # Practical notes
 
-**Rarefy first.** `sample_repdist()` is abundance-weighted, so it inherits the
-usual depth sensitivity. Rarefy with `vegan::rrarefy()` when samples were not
-collected at a common depth.
+**Rarefy first** for the whole-community distance. `sample_repdist()` is
+abundance-weighted, so it inherits the usual depth sensitivity; rarefy with
+`vegan::rrarefy()` when samples were not collected at a common depth. The
+differential-abundance model wants the opposite — raw counts, with depth
+handled by its size factors.
 
-**Memory.** The RBF kernel materializes a protein-by-protein Gram matrix, so
-cost is quadratic in the number of retained proteins. `repdist_bin()` is the
-coarser route when that matrix is too large; in practice the ceiling for
-binning is around 75,000 proteins on 32 GB. Bin the *identified* subset of a
-catalog, never a whole search database.
+**Memory.** `repdist_matrix()` is quadratic in the number of retained proteins
+and the index cap is 46,341, so bin the *identified* subset of a catalog, never
+a whole search database. `sample_repdist()` holds nothing quadratic: it
+accumulates 1000-by-1000 kernel tiles directly into the sample Gram matrix,
+keeps sparse counts sparse, and reads its default bandwidth off a 2000-protein
+subsample.
 
-**Reuse a compatible ground distance.** `sample_repdist()` accepts
-`seq_repdist(Z, "euclidean")`; `repdist_bin()` uses the cosine default. They are
-different objects because only the Euclidean one defines a valid RBF-MMD.
+**Bandwidth.** `sample_repdist()` returns the bandwidth it used as
+`attr(, "sigma")`; pass it back to compare across studies. With the default the
+kernel is nearly linear in TM-score, so the distance is close to the euclidean
+distance between abundance-weighted mean embeddings, and on this data that is
+also where separation peaks. Checking that is one line: the largest exponent the
+kernel ever sees, `max(G_cos) / attr(D$MMD, "sigma")^2` (the euclidean
+`||a - b||^2 / (2 sigma^2)` on unit-norm rows), is
+`r round(max(G_cos) / attr(D$MMD, "sigma")^2, 2)` here, so `exp()` never
+leaves its near-linear stretch. A much larger value means the kernel is
+saturating and only near-identical proteins still count.
+
+The full analysis in `analysis/case_study.Rmd` in the source repository runs
+this same workflow on every protein retained after rarefaction and a 3,000aa
+sequence-length ceiling, rather than the 2,000-protein package subset.
 
 ```{r session}
 sessionInfo()
