@@ -56,16 +56,19 @@ test_that("embed_proteins accepts a FASTA path in place of a named vector", {
 })
 
 test_that("every registered model names a head embed_proteins can build", {
-  # a typo'd repo key falls through to the generic path rather than erroring,
-  # so a malformed registry would only surface as a wrong embedding later
+  # a malformed registry would only surface as a wrong embedding later
   reg <- known_models()
   expect_gt(length(reg), 0)
   heads <- vapply(reg, function(m) m$head, character(1))
   expect_true(all(heads %in% c("generic", "tmvec1", "tmvec1-large")))
   expect_true(all(nzchar(vapply(reg, function(m) m$backbone, character(1)))))
-  expect_true("tmvec-swissmodel-large" %in% names(reg))  # the default model
-  expect_identical(reg$esm2$backbone, "facebook/esm2_t33_650M_UR50D")
-  expect_identical(reg$`esm2-small`$backbone, "facebook/esm2_t6_8M_UR50D")
+  expect_true("tmvec" %in% names(reg))  # the default model
+  expect_identical(reg$`esm2-650m`$backbone, "facebook/esm2_t33_650M_UR50D")
+  expect_identical(reg$`esm2-8m`$backbone, "facebook/esm2_t6_8M_UR50D")
+
+  # every card says what the embedding measures; the registry is the model's
+  # documentation, so an entry without one is a card nobody can act on
+  expect_true(all(nzchar(vapply(reg, function(m) m$description, character(1)))))
 
   # a repeated top-level key in models.json parses as two same-named entries,
   # the second silently shadowing the first
@@ -83,6 +86,10 @@ test_that("every registered model names a head embed_proteins can build", {
                       "out_dim", "dropout", "activation"))
   }
   # a tmvec1 head must NOT carry one: it takes config.json from its own repo,
-  # and a stale copy here would silently win over the published architecture
-  for (m in reg[heads == "tmvec1"]) expect_null(m$config)
+  # and a stale copy here would silently win over the published architecture.
+  # It must carry head_repo, the HuggingFace repo those weights live in.
+  for (m in reg[heads == "tmvec1"]) {
+    expect_null(m$config)
+    expect_match(m$head_repo, ".")
+  }
 })

@@ -7,19 +7,20 @@
 known_models()
 }
 \value{
-Named list keyed by model, each entry carrying \code{head} (architecture,
-or \code{"generic"}), \code{backbone} (HuggingFace repo), \code{training_max_length}
-(the range used to train the head) and, when the architecture
-has one, \code{context_max_length} (an architectural limit). A
-head with no HuggingFace release also carries the \code{url} its weights come
-from, the \code{sha256} they are verified against, and the \code{config} to rebuild
-the architecture with, since a bare checkpoint ships none.
+Named list keyed by model, each entry carrying \code{description} (what
+the embedding measures and when to pick this model), \code{head} (architecture,
+or \code{"generic"}), \code{backbone} (HuggingFace repo), and \code{training_max_length}
+-- recorded for reference, never enforced. A \code{tmvec1} head
+carries \code{head_repo}, the HuggingFace repo its weights live in; a head with
+no HuggingFace release instead carries the \code{url}, \code{sha256}, and \code{config}
+needed to fetch and rebuild it.
 }
 \description{
-A trained head and the backbone it was trained on are separate repos, and the
-head's own \code{config.json} does not record the pairing. Those pairings live in
-\code{inst/extdata/models.json}, keyed by model; register another there without
-touching R or Python.
+Head/backbone pairings live in \code{inst/extdata/models.json}, keyed by model;
+register another there without touching R or Python. These keys are exactly
+the models \code{\link[=embed_proteins]{embed_proteins()}} supports: unregistered HuggingFace repos are
+rejected, since the pinned Python environment fixes which architectures can
+be loaded at all.
 }
 \examples{
 str(known_models())

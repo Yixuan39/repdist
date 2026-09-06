@@ -7,7 +7,8 @@
 read_fasta(path)
 }
 \arguments{
-\item{path}{Path to an amino-acid FASTA file.}
+\item{path}{Path to an amino-acid FASTA file. At most 46341 sequences;
+dereplicate a larger catalog before reading it.}
 }
 \value{
 Named character vector, names taken from the first whitespace-delimited

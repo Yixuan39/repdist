@@ -6,63 +6,67 @@
 \usage{
 embed_proteins(
   seqs,
-  model = "tmvec-swissmodel-large",
+  model = "tmvec",
   device = c("auto", "mps", "cuda", "cpu"),
-  memory_fraction = 0.8
+  batch_size = 16L
 )
 }
 \arguments{
 \item{seqs}{Named character vector of amino-acid sequences, \strong{or} a path to a
 FASTA file (see \code{\link[=read_fasta]{read_fasta()}}). Names must be unique and non-empty. A
 terminal stop \code{*} is removed; gaps, whitespace, internal stops, non-standard
-letters like \code{J}, empty sequences, and missing values are rejected.}
+letters like \code{J}, empty sequences, and missing values are rejected. At most
+46341 sequences -- dereplicate a larger catalog before embedding it.}
 
-\item{model}{A key from \code{\link[=known_models]{known_models()}} -- \code{"tmvec-swissmodel-large"} (the
-default, trained through 1000 residues), \code{"scikit-bio/tmvec-swissmodel"} (300
-residues, for in-range sensitivity analyses), \code{"esm2"}, \code{"esm2-small"} -- or
-any HuggingFace encoder repo, embedded generically.}
+\item{model}{A key from \code{\link[=known_models]{known_models()}}. Unregistered HuggingFace repos are
+rejected: the pinned Python environment fixes which architectures can be
+loaded at all, so a repo outside the registry has no supported-model
+guarantee behind it. Register one in \code{inst/extdata/models.json} instead.
+\code{"tmvec"} (the default) and \code{"tmvec-300"} measure structural similarity --
+their cosine is a predicted TM-score; the
+\code{"esm2-*"} models (by parameter count: \verb{-8m}, \verb{-150m}, \verb{-650m}) measure
+general sequence features instead, for questions where structure is not
+the axis of interest. Each registry entry's \code{description} says when to
+pick it.}
 
 \item{device}{\code{"auto"} picks CUDA, then MPS, then CPU. An explicit \code{"mps"},
-\code{"cuda"} or \code{"cpu"} errors if unavailable rather than falling back.}
+\code{"cuda"} or \code{"cpu"} errors if unavailable rather than falling back. A
+device too small for the catalog is not an error: batches that exhaust
+device memory are split and retried, and a single sequence that still does
+not fit is embedded on the CPU with a warning.}
 
-\item{memory_fraction}{Fraction of currently available device memory that
-TM-Vec may use for estimated temporary tensors. Must be greater than zero
-and no greater than one. Lower it when sharing a device with other
-processes.}
+\item{batch_size}{Maximum number of sequences per model batch. A throughput
+knob, not a correctness one: lower it to reduce peak memory when sharing
+a device with other processes.}
 }
 \value{
-Numeric matrix with one unit-norm row per embedded sequence. Skipped
-sequences are omitted and named in a warning.
+Numeric matrix with one unit-norm row per input sequence, in input
+order. Rows are L2-normalised, so the inner product of two rows is their
+cosine similarity.
 }
 \description{
-Dispatches on \code{model}. A TM-Vec entry in \code{\link[=known_models]{known_models()}} pairs its registered
-head with its registered backbone; that head regresses the TM-score of a
-protein pair, so cosine similarity between two rows is a predicted TM-score
-(see \code{docs/ground_metric_models.md}). Generic presets and unregistered
-HuggingFace repos are mean-pooled \code{AutoModel} hidden states instead, with no
-such calibration claim.
+Dispatches on \code{model}. A TM-Vec head regresses the TM-score of a protein
+pair, so cosine similarity between two rows is a predicted TM-score;
+the generic presets are mean-pooled \code{AutoModel} hidden states, with no such
+calibration claim. \code{basilisk} provisions the pinned Python environment on
+first use, and model weights are cached (HuggingFace models under
+\verb{~/.cache/huggingface}, the large TM-Vec head under \code{BiocFileCache}).
 }
 \details{
-\code{basilisk} provisions the pinned Python environment on first use; no manual
-setup is needed. Weights are cached outside it -- HuggingFace models under
-\verb{~/.cache/huggingface}, the large TM-Vec head under \code{BiocFileCache}.
-
-For TM-Vec, available memory is measured after its weights reach the selected
-device. A conservative estimate of ProtT5 and head attention memory then
-reduces each batch. A sequence that cannot fit alone, or exceeds a backbone's
-architectural context, is skipped with a warning; sequences are never
-truncated.
-The model weights themselves must fit before this estimate can be made.
-Linux container limits (cgroups), Windows physical memory, and macOS unified
-memory are handled separately; CUDA reports its own device memory.
-Generic HuggingFace encoders retain their own architecture and memory rules.
+Every sequence is embedded whole and in input order: nothing is truncated,
+subset, or silently dropped, and no length limit is imposed -- a sequence
+past a model's \code{training_max_length} is embedded, just outside the range it
+was fitted on. A sequence too large for device memory even in a batch of its
+own is an error naming the offender. Batches are capped at \code{batch_size}
+sequences (and an internal padded-token limit); a batch that still exceeds
+device memory is split and retried automatically.
 }
 \examples{
 if (interactive()) {
-    # esm2-small is 8M parameters; the default downloads several GB.
+    # esm2-8m is 8M parameters; the default downloads several GB.
     seqs <- c(p1 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ",
               p2 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVE")
-    Z <- embed_proteins(seqs, model = "esm2-small")
+    Z <- embed_proteins(seqs, model = "esm2-8m")
     dim(Z)
 }
 }

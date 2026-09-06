@@ -6,133 +6,203 @@ Z <- do.call(rbind, lapply(1:3, function(k) {
 }))
 rownames(Z) <- paste0("p", 1:15)
 family <- rep(1:3, each = 5)
-counts <- matrix(
-  rpois(4 * 15, 20) + 1L, 4, 15,
-  dimnames = list(paste0("s", 1:4), rownames(Z)))
+D <- repdist_matrix(Z)
 
-test_that("repdist_bin returns bins and representative sequences", {
-  out <- repdist_bin(counts, Z)
-  expect_named(out, c("bins", "representative_sequences"), ignore.order = FALSE)
-  expect_named(out$bins, c("counts", "bin", "bin_dist", "reps"))
-  expect_setequal(names(out$bins$bin), colnames(counts))
-  expect_null(out$representative_sequences)
+test_that("bin_proteins returns clusters, similarity, representatives, tree", {
+  out <- bin_proteins(D, min_sim = 0.5)
+  expect_named(out, c("clusters", "similarity", "representatives", "tree",
+                      "min_sim", "method", "parameters", "noise"))
+  expect_setequal(unlist(out$clusters), rownames(Z))
+  expect_named(out$representatives, names(out$clusters))
+  expect_s3_class(out$tree, "hclust")
+  expect_equal(dim(out$similarity), c(3, 3))
+  expect_equal(dimnames(out$similarity),
+               list(names(out$clusters), names(out$clusters)))
 
-  # the partition is exactly a complete-linkage cut of the ground metric.
-  # Compared by co-membership, since bin labels are ranked by abundance while
-  # cutree numbers by order of appearance -- same partition, different names.
-  expected <- stats::cutree(
-    fastcluster::hclust(seq_repdist(Z), method = "complete"), h = 1 - 0.5)
-  observed <- out$bins$bin[rownames(Z)]
-  expected <- expected[rownames(Z)]
-  expect_equal(outer(observed, observed, "=="), outer(expected, expected, "=="))
+  # bins are named largest first
+  expect_false(is.unsorted(rev(lengths(out$clusters))))
 })
 
-test_that("complete-linkage bins enforce the requested all-pairs TM threshold", {
-  bins <- repdist_bin(counts, Z, cluster_threshold = 0.5)$bins
-  expect_equal(length(unique(bins$bin[family == 1])), 1)
-  expect_equal(length(unique(bins$bin[family == 2])), 1)
-  expect_equal(length(unique(bins$bin[family == 3])), 1)
-  expect_equal(length(unique(bins$bin)), 3)
+test_that("the partition is exactly a complete-linkage cut of the distance", {
+  out <- bin_proteins(D, min_sim = 0.5)
+  # compared by co-membership: bin labels are ranked by size while cutree
+  # numbers by order of appearance -- same partition, different names
+  membership <- setNames(rep(names(out$clusters), lengths(out$clusters)),
+                         unlist(out$clusters))[rownames(Z)]
+  expected <- stats::cutree(
+    fastcluster::hclust(D, method = "complete"), h = 1 - 0.5)[rownames(Z)]
+  expect_equal(outer(membership, membership, "=="),
+               outer(expected, expected, "=="), ignore_attr = TRUE)
+})
 
-  similarity <- 1 - as.matrix(seq_repdist(Z))
-  minimum <- vapply(split(names(bins$bin), bins$bin), function(members) {
+test_that("complete linkage enforces the all-pairs similarity threshold", {
+  out <- bin_proteins(D, min_sim = 0.5)
+  expect_equal(lengths(out$clusters), c(bin1 = 5L, bin2 = 5L, bin3 = 5L))
+  membership <- setNames(rep(names(out$clusters), lengths(out$clusters)),
+                         unlist(out$clusters))
+  for (fam in 1:3)
+    expect_length(unique(membership[rownames(Z)[family == fam]]), 1L)
+
+  similarity <- 1 - as.matrix(D)
+  minimum <- vapply(out$clusters, function(members) {
     if (length(members) < 2L) return(1)
-    min(similarity[members, members][upper.tri(similarity[members, members])])
+    min(similarity[members, members][upper.tri(diag(length(members)))])
   }, numeric(1))
   expect_true(all(minimum >= 0.5))
 })
 
-test_that("binning conserves total abundance per sample", {
-  bins <- repdist_bin(counts, Z)$bins
-  expect_equal(unname(rowSums(bins$counts)), unname(rowSums(counts)))
-  expect_equal(sum(bins$counts), sum(counts))
-})
-
 test_that("a lower threshold merges families and a higher one splits them", {
-  low <- repdist_bin(counts, Z, cluster_threshold = -0.5)$bins
-  high <- repdist_bin(counts, Z, cluster_threshold = 0.999)$bins
-  expect_equal(length(unique(low$bin)), 1)
-  expect_gt(length(unique(high$bin)), 3)
+  # two families 45 degrees apart: similarity 0.71, so 0.5 merges, 0.9 splits
+  W <- rbind(a1 = c(1, 0), a2 = c(1, 0), b1 = c(1, 1), b2 = c(1, 1))
+  expect_length(bin_proteins(repdist_matrix(W), min_sim = 0.5)$clusters, 1)
+  expect_length(bin_proteins(repdist_matrix(W), min_sim = 0.9)$clusters, 2)
+
+  expect_gt(length(bin_proteins(D, min_sim = 0.999)$clusters), 3)
 })
 
-test_that("missing embeddings fail loudly", {
-  expect_error(repdist_bin(counts, Z[1:10, ]))
+test_that("the returned tree reproduces any other threshold via cutree", {
+  out <- bin_proteins(D, min_sim = 0.5)
+  again <- bin_proteins(D, min_sim = 0.999)
+  expect_equal(length(again$clusters),
+               length(unique(stats::cutree(out$tree, h = 1 - 0.999))))
 })
 
-test_that("a single protein produces one bin", {
-  cc <- counts[, 1, drop = FALSE]
-  out <- repdist_bin(cc, Z)
-  expect_equal(out$bins$bin, c(p1 = "bin1"))
-  expect_equal(unname(out$bins$counts[, 1]), unname(cc[, 1]))
-  expect_equal(out$bins$reps$protein, "p1")
+test_that("min_sim outside (0, 1] is rejected rather than silently cut", {
+  expect_error(bin_proteins(D, min_sim = -0.5))
+  expect_error(bin_proteins(D, min_sim = 1.5))
+  expect_error(bin_proteins(D, min_sim = 0))
+  expect_error(bin_proteins(D, min_sim = c(0.5, 0.7)))
 })
 
-test_that("malformed counts or embeddings are rejected", {
-  negative <- counts
-  negative[1, 1] <- -1
-  expect_error(repdist_bin(negative, Z))
-
-  nonfinite <- counts
-  nonfinite[1, 1] <- NA
-  expect_error(repdist_bin(nonfinite, Z))
-
-  bad_Z <- Z
-  bad_Z[1, 1] <- NA
-  expect_error(repdist_bin(counts, bad_Z))
-
-  unnamed <- counts
-  colnames(unnamed) <- NULL
-  expect_error(repdist_bin(unnamed, Z))
+test_that("a euclidean or non-finite distance is rejected", {
+  expect_error(bin_proteins(repdist_matrix(Z, "euclidean")), "euclidean")
+  bad <- D
+  bad[1] <- NA
+  expect_error(bin_proteins(bad), "non-finite")
 })
 
-test_that("a threshold vector shares one dendrogram and returns named cuts", {
-  out <- repdist_bin(counts, Z, cluster_threshold = c(0.5, 0.999))
-  expect_named(out, c("bins", "representative_sequences"))
-  expect_named(out$bins, c("0.5", "0.999"))
-  expect_named(out$representative_sequences, c("0.5", "0.999"))
-  expect_equal(out$bins[["0.5"]], repdist_bin(counts, Z, 0.5)$bins)
-  expect_equal(out$bins[["0.999"]], repdist_bin(counts, Z, 0.999)$bins)
+test_that("a square distance matrix is accepted", {
+  expect_equal(bin_proteins(as.matrix(D), min_sim = 0.5)$clusters,
+               bin_proteins(D, min_sim = 0.5)$clusters)
 })
 
-test_that("representative embeddings feed sample_repdist at bin resolution", {
-  bins <- repdist_bin(counts, Z, cluster_threshold = 0.5)$bins
-  C <- as.matrix(seq_repdist(Z))
-
-  expect_s3_class(bins$bin_dist, "dist")
-  expect_setequal(labels(bins$bin_dist), colnames(bins$counts))
-  expect_equal(as.matrix(bins$bin_dist),
-               C[bins$reps$protein, bins$reps$protein], ignore_attr = TRUE)
-  Z_bin <- Z[bins$reps$protein, , drop = FALSE]
-  rownames(Z_bin) <- bins$reps$bin
-  D <- sample_repdist(bins$counts, Z_bin)
-  expect_equal(attr(D, "Size"), nrow(counts))
+test_that("representatives are within-bin medoids and similarity matches", {
+  out <- bin_proteins(D, min_sim = 0.5)
+  C <- as.matrix(D)
+  for (bin in names(out$clusters)) {
+    members <- out$clusters[[bin]]
+    expect_equal(out$representatives[[bin]],
+                 members[which.min(colSums(C[members, members, drop = FALSE]))])
+  }
+  reps <- out$representatives
+  expect_equal(out$similarity, 1 - C[reps, reps], ignore_attr = TRUE)
 })
 
-test_that("precomputed distances are not expanded for binning", {
-  gm <- seq_repdist(Z)
+test_that("the condensed distance is never expanded to a square matrix", {
+  gm <- repdist_matrix(Z)
   class(gm) <- c("no_square_dist", class(gm))
   as.matrix.no_square_dist <- function(...) stop("expanded to a square matrix")
 
-  expect_no_error(repdist_bin(counts, gm))
+  expect_no_error(bin_proteins(gm))
 })
 
-test_that("representatives are within-bin medoids with named sequences", {
-  seqs <- stats::setNames(rep(c("ACDE", "FGHI", "KLMN"), each = 5), rownames(Z))
-  out <- repdist_bin(counts, Z, seqs = seqs)
-  bins <- out$bins
-  C <- as.matrix(seq_repdist(Z))
+test_that("bin_proteins reports the threshold it cut at", {
+  Z <- rbind(p1 = c(1, 0), p2 = c(0.95, 0.05), p3 = c(0, 1))
+  expect_equal(bin_proteins(repdist_matrix(Z), min_sim = 0.6)$min_sim, 0.6)
+})
 
-  expect_setequal(bins$reps$bin, unique(bins$bin))
-  expect_equal(sum(bins$reps$size), ncol(counts))
-  expect_equal(unname(bins$bin[bins$reps$protein]), bins$reps$bin)
-  for (bin in bins$reps$bin) {
-    members <- names(bins$bin)[bins$bin == bin]
-    expect_equal(bins$reps$protein[bins$reps$bin == bin],
-                 members[which.min(colSums(C[members, members, drop = FALSE]))])
+test_that("density methods preserve noise as separate bins and support QC", {
+  skip_if_not_installed("dbscan")
+  W <- rbind(Z, noise1 = c(-1, 0, 0), noise2 = c(0, -1, 0))
+  gm <- repdist_matrix(W)
+  for (method in c("dbscan", "hdbscan")) {
+    out <- bin_proteins(gm, method = method, min_pts = 3)
+    expect_null(out$tree)
+    expect_identical(out$method, method)
+    expect_setequal(unlist(out$clusters), rownames(W))
+    expect_length(unlist(out$clusters), nrow(W))
+    expect_setequal(out$noise, c("noise1", "noise2"))
+    expect_equal(unname(lengths(out$clusters)), c(5L, 5L, 5L, 1L, 1L))
+    if (requireNamespace("ggplot2", quietly = TRUE)) {
+      expect_s3_class(plot_bin_similarity(out, "bin1", gm), "ggplot")
+      expect_error(plot_bin_profile(out), "no tree")
+    }
+    if (method == "hdbscan") expect_null(out$min_sim)
   }
-  expect_s4_class(out$representative_sequences, "AAStringSet")
-  expect_equal(names(out$representative_sequences), bins$reps$bin)
-  expect_equal(unname(as.character(out$representative_sequences)),
-               unname(seqs[bins$reps$protein]))
-  expect_error(repdist_bin(counts, Z, seqs = c(nope = "X")), "missing")
+  all_noise <- bin_proteins(gm, method = "dbscan", min_pts = 100)
+  expect_setequal(all_noise$noise, rownames(W))
+  expect_true(all(lengths(all_noise$clusters) == 1L))
+  all_noise <- bin_proteins(gm, method = "hdbscan", min_pts = 100)
+  expect_setequal(all_noise$noise, rownames(W))
+  expect_true(all(lengths(all_noise$clusters) == 1L))
+  expect_error(bin_proteins(gm, method = "dbscan", min_pts = 2.5))
+  expect_error(bin_proteins(gm, method = "dbscan", border_points = NA))
+  expect_warning(bin_proteins(gm, method = "hdbscan", min_sim = 0.5),
+                  "ignored")
+})
+
+test_that("DBSCAN radius is not interpreted as a complete-linkage floor", {
+  skip_if_not_installed("dbscan")
+  # A chain with a weak endpoint pair: DBSCAN connects it; hclust cannot.
+  gm <- as.dist(matrix(c(0, .2, .4, .2, 0, .2, .4, .2, 0), 3,
+                        dimnames = list(letters[1:3], letters[1:3])))
+  out <- bin_proteins(gm, method = "dbscan", min_pts = 2)
+  expect_length(out$clusters, 1L)
+  expect_length(bin_proteins(gm)$clusters, 2L)
+  core <- bin_proteins(gm, method = "dbscan", min_pts = 3)
+  border <- bin_proteins(gm, method = "dbscan", min_pts = 3,
+                         border_points = TRUE)
+  expect_setequal(core$noise, c("a", "c"))
+  expect_length(border$clusters, 1L)
+})
+
+test_that("MCL separates weakly connected groups and preserves isolates and IDs", {
+  skip_if(!nzchar(Sys.which("mcl")), "MCL executable unavailable")
+  ids <- c(paste0("protein ", 1:6), "isolate\twith whitespace")
+  S <- diag(7)
+  S[1:3, 1:3] <- S[4:6, 4:6] <- .95
+  S[3, 4] <- S[4, 3] <- .51
+  diag(S) <- 1
+  dimnames(S) <- list(ids, ids)
+  gm <- as.dist(1 - S)
+  out <- bin_proteins(gm, min_sim = 0, method = "mcl")
+  expect_null(out$tree)
+  expect_identical(out$method, "mcl")
+  expect_length(out$noise, 0L)
+  expect_equal(out$clusters, list(bin1 = ids[1:3], bin2 = ids[4:6], bin3 = ids[7]))
+  expect_true(all(out$representatives %in% ids))
+  expect_equal(unname(out$similarity), unname(S[out$representatives,
+                                              out$representatives]))
+  if (requireNamespace("ggplot2", quietly = TRUE))
+    expect_s3_class(plot_bin_similarity(out, "bin1", gm), "ggplot")
+  empty <- bin_proteins(gm, min_sim = 1, method = "mcl")
+  expect_true(all(lengths(empty$clusters) == 1L))
+  expect_error(bin_proteins(gm, method = "mcl", inflation = 1))
+  expect_error(bin_proteins(gm, method = "mcl", mcl_bin = "repdist-no-mcl"),
+                "executable not found")
+})
+
+test_that("invalid distances fail before any clustering backend is called", {
+  bad <- as.matrix(D)
+  bad[1, 2] <- 1.5
+  expect_error(bin_proteins(bad), "symmetric")
+  expect_error(bin_proteins(bad[, -1]), "symmetric")
+  bad <- D
+  bad[1] <- -.1
+  expect_error(bin_proteins(bad), "\\[0, 2\\]")
+  attr(bad, "Labels")[1] <- NA
+  expect_error(bin_proteins(bad))
+})
+
+test_that("failed or incomplete MCL output cannot silently lose proteins", {
+  skip_on_os("windows")
+  executable <- tempfile("mcl stub ")
+  writeLines(c("#!/bin/sh", "exit 7"), executable)
+  Sys.chmod(executable, "0755")
+  expect_error(bin_proteins(D, method = "mcl", mcl_bin = executable), "MCL failed")
+  writeLines(c("#!/bin/sh", 'while [ "$1" != "-o" ]; do shift; done',
+               'echo 1 > "$2"'), executable)
+  expect_error(bin_proteins(D, method = "mcl", mcl_bin = executable),
+                "exactly once")
+  unlink(executable)
 })
