@@ -17,6 +17,7 @@ sources/
 !analysis/case_study.html
 !analysis/data_curation_case_study2.html
 !analysis/case_study2.html
+!analysis/case_study2_annotation_report.html
 *.pt
 *.npy
 *.npz
@@ -35,3 +36,4 @@ wiki/
 *.Rproj
 .claude/settings.local.json
 repdist.BiocCheck/
+graphify-out/

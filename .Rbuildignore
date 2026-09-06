@@ -2,6 +2,8 @@
 ^docs$
 ^data$
 ^raw$
+^results$
+^graphify-out$
 ^wiki$
 ^sources$
 ^\.git
@@ -10,3 +12,4 @@
 ^\.claude$
 ^repdist\.BiocCheck$
 ^inst/python/__pycache__$
+^LICENSE\.md$
