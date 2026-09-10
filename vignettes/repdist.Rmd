@@ -458,9 +458,12 @@ leaves its near-linear stretch. A much larger value means the kernel is
 saturating and only near-identical proteins still count.
 
 The full analysis runs this same workflow on every protein that survives
-rarefaction -- no length ceiling -- rather than the 2,000-protein package
-subset. It is published at <https://yixuan39.github.io/repdist/>, with its
-source on the `gh-pages` branch.
+rarefaction and a 3,000aa ceiling, rather than the 2,000-protein package
+subset. That ceiling is a choice about TM-Vec's training range, not something
+`repdist` imposes -- `embed_proteins()` embeds every sequence whole and no
+function here takes a maximum length. It is published at
+<https://yixuan39.github.io/repdist/>, with its source on the `gh-pages`
+branch.
 
 ```{r session}
 sessionInfo()
