@@ -27,8 +27,7 @@ Imports:
     reticulate,
     stats,
     usedist,
-    utils,
-    withr
+    utils
 Suggests:
     BiocStyle,
     DESeq2,
