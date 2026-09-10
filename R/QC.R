@@ -153,12 +153,10 @@ plot_bin_profile <- function(bins, min_sim = NULL) {
 #' threshold, so bins are comparable across calls.
 #'
 #' @details
-#' The matrix is symmetric, so only the lower triangle is drawn, with the
-#' diagonal running from the upper left to the lower right. The diagonal itself
-#' is dropped: a protein's similarity to itself is 1 by construction and is not
-#' one of the pairs the threshold is about. Every member keeps its row label,
-#' so the top row and the rightmost column are empty by design -- the first
-#' protein has no earlier partner, the last no later one.
+#' The whole square is drawn, with the diagonal running from the upper left to
+#' the lower right. The matrix is symmetric, so each pair appears twice; that
+#' redundancy is what lets a row be read straight across, and keeps a
+#' sub-group that straddles the diagonal square rather than triangular.
 #'
 #' @param bins Result of [bin_proteins()].
 #' @param bin Bin name, e.g. `"bin1"`.
@@ -200,32 +198,27 @@ plot_bin_similarity <- function(bins, bin, D, label_max = 20L,
   members <- members[order(match(members, bins$tree$labels[bins$tree$order]))]
 
   S <- 1 - as.matrix(usedist::dist_subset(D, members))
-  # Symmetric matrix: the lower triangle carries every pair exactly once, and
-  # the diagonal is 1 by construction rather than a pair. `partner` runs down
-  # the y axis (levels reversed, since a discrete axis starts at the bottom),
-  # so the diagonal falls from the upper left to the lower right.
-  lower <- which(lower.tri(S), arr.ind = TRUE)
+  # A discrete y axis starts at the bottom, so `partner`'s levels are reversed
+  # to put the first member at the top: the diagonal then falls from the upper
+  # left to the lower right, the usual orientation for a matrix.
   df <- data.frame(
-    protein = factor(members[lower[, "col"]], members),
-    partner = factor(members[lower[, "row"]], rev(members)),
-    similarity = S[lower.tri(S)])
+    protein = factor(rep(members, times = n), members),
+    partner = factor(rep(members, each = n), rev(members)),
+    similarity = as.numeric(S))
 
-  # Accessions are long, and each appears once per axis, so one axis carries
-  # them, elided in the middle: both ends are informative in an
-  # assembly-derived name.
+  # Accessions are long, and the matrix is symmetric, so one axis carries them,
+  # elided in the middle: both ends are informative in an assembly-derived name.
   elide <- function(x) ifelse(nchar(x) <= name_max, x, paste0(
     substr(x, 1L, ceiling(name_max / 2) - 1L), "\u2026",
     substring(x, nchar(x) - floor(name_max / 2) + 2L)))
 
   p <- ggplot2::ggplot(df, ggplot2::aes(protein, partner, fill = similarity)) +
     ggplot2::geom_tile() +
-    ggplot2::scale_fill_viridis_c(limits = c(min(bins$min_sim, df$similarity), 1)) +
-    ggplot2::scale_x_discrete(drop = FALSE) +
-    ggplot2::scale_y_discrete(labels = elide, drop = FALSE) +
+    ggplot2::scale_fill_viridis_c(limits = c(min(bins$min_sim, S), 1)) +
+    ggplot2::scale_y_discrete(labels = elide) +
     ggplot2::coord_fixed() +
     ggplot2::labs(x = NULL, y = NULL, title = sprintf(
-      "%s: %d proteins, lowest pairwise similarity %.3f", bin, n,
-      min(df$similarity))) +
+      "%s: %d proteins, lowest pairwise similarity %.3f", bin, n, min(S))) +
     ggplot2::theme_minimal() +
     ggplot2::theme(axis.text.x = ggplot2::element_blank())
   if (n > label_max)

@@ -94,19 +94,17 @@ test_that("plot_bin_similarity shows one bin's pairwise similarities", {
   p <- plot_bin_similarity(b, "bin1", D)
   expect_s3_class(p, "ggplot")
   members <- b$clusters$bin1
-  n <- length(members)
   S <- 1 - as.matrix(usedist::dist_subset(D, members))
-  # the lower triangle only: every pair once, no self-similarity
-  expect_equal(nrow(p$data), n * (n - 1) / 2)
-  expect_equal(sort(p$data$similarity), sort(S[lower.tri(S)]))
-  expect_lt(max(p$data$similarity), 1)          # the diagonal's 1 is dropped
-  expect_gte(min(p$data$similarity), 0.9)       # the threshold is honoured
-  # y runs top-to-bottom in member order, x left-to-right, so the diagonal
-  # falls from the upper left; every cell drawn sits strictly below it
-  expect_identical(levels(p$data$partner), rev(members))
+  # the whole square: every off-diagonal cell is the ground metric's
+  # similarity, and the block honours the threshold bin_proteins() promised
+  expect_equal(nrow(p$data), length(members)^2)
+  expect_setequal(as.character(p$data$protein), members)
+  expect_equal(max(p$data$similarity), 1)
+  expect_gte(min(p$data$similarity), 0.9)
+  expect_equal(sort(p$data$similarity), sort(as.numeric(S)))
+  # y is reversed against x, so the diagonal falls from the upper left
   expect_identical(levels(p$data$protein), members)
-  expect_true(all(match(as.character(p$data$partner), members) >
-                  match(as.character(p$data$protein), members)))
+  expect_identical(levels(p$data$partner), rev(members))
 
   expect_error(plot_bin_similarity(b, 1L, D), "must name one")   # names only
   expect_error(plot_bin_similarity(b, "bin99", D), "must name one")
