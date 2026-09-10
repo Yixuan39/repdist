@@ -36,8 +36,8 @@ Suggests:
     ggplot2,
     knitr,
     permute,
-    rmarkdown,
     ranger,
+    rmarkdown,
     testthat (>= 3.0.0),
     vegan
 VignetteBuilder: knitr
