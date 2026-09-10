@@ -75,24 +75,27 @@ PERMANOVA before anything downstream runs.
 
 **[Case study](case_study.html)** — MMD beta diversity and PERMANOVA,
 structural bins at predicted TM-score 0.7, DESeq2 on the bins, and a functional
-reading of the most responsive annotated bins, on every protein retained after
-rarefaction and a 3,000 aa length ceiling.
+reading of the most responsive annotated bins, on every protein that survives
+rarefaction and a 3,000 aa ceiling -- a choice the report explains, not
+something `repdist` requires.
 
 # Reproducing
 
-The sources live in `inst/scripts/` on the
-[`gh-pages` branch](https://github.com/Yixuan39/repdist/tree/gh-pages/inst/scripts)
-and expect to run from a `repdist` checkout with the study inputs under
-`data/test_study/`:
+Both reports are pages of this site: their sources sit beside `index.Rmd` at
+the root of the
+[`gh-pages` branch](https://github.com/Yixuan39/repdist/tree/gh-pages), and
+`rmarkdown::render_site()` rebuilds all three.
 
 ```
-inst/scripts/data_curation.Rmd   # -> data/test_study/ps.rds
-inst/scripts/case_study.Rmd
+data_curation.Rmd   # -> data/test_study/ps.rds
+case_study.Rmd
 ```
 
-Run `data_curation.Rmd` first — the case study reads the phyloseq object it
-writes. The study inputs are not redistributed here; the curation report names
-the files it reads and the accession they come from.
+They read from `data/test_study/` relative to the working directory, so put
+that directory beside them. Run `data_curation.Rmd` first — the case study
+reads the phyloseq object it writes. The study inputs are not redistributed
+here; the curation report names the files it reads and the accession they come
+from.
 
 # Source
 

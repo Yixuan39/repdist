@@ -10,7 +10,7 @@ index.utf8.md
 .claude/settings.local.json
 
 # analysis inputs and outputs, not redistributed here
-data/
+/data
 results/
 raw/
 cache/

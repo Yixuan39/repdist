@@ -3,26 +3,28 @@
 The `gh-pages` branch: the [repdist](https://github.com/Yixuan39/repdist) site,
 served at <https://yixuan39.github.io/repdist/>.
 
-The landing page is an `rmarkdown` website (`_site.yml` + `index.Rmd`, Bootstrap
-`cosmo`), rendered in place. To rebuild it after editing `index.Rmd`:
+An `rmarkdown` website (`_site.yml`, Bootstrap `cosmo`) rendered in place, so
+all three pages share one theme and navbar:
+
+| Page | Source |
+| --- | --- |
+| [Home](https://yixuan39.github.io/repdist/) | `index.Rmd` |
+| [Data curation](https://yixuan39.github.io/repdist/data_curation.html) | `data_curation.Rmd` |
+| [Case study](https://yixuan39.github.io/repdist/case_study.html) | `case_study.Rmd` |
+
+Rebuild with:
 
 ```r
 rmarkdown::render_site()
 ```
 
-That writes `index.html` and `site_libs/` into the branch root. It renders
-`index.Rmd` only — `README.md` and `inst/` are excluded in `_site.yml`, and the
-report HTMLs are committed renders, not rebuilt by the site.
+That writes `index.html`, the two report HTMLs, `site_libs/` and
+`*_files/` into the branch root. `README.md`, `figures/` and `data/` are
+excluded in `_site.yml`.
 
-| Report | Source |
-| --- | --- |
-| [Data curation](https://yixuan39.github.io/repdist/data_curation.html) | `inst/scripts/data_curation.Rmd` |
-| [Case study](https://yixuan39.github.io/repdist/case_study.html) | `inst/scripts/case_study.Rmd` |
-
-Both use the mouse faecal metaproteome of Blakeley-Ruiz *et al.*, *ISME J*
-**19**(1) wraf048, under `data/test_study/`.
-
-The reports expect to run from a repdist checkout with those inputs in place;
-they are not redistributed here, so the committed HTML cannot be regenerated
-from this branch alone. The package itself, its vignettes and its tests are on
-`main`.
+Both reports use the mouse faecal metaproteome of Blakeley-Ruiz *et al.*,
+*ISME J* **19**(1) wraf048 and read `data/test_study/` relative to the working
+directory. Those inputs are not redistributed here, so a rebuild needs them
+put in place first; `data_curation.Rmd` must run before `case_study.Rmd`,
+which reads the phyloseq object it writes. The package itself, its vignettes
+and its tests are on `main`.

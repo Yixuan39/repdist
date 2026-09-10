@@ -1,16 +1,11 @@
 ---
-title: "Full case study: homology-aware beta diversity with repdist"
+title: "Case study: structural bins and sample distances on a real metaproteome"
 author: "Yixuan Yang"
-package: repdist
-output:
-  BiocStyle::html_document:
-    toc_float: true
 ---
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
                       fig.height = 4, message = FALSE, warning = FALSE)
-knitr::opts_knit$set(root.dir = "../..")
 ```
 
 # Why a representation distance
@@ -47,7 +42,7 @@ metaproteomes across six dietary protein sources, quantified by spectral
 counting.
 
 ```{r data}
-path <- here::here("data", "test_study")
+path <- file.path("data", "test_study")
 MAX_AA <- 3000L
 
 ps <- readRDS(file.path(path, "ps.rds"))
@@ -104,9 +99,19 @@ table(md$diet)
 Rarefaction provides the abundance filter: proteins absent after subsampling
 are removed. It retained `r n_after_rarefaction` proteins; the 3,000aa ceiling
 then removed `r sum(too_long)` more, representing only
-`r sprintf("%.3f", 100 * long_abundance)`% of rarefied abundance. The beta-diversity
+`r sprintf("%.3f", 100 * long_abundance)`% of rarefied abundance. The count
 matrix is sparse; `counts_raw` contains unrarefied counts for exactly the same
 proteins and samples.
+
+**The ceiling is a choice made here, not a limit `repdist` imposes.**
+`embed_proteins()` embeds every sequence whole -- it never truncates and never
+silently drops -- and no function in the package takes a maximum length. The
+reason to cut at 3,000 residues is TM-Vec: its head was trained on structure
+pairs through 1,000 residues, so a predicted TM-score for a chain many times
+longer is extrapolation well outside what the model saw. At
+`r sprintf("%.3f", 100 * long_abundance)`% of abundance the cut costs
+essentially nothing here, which is what makes it worth taking. On a catalog
+where long proteins carry real signal, raise it or drop it.
 
 # Embedding
 

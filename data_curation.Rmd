@@ -1,15 +1,9 @@
 ---
 title: "Data curation: Extended Data Table 1 to a phyloseq object"
-output:
-  html_document:
-    toc: true
-    toc_float: true
-    df_print: kable
 ---
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE, fig.width = 7)
-knitr::opts_knit$set(root.dir = "../..")
 ```
 
 ```{r libs, cache = FALSE, message = FALSE}

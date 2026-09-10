@@ -1,6 +1,6 @@
 name: "repdist"
 output_dir: "."
-exclude: ["README.md", "inst", "figures"]
+exclude: ["README.md", "figures", "data"]
 navbar:
   title: "repdist"
   left:
@@ -19,4 +19,7 @@ output:
   html_document:
     theme: cosmo
     highlight: textmate
+    toc: true
+    toc_float: true
+    df_print: kable
     fig_caption: false
