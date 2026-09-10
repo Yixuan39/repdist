@@ -6,17 +6,10 @@ navbar:
   left:
     - text: "Install"
       href: index.html#installation
-    - text: "Analyses"
-      menu:
-        - text: "Data curation"
-          href: data_curation.html
-        - text: "Case study: mouse faecal metaproteomes"
-          href: case_study.html
-        - text: "Case study 2: marine plastic substrates"
-          href: case_study2.html
-        - text: "---------"
-        - text: "Case study 2: annotation clustering"
-          href: case_study2_annotation_report.html
+    - text: "Data curation"
+      href: data_curation.html
+    - text: "Case study"
+      href: case_study.html
     - text: "Reproducing"
       href: index.html#reproducing
   right:
@@ -26,5 +19,4 @@ output:
   html_document:
     theme: cosmo
     highlight: textmate
-    self_contained: true
     fig_caption: false
