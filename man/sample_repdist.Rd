@@ -4,7 +4,14 @@
 \alias{sample_repdist}
 \title{RBF-MMD distance between samples}
 \usage{
-sample_repdist(counts, embeddings, weighted = TRUE, sigma = NULL)
+sample_repdist(
+  counts,
+  embeddings,
+  weighted = TRUE,
+  sigma = NULL,
+  block_size = 1000L,
+  sigma_max_proteins = 2000L
+)
 }
 \arguments{
 \item{counts}{Numeric matrix of counts or relative abundances, including a
@@ -21,6 +28,12 @@ UniFrac stands to weighted UniFrac.}
 
 \item{sigma}{RBF bandwidth. Defaults to the median heuristic; see the
 Bandwidth section.}
+
+\item{block_size}{Positive integer, the maximum number of proteins per side
+of a kernel block. Smaller blocks reduce temporary memory use.}
+
+\item{sigma_max_proteins}{Integer at least 2, the maximum number of proteins
+used to estimate the median bandwidth. Only used when \code{sigma = NULL}.}
 }
 \value{
 A \code{dist} object, for direct use with \code{vegan::adonis2()}, with the
@@ -30,9 +43,11 @@ bandwidth used as \code{attr(, "sigma")}.
 Treats each sample as an abundance-weighted distribution over protein
 embeddings and returns the maximum mean discrepancy between those
 distributions under a median-heuristic RBF kernel. The ground metric is
-always euclidean: MMD is a distance only under a positive-semi-definite
-kernel, a Gaussian RBF guarantees that only on a true metric, and \code{1 - cosine} is not one. On unit-norm embeddings nothing is lost -- the
-euclidean RBF equals \code{exp(-(1 - TM) / sigma^2)}.
+always Euclidean, whose Gaussian RBF is positive semidefinite. On unit-norm
+embeddings it equals \verb{exp(-(1 - cosine similarity) / sigma^2)}; for TM-Vec,
+cosine similarity is the predicted TM-score. Squaring cosine distance in
+the Gaussian formula instead would give a different kernel without this
+guarantee.
 }
 \details{
 Proteins with zero abundance in every sample are dropped before the kernel
@@ -41,16 +56,14 @@ if samples weren't collected at a common depth.
 }
 \section{Bandwidth}{
 
-The default \code{sigma} is the median distance between the retained proteins,
-taken over an evenly spaced subsample of 2000 of them once there are more.
-TM-Vec distances are bounded (every pair lies within about 1.3), so with
-that bandwidth the exponent stays small and the kernel is nearly linear in
-TM-score: the result is then close to the euclidean distance between the
-samples' abundance-weighted mean embeddings. On the data shipped with the
-package that is also where PERMANOVA separation peaks; a smaller \code{sigma}
-only loses power. If you want the kernel to discount pairs below a chosen
-structural similarity, \code{sigma = sqrt(1 - t)} puts its \code{1/e} point at
-TM-score \code{t}.
+With \code{sigma = NULL}, the bandwidth is chosen automatically as the median
+pairwise Euclidean distance between retained proteins, without abundance
+weighting or sample-group labels. At most \code{sigma_max_proteins} rows are
+selected at evenly spaced positions (all rows when below that limit).
+This median heuristic is a common default, not a guarantee of optimal test
+power. Smaller bandwidths emphasise local differences; larger ones smooth
+over them. For unit-norm TM-Vec embeddings, \code{sigma = sqrt(1 - t)} puts the
+kernel's \code{1/e} point at predicted TM-score \code{t}.
 
 The default depends on which proteins are retained, so the same two samples
 sit at a slightly different distance when a third sample brings in new
@@ -60,10 +73,11 @@ pass it back as \code{sigma} to hold it fixed across runs or studies.
 
 \section{Memory}{
 
-Nothing quadratic in the protein count is held. The protein kernel is read
-in 1000-by-1000 blocks and accumulated directly into the samples-by-samples
-Gram matrix; sparse \code{Matrix} counts stay sparse. The default bandwidth reads
-its median off at most 2000 of the retained proteins.
+The full protein kernel is never stored: \code{block_size}-by-\code{block_size} tiles
+are accumulated into the samples-by-samples Gram matrix. Sparse \code{Matrix}
+counts stay sparse. Automatic bandwidth selection holds pairwise distances
+for at most \code{sigma_max_proteins} proteins, using quadratic memory in that
+limit; lowering it reduces memory use at the cost of a smaller subsample.
 }
 
 \examples{
@@ -72,4 +86,8 @@ counts <- rbind(s1 = c(8, 1, 1), s2 = c(1, 8, 1))
 colnames(counts) <- rownames(Z)
 D <- sample_repdist(counts, Z)
 attr(D, "sigma")
+}
+\references{
+Garreau, Jitkrittum and Kanagawa, \emph{Large sample analysis of the
+median heuristic}. \url{https://arxiv.org/abs/1707.07269}
 }

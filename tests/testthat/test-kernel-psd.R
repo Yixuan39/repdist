@@ -1,7 +1,6 @@
-# MMD is a distance only when the kernel is positive semi-definite. A Gaussian
-# RBF guarantees that on a true metric (Schoenberg), and `1 - cosine` is not
-# one -- it violates the triangle inequality. So sample_repdist() only uses
-# Euclidean while repdist_matrix() defaults to "cosine", the
+# The Gaussian RBF on Euclidean embeddings is positive semidefinite.
+# Squaring cosine distance in the RBF formula does not share that guarantee.
+# sample_repdist() uses Euclidean while repdist_matrix() uses cosine distance, the
 # calibrated TM-score scale bin_proteins()'s min_sim is expressed in.
 #
 # These embeddings are the shape that broke the old cosine default: four
@@ -45,12 +44,11 @@ test_that("sample_repdist takes the embedding matrix, not a precomputed dist", {
   x <- sim_universe(1)
   expect_silent(sample_repdist(x$counts, x$Z))
   expect_error(sample_repdist(x$counts, repdist_matrix(x$Z)), "embedding matrix")
-  expect_equal(repdist_matrix(x$Z), repdist_matrix(x$Z, distance = "cosine"))
 })
 
 test_that("an RBF kernel on a euclidean ground metric is PSD", {
   Z <- sim_universe(1)$Z
-  C <- as.matrix(repdist_matrix(Z, "euclidean"))
+  C <- as.matrix(stats::dist(Z))
   K <- repdist:::rbf_kernel(C, stats::median(C[upper.tri(C)]))
   ev <- eigen(K, symmetric = TRUE, only.values = TRUE)$values
   expect_gt(min(ev) / max(ev), -1e-8)
@@ -60,8 +58,8 @@ test_that("cosine and euclidean rank protein pairs identically when unit-norm", 
   # Why the split costs nothing: ||a - b|| = sqrt(2 * (1 - cos)) for unit-norm
   # rows, so the two ground metrics are monotone transforms of one another.
   Z <- sim_universe(1)$Z
-  dc <- repdist_matrix(Z, "cosine")
-  de <- repdist_matrix(Z, "euclidean")
+  dc <- repdist_matrix(Z)
+  de <- stats::dist(Z)
   expect_equal(as.vector(de), sqrt(2 * as.vector(dc)), tolerance = 1e-8)
   expect_equal(cor(as.vector(dc), as.vector(de), method = "spearman"), 1,
                tolerance = 1e-8)
@@ -76,5 +74,5 @@ test_that("mmd_matrix rejects an indefinite kernel rather than returning junk", 
   P <- rbind(s1 = c(0.5, 0, 0.5), s2 = c(0, 1, 0))
   expect_lt(drop(crossprod(P[1, ] - P[2, ], K %*% (P[1, ] - P[2, ]))), 0)
   expect_error(repdist:::mmd_matrix(tcrossprod(P %*% K, P)),
-               "positive-semidefinite")
+               "Negative squared MMD")
 })

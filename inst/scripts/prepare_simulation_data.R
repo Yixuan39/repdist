@@ -6,7 +6,7 @@
 # 4 decimal places -- that moves a cosine similarity by at most 2e-4, four
 # orders of magnitude below any threshold used, and halves the shipped size.
 #
-# Run from the repository root:  Rscript analysis/prepare_simulation_data.R
+# Run from the repository root:  Rscript inst/scripts/prepare_simulation_data.R
 # Output: inst/extdata/funfam_universe.rds
 
 u <- readRDS(file.path("data", "funfam", "beta_universe.rds"))

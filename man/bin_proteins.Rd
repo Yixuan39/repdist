@@ -4,35 +4,14 @@
 \alias{bin_proteins}
 \title{Cluster proteins into structural bins}
 \usage{
-bin_proteins(
-  D,
-  min_sim = 0.7,
-  method = c("hclust", "mcl", "dbscan", "hdbscan"),
-  min_pts = 5L,
-  border_points = FALSE,
-  inflation = 2,
-  mcl_bin = "mcl"
-)
+bin_proteins(D, min_sim = 0.7)
 }
 \arguments{
 \item{D}{Protein \code{dist} from \code{\link[=repdist_matrix]{repdist_matrix()}}, or a square distance matrix
 on the same \code{1 - similarity} scale. A euclidean \code{dist} is rejected,
 because \code{1 - min_sim} would be a meaningless cut height on it.}
 
-\item{min_sim}{Similarity threshold (default 0.7): all-pairs minimum for
-\code{"hclust"}, edge minimum for \code{"mcl"}, neighbourhood minimum for
-\code{"dbscan"}. In \verb{(0, 1]}, or \verb{[0, 1]} for MCL. Ignored by HDBSCAN.}
-
-\item{method}{\code{"hclust"} (default), \code{"mcl"}, \code{"dbscan"}, or \code{"hdbscan"}.}
-
-\item{min_pts}{Integer at least 2, including the point itself, defining a
-dense neighbourhood for DBSCAN/HDBSCAN (default 5).}
-
-\item{border_points}{Include DBSCAN border points (default \code{FALSE}, DBSCAN*).}
-
-\item{inflation}{MCL inflation, a finite number greater than 1 (default 2).}
-
-\item{mcl_bin}{Name or path of the MCL executable (default \code{"mcl"}).}
+\item{min_sim}{All-pairs similarity threshold in \verb{(0, 1]} (default 0.7).}
 }
 \value{
 A list:
@@ -45,40 +24,19 @@ representatives.}
 accessions -- each bin's member closest to all the others.}
 \item{\code{tree}}{The complete-linkage \link[stats:hclust]{stats::hclust} tree over all
 proteins. Cut it at \code{1 - s} with \code{\link[stats:cutree]{stats::cutree()}} to explore other
-thresholds without reclustering. \code{NULL} for other methods.}
-\item{\code{min_sim}}{The similarity parameter; \code{NULL} for HDBSCAN. Only
-hclust guarantees this minimum within bins.}
-\item{\code{method}}{The selected clustering method.}
-\item{\code{parameters}}{Additional parameters used by the selected method.}
-\item{\code{noise}}{Accessions rejected by a density method, each retained
-in its own singleton bin. Empty for hclust and MCL.}
+thresholds without reclustering.}
+\item{\code{min_sim}}{The similarity parameter the tree was cut at.}
 }
 }
 \description{
-Cluster a \code{\link[=repdist_matrix]{repdist_matrix()}} cosine distance. The default complete-linkage
-tree is cut at \code{1 - min_sim}, so every within-bin pair has similarity at
-least \code{min_sim}. Optional graph and density methods explore groups for
-annotation; none of these methods guarantees shared function. Bins are named
-\code{bin1}, \code{bin2}, ... from largest to smallest.
+Cuts a complete-linkage tree over a \code{\link[=repdist_matrix]{repdist_matrix()}} cosine distance at
+\code{1 - min_sim}, so every within-bin pair has similarity at least \code{min_sim}.
+Bins are named \code{bin1}, \code{bin2}, ... from largest to smallest.
 }
 \details{
-MCL clusters an undirected graph weighted by \code{1 - D}, keeping positive edges
-with similarity at least \code{min_sim}. Self-loops retain isolated proteins;
-MCL applies its default loop weighting.
-Inflation controls granularity; increasing it usually yields smaller groups.
-\code{min_sim = 0} keeps all positive edges but can make the graph very large.
-MCL needs the external \code{mcl} executable, available from
-\url{https://micans.org/mcl/}. Edges are streamed from the condensed distance.
-
-DBSCAN uses neighbourhood radius \code{1 - min_sim}; this is still a global
-parameter, not an all-pairs bound. By default, border points are noise
-(DBSCAN*) to avoid arbitrary assignment between dense groups. HDBSCAN
-selects stable density clusters across radii and ignores \code{min_sim}.
-Density methods need the optional \code{dbscan} R package. Every noise protein
-becomes its own singleton bin and is also listed in \code{noise}, so abundance
-is preserved without treating unrelated noise as one functional group.
-Compare annotation agreement together with non-singleton coverage and
-fragmentation before transferring annotations to uncharacterised members.
+Structural similarity is not shared function: compare annotation agreement
+together with non-singleton coverage and fragmentation before transferring
+annotations to uncharacterised members.
 
 Collapse a sample-by-protein counts table to bin level with the returned
 membership, e.g. \code{t(rowsum(t(counts), bin[colnames(counts)]))} where \code{bin}
@@ -86,5 +44,6 @@ maps protein to bin name.
 }
 \examples{
 Z <- rbind(p1 = c(1, 0), p2 = c(0.95, 0.05), p3 = c(0, 1))
+Z <- Z / sqrt(rowSums(Z^2))
 bin_proteins(repdist_matrix(Z), min_sim = 0.7)
 }

@@ -61,7 +61,7 @@ test_that("plot_similarity_profile reports each protein's nearest neighbour", {
   # two it is more similar to
   expect_equal(p$data$similarity[1:2], rep(sum(Z[1, ] * Z[2, ]), 2))
   expect_equal(p$data$similarity[3], max(sum(Z[3, ] * Z[1, ]), sum(Z[3, ] * Z[2, ])))
-  expect_error(plot_similarity_profile(repdist_matrix(Z, "euclidean")), "euclidean")
+  expect_error(plot_similarity_profile(stats::dist(Z)), "euclidean")
 })
 
 test_that("plot_bin_profile sweeps the tree monotonically", {
@@ -105,7 +105,7 @@ test_that("plot_bin_similarity shows one bin's pairwise similarities", {
 
   expect_error(plot_bin_similarity(b, 1L, D), "must name one")   # names only
   expect_error(plot_bin_similarity(b, "bin99", D), "must name one")
-  expect_error(plot_bin_similarity(b, "bin1", repdist_matrix(Z, "euclidean")),
+  expect_error(plot_bin_similarity(b, "bin1", stats::dist(Z)),
                "euclidean")
   expect_error(plot_bin_similarity(list(tree = 1), "bin1", D), "bin_proteins")
   singleton <- names(which(lengths(b$clusters) == 1L))[[1]]

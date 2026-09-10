@@ -86,7 +86,7 @@ table(d$metadata$diet)
 Each mouse contributes several samples, so `subject` is carried through
 everything below as a blocking factor. The full study is 30,561 proteins;
 shipped here are the 2000 most abundant after rarefaction, which hold 80% of
-the total spectral counts. `analysis/prepare_vignette_data.R` in the source
+the total spectral counts. `inst/scripts/prepare_vignette_data.R` in the source
 repository is the script that made this object.
 
 # Embedding
@@ -104,6 +104,8 @@ Z <- embed_proteins(d$sequences)      # default model: "tmvec"
 
 ```{r Z}
 Z <- d$embeddings
+## Normalize rounded cached embeddings to the current unit-row contract.
+Z <- Z / sqrt(rowSums(Z^2))
 dim(Z)
 ```
 
@@ -455,9 +457,11 @@ kernel ever sees, `max(G_cos) / attr(D$MMD, "sigma")^2` (the euclidean
 leaves its near-linear stretch. A much larger value means the kernel is
 saturating and only near-identical proteins still count.
 
-The full analysis in `analysis/case_study.Rmd` in the source repository runs
-this same workflow on every protein retained after rarefaction and a 3,000aa
-sequence-length ceiling, rather than the 2,000-protein package subset.
+The full analysis runs this same workflow on every protein retained after
+rarefaction and a 3,000aa sequence-length ceiling, rather than the
+2,000-protein package subset. It is published at
+<https://yixuan39.github.io/repdist/>, with its source on the `gh-pages`
+branch.
 
 ```{r session}
 sessionInfo()

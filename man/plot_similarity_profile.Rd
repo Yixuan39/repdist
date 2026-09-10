@@ -26,6 +26,7 @@ becomes a singleton bin in \code{\link[=bin_proteins]{bin_proteins()}}.
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   set.seed(1)
   Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
+  Z <- Z / sqrt(rowSums(Z^2))
   plot_similarity_profile(repdist_matrix(Z), min_sim = 0.7)
 }
 }

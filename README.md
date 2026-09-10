@@ -43,29 +43,10 @@ G <- repdist_matrix(Z)                    # 1 - predicted TM-score
 bins <- bin_proteins(G, min_sim = 0.7)
 ```
 
-For annotation, compare graph and density clusters on the same distance:
-
-```r
-graph <- bin_proteins(G, method = "mcl", min_sim = 0.5, inflation = 2)
-dense <- bin_proteins(G, method = "dbscan", min_sim = 0.7, min_pts = 5)
-adaptive <- bin_proteins(G, method = "hdbscan", min_pts = 5)
-```
-
-MCL needs the [MCL executable](https://micans.org/mcl/) on `PATH` (or set
-`mcl_bin`); density methods need `install.packages("dbscan")`. MCL uses
-`min_sim` to filter graph edges and inflation to control granularity; DBSCAN
-uses radius `1 - min_sim` and defaults to excluding border points (DBSCAN*).
-HDBSCAN selects clusters across density levels. Only hclust guarantees an
-all-pairs similarity floor. Structural similarity alone does not guarantee
-shared function, so compare annotation agreement with coverage and fragmentation
-before transferring labels. Density noise remains in separate singleton bins
-and is listed in `$noise`; alternative methods return `$tree = NULL`.
-`plot_bin_similarity()` supports all methods; `plot_bin_profile()` needs hclust.
-
-Run `Rscript analysis/annotation_clustering.R` for the local EC benchmark grid,
-including purity, pair precision/recall, coverage, and protein-level membership
-across settings. The input data are local research files, not shipped with the
-package; see [the comparison notes](analysis/annotation_clustering.md).
+`bin_proteins()` cuts a complete-linkage tree, so every pair inside a bin meets
+`min_sim`. Structural similarity alone does not guarantee shared function, so
+compare annotation agreement with coverage and fragmentation before
+transferring labels.
 
 ## License
 

@@ -58,6 +58,7 @@ utils::globalVariables(c("similarity", "min_sim", "value", "curve", "metric",
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(1)
 #'   Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
+#'   Z <- Z / sqrt(rowSums(Z^2))
 #'   plot_similarity_profile(repdist_matrix(Z), min_sim = 0.7)
 #' }
 #' @export
@@ -67,7 +68,7 @@ plot_similarity_profile <- function(D, min_sim = NULL) {
   if (!inherits(D, "dist")) D <- stats::as.dist(D)
   if (identical(attr(D, "method"), "euclidean"))
     stop("`D` must be on the 1 - similarity scale, not euclidean; ",
-         "use repdist_matrix(Z, \"cosine\").", call. = FALSE)
+         "use repdist_matrix(Z).", call. = FALSE)
   stopifnot(attr(D, "Size") >= 2L)
 
   # ponytail: expands the condensed dist to a square matrix; switch to a
@@ -96,14 +97,14 @@ plot_similarity_profile <- function(D, min_sim = NULL) {
 #' aggregation at all. A usable threshold sits in the valley between the two
 #' curves, on a plateau of the bin count.
 #'
-#' @param bins Result of [bin_proteins()] with `method = "hclust"`, or its
-#'   `tree` ([stats::hclust]). Other methods do not return a recuttable tree.
+#' @param bins Result of [bin_proteins()], or its `tree` ([stats::hclust]).
 #' @param min_sim Optional threshold in use, marked with a vertical line.
 #' @return A ggplot object. Needs the `ggplot2` package.
 #' @examples
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(1)
 #'   Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
+#'   Z <- Z / sqrt(rowSums(Z^2))
 #'   b <- bin_proteins(repdist_matrix(Z), min_sim = 0.7)
 #'   plot_bin_profile(b, min_sim = 0.7)
 #' }
@@ -113,8 +114,7 @@ plot_bin_profile <- function(bins, min_sim = NULL) {
     stop("plot_bin_profile() needs the ggplot2 package.", call. = FALSE)
   tree <- if (inherits(bins, "hclust")) bins else bins$tree
   if (!inherits(tree, "hclust"))
-    stop("Use bin_proteins(method = \"hclust\") or an hclust tree; ",
-         "other methods have no tree to recut.",
+    stop("`bins` must be a bin_proteins() result or an hclust tree.",
          call. = FALSE)
 
   grid <- seq(0.01, 1, by = 0.01)
@@ -147,13 +147,10 @@ plot_bin_profile <- function(bins, min_sim = NULL) {
 #'
 #' Heatmap of every pairwise similarity among one bin's members -- for TM-Vec
 #' embeddings, predicted TM-scores -- ordered by the clustering tree.
-#' With `method = "hclust"`, [bin_proteins()] guarantees the whole block sits
-#' at or above `min_sim`; this
+#' [bin_proteins()] guarantees the whole block sits at or above `min_sim`; this
 #' is where you see how far above, and whether a bin is one tight group or two
 #' sub-groups that only just met the threshold. The fill scale starts at that
-#' threshold, so bins are comparable across calls. For graph/density methods,
-#' a local complete-linkage tree orders the displayed bin only; the colour
-#' scale covers its observed similarities, with no minimum guarantee.
+#' threshold, so bins are comparable across calls.
 #'
 #' @param bins Result of [bin_proteins()].
 #' @param bin Bin name, e.g. `"bin1"`.
@@ -167,6 +164,7 @@ plot_bin_profile <- function(bins, min_sim = NULL) {
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(1)
 #'   Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
+#'   Z <- Z / sqrt(rowSums(Z^2))
 #'   D <- repdist_matrix(Z)
 #'   plot_bin_similarity(bin_proteins(D, min_sim = 0.5), "bin1", D)
 #' }
@@ -175,7 +173,7 @@ plot_bin_similarity <- function(bins, bin, D, label_max = 20L,
                                 name_max = 25L) {
   if (!requireNamespace("ggplot2", quietly = TRUE))
     stop("plot_bin_similarity() needs the ggplot2 package.", call. = FALSE)
-  if (!is.list(bins$clusters))
+  if (!is.list(bins$clusters) || !inherits(bins$tree, "hclust"))
     stop("`bins` must be a bin_proteins() result.", call. = FALSE)
   if (!is.character(bin) || length(bin) != 1L ||
       is.na(match(bin, names(bins$clusters))))
@@ -184,19 +182,14 @@ plot_bin_similarity <- function(bins, bin, D, label_max = 20L,
   if (!inherits(D, "dist")) D <- stats::as.dist(D)
   if (identical(attr(D, "method"), "euclidean"))
     stop("`D` must be on the 1 - similarity scale, not euclidean; ",
-         "use repdist_matrix(Z, \"cosine\").", call. = FALSE)
+         "use repdist_matrix(Z).", call. = FALSE)
 
   members <- bins$clusters[[bin]]
   n <- length(members)
   if (n < 2L)
     stop("`", bin, "` holds one protein; there is no pair to plot.",
          call. = FALSE)
-  # The local display tree never changes the graph/density membership.
-  tree <- bins$tree
-  if (is.null(tree))
-    tree <- fastcluster::hclust(usedist::dist_subset(D, members),
-                                method = "complete")
-  members <- members[order(match(members, tree$labels[tree$order]))]
+  members <- members[order(match(members, bins$tree$labels[bins$tree$order]))]
 
   S <- 1 - as.matrix(usedist::dist_subset(D, members))
   df <- data.frame(
@@ -212,8 +205,7 @@ plot_bin_similarity <- function(bins, bin, D, label_max = 20L,
 
   p <- ggplot2::ggplot(df, ggplot2::aes(protein, partner, fill = similarity)) +
     ggplot2::geom_tile() +
-    ggplot2::scale_fill_viridis_c(limits = c(
-      if (inherits(bins$tree, "hclust")) min(bins$min_sim, S) else min(S), 1)) +
+    ggplot2::scale_fill_viridis_c(limits = c(min(bins$min_sim, S), 1)) +
     ggplot2::scale_y_discrete(labels = elide) +
     ggplot2::coord_fixed() +
     ggplot2::labs(x = NULL, y = NULL, title = sprintf(

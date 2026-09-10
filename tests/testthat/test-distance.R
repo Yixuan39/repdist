@@ -11,14 +11,14 @@ counts <- matrix(
   dimnames = list(paste0("s", 1:6), rownames(Z)))
 
 test_that("sample_repdist takes the embedding matrix, not a precomputed dist", {
-  expect_error(sample_repdist(counts, repdist_matrix(Z, "euclidean")),
+  expect_error(sample_repdist(counts, stats::dist(Z)),
                "embedding matrix")
-  expect_error(sample_repdist(counts, repdist_matrix(Z, "cosine")),
+  expect_error(sample_repdist(counts, repdist_matrix(Z / sqrt(rowSums(Z^2)))),
                "embedding matrix")
 })
 
 test_that("the blocked kernel matches the dense one", {
-  G <- as.matrix(repdist_matrix(Z, "euclidean"))
+  G <- as.matrix(stats::dist(Z))
   sigma <- stats::median(G[upper.tri(G)])
   P <- counts / rowSums(counts)
   dense <- repdist:::mmd_matrix(tcrossprod(
@@ -30,7 +30,7 @@ test_that("the blocked kernel matches the dense one", {
   set.seed(4)
   big <- matrix(rnorm(2500 * 3), 2500, 3, dimnames = list(paste0("q", 1:2500), NULL))
   cb <- matrix(rpois(4 * 2500, 1), 4, 2500, dimnames = list(letters[1:4], rownames(big)))
-  Gb <- as.matrix(repdist_matrix(big[colnames(cb)[colSums(cb) > 0], ], "euclidean"))
+  Gb <- as.matrix(stats::dist(big[colnames(cb)[colSums(cb) > 0], ]))
   Db <- sample_repdist(cb, big)
   # Past 2000 proteins the bandwidth is the median over a subsample, so it
   # tracks the all-pairs median rather than matching it exactly.
@@ -51,6 +51,31 @@ test_that("sample_repdist preserves sparse counts", {
   expect_equal(sample_repdist(sparse, Z, weighted = FALSE),
                sample_repdist(sparse_counts, Z, weighted = FALSE),
                tolerance = 1e-7)
+})
+
+test_that("kernel block and bandwidth sample sizes are configurable", {
+  cc <- counts[1:3, 1:7]
+  cc[, 7] <- 0L
+  Zs <- Z[7:1, ]   # embedding order must be aligned after dropping column 7
+  idx <- round(seq(1, 6, length.out = 3))
+  expected_sigma <- stats::median(stats::dist(Z[idx, ]))
+  for (weighted in c(TRUE, FALSE)) {
+    expected <- sample_repdist(cc, Zs, weighted = weighted, sigma = expected_sigma)
+    for (size in c(1, 4, 20)) {
+      actual <- sample_repdist(cc, Zs, weighted = weighted,
+                               block_size = size, sigma_max_proteins = 3)
+      expect_equal(actual, expected, tolerance = 1e-7)
+      expect_equal(sample_repdist(Matrix::Matrix(cc, sparse = TRUE), Zs,
+                                   weighted = weighted, block_size = size,
+                                   sigma_max_proteins = 3), actual,
+                   tolerance = 1e-7)
+    }
+  }
+  for (bad in list(0, -1, 1.5, NA, Inf, c(1, 2), "2", NULL)) {
+    expect_error(sample_repdist(cc, Zs, block_size = bad), "block_size")
+    expect_error(sample_repdist(cc, Zs, sigma_max_proteins = bad), "sigma_max_proteins")
+  }
+  expect_error(sample_repdist(cc, Zs, sigma_max_proteins = 1), "sigma_max_proteins")
 })
 
 test_that("sample_repdist returns a dist that adonis2 accepts", {
@@ -127,7 +152,7 @@ test_that("rarefaction shrinks depth-driven distance at fixed composition", {
 
 test_that("missing or unnamed representations fail loudly", {
   expect_error(sample_repdist(counts, Z[1:5, ]))
-  G <- repdist_matrix(Z)
+  G <- repdist_matrix(Z / sqrt(rowSums(Z^2)))
   attr(G, "Labels") <- NULL
   expect_error(sample_repdist(counts, G))
 })
@@ -161,6 +186,7 @@ test_that("one retained protein gives zero sample distance", {
   cc <- rbind(a = 10, b = 20)
   colnames(cc) <- "p1"
   expect_equal(as.numeric(sample_repdist(cc, Z[1, , drop = FALSE])), 0)
+  expect_equal(as.numeric(sample_repdist(cc, 1e10 * Z[1, , drop = FALSE])), 0)
 })
 
 test_that("repdist_matrix refuses more proteins than usedist can index", {
@@ -168,13 +194,15 @@ test_that("repdist_matrix refuses more proteins than usedist can index", {
   expect_identical(46341L * 46340L, 2147441940L)
   expect_true(is.na(suppressWarnings(46342L * 46341L)))
   expect_error(repdist_matrix(matrix(1, 46342L, 1L)), "46341")
-  expect_error(repdist_matrix(matrix(1, 46342L, 1L), "euclidean"), "46341")
 })
 
 test_that("a degenerate bandwidth is an error, not a NaN kernel", {
   same <- Z[rep(1, nrow(Z)), ]          # every protein identical
   rownames(same) <- rownames(Z)
   expect_error(sample_repdist(counts, same), "identical embeddings")
+  near <- same
+  near[, 1] <- near[, 1] + seq_len(nrow(near)) * 1e-10
+  expect_error(sample_repdist(counts, near), "too small relative to")
   expect_error(sample_repdist(counts, Z, sigma = 0), "positive")
   expect_error(sample_repdist(counts, Z, sigma = -1), "positive")
 })
@@ -188,30 +216,55 @@ test_that("mmd_matrix matches the closed form on a linear kernel", {
   expect_equal(fast, slow)
 })
 
-test_that("mmd_matrix rejects a kernel that is not positive semidefinite", {
+test_that("mmd_matrix rejects materially negative squared distances", {
   K <- matrix(c(1, 2, 2, 1), 2, 2)
   P <- rbind(a = c(1, 0), b = c(0, 1))
   expect_error(repdist:::mmd_matrix(tcrossprod(P %*% K, P)),
-               "positive-semidefinite")
+               "Negative squared MMD")
+  # Roundoff is clipped, relative to the Gram matrix's scale.
+  for (scale in c(1, 1e-6, 1e6)) {
+    rounded <- matrix(c(1, 1 + 1e-10, 1 + 1e-10, 1), 2) * scale
+    expect_equal(repdist:::mmd_matrix(rounded), matrix(0, 2, 2))
+    invalid <- matrix(c(1, 1 + 1e-6, 1 + 1e-6, 1), 2) * scale
+    expect_error(repdist:::mmd_matrix(invalid), "Negative squared MMD")
+  }
 })
 
-test_that("repdist_matrix computes cosine and Euclidean distances", {
-  Zn <- Z / sqrt(rowSums(Z^2))
-  expect_equal(as.vector(repdist_matrix(Z, "cosine")),
-               as.vector(stats::as.dist(1 - tcrossprod(Zn))))
-  expect_equal(as.vector(repdist_matrix(Z, "euclidean")),
-               as.vector(stats::dist(Z)))
-
-  zero <- rbind(Z[1:3, ], dead = 0)
-  expect_error(repdist_matrix(zero, "cosine"), "zero-length")
+test_that("repdist_matrix computes inner-product distances on unit-norm rows", {
+  # More than one block, with a partial final block and named rows.
+  set.seed(14)
+  Z <- matrix(rnorm(1003 * 4), 1003, 4,
+              dimnames = list(paste0("p", 1:1003), NULL))
+  Z <- Z / sqrt(rowSums(Z^2))
+  D <- repdist_matrix(Z)
+  expect_equal(as.vector(D), as.vector(stats::dist(Z)^2 / 2))
+  expect_equal(labels(D), rownames(Z))
+  expect_identical(attr(D, "method"), "cosine")
+  expect_s3_class(D, "dist")
+  expect_length(repdist_matrix(Z[1, , drop = FALSE]), 0)
+  expect_length(repdist_matrix(Z[FALSE, , drop = FALSE]), 0)
+  expect_equal(as.vector(repdist_matrix(rbind(c(1, 0), c(1, 0),
+                                             c(0, 1), c(-1, 0)))),
+               c(0, 1, 2, 1, 2, 1))
+  # Float32-sized norm error is accepted, with distances clipped to [0, 2].
+  rounded <- rbind(c(1 + 1e-7, 0), c(1 + 1e-7, 0), c(-1 - 1e-7, 0))
+  expect_equal(as.vector(repdist_matrix(rounded)), c(0, 2, 2))
+  expect_error(repdist_matrix(2 * Z), "L2-normalised")
+  expect_error(repdist_matrix(rbind(Z[1:3, ], dead = 0)), "L2-normalised")
+  expect_error(repdist_matrix(matrix(NA_real_, 2, 2)), "is.finite")
+  small <- Z[1:7, ]
+  for (size in c(1, 3, 7, 20))
+    expect_equal(repdist_matrix(small, block_size = size), repdist_matrix(small))
+  for (size in list(0, -1, 1.5, NA, Inf, c(1, 2), "2", NULL))
+    expect_error(repdist_matrix(small, block_size = size), "block_size")
 })
 
 test_that("on unit-norm embeddings the euclidean RBF is a kernel in cosine distance", {
   set.seed(13)
   Z <- matrix(rnorm(30 * 8), 30, 8, dimnames = list(paste0("p", 1:30), NULL))
   Z <- Z / sqrt(rowSums(Z^2))
-  Ceuc <- as.matrix(repdist_matrix(Z, "euclidean"))
-  Ccos <- as.matrix(repdist_matrix(Z, "cosine"))
+  Ceuc <- as.matrix(stats::dist(Z))
+  Ccos <- as.matrix(repdist_matrix(Z))
   expect_equal(Ceuc^2, 2 * Ccos, tolerance = 1e-6)
   sigma <- stats::median(Ceuc[upper.tri(Ceuc)])
   expect_equal(repdist:::rbf_kernel(Ceuc, sigma), exp(-Ccos / sigma^2), tolerance = 1e-6)
@@ -219,7 +272,7 @@ test_that("on unit-norm embeddings the euclidean RBF is a kernel in cosine dista
 
 test_that("sample_repdist reports its bandwidth and holds it fixed when passed back", {
   D <- sample_repdist(counts, Z)
-  G <- as.matrix(repdist_matrix(Z, "euclidean"))
+  G <- as.matrix(stats::dist(Z))
   expect_equal(attr(D, "sigma"), stats::median(G[upper.tri(G)]))
   expect_equal(sample_repdist(counts, Z, sigma = attr(D, "sigma")), D)
 
@@ -240,6 +293,6 @@ test_that("malformed sigma and duplicated protein names are rejected", {
 
 test_that("the returned dist is a plain stats dist that base all.equal accepts", {
   # proxy's S3 methods on "dist" make all.equal() error on any dist object in
-  # the session; the cosine path uses stats::dist so proxy is never loaded.
+  # the session; repdist_matrix returns a plain dist without loading proxy.
   expect_true(isTRUE(all.equal(sample_repdist(counts, Z), sample_repdist(counts, Z))))
 })

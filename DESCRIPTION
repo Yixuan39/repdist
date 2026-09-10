@@ -13,7 +13,6 @@ URL: https://github.com/Yixuan39/repdist
 BugReports: https://github.com/Yixuan39/repdist/issues
 Encoding: UTF-8
 StagedInstall: no
-SystemRequirements: MCL (optional, for method = "mcl")
 biocViews: Proteomics, Metagenomics, Microbiome, Clustering, Software
 Roxygen: list(markdown = TRUE)
 Depends: R (>= 4.5.0)
@@ -28,13 +27,13 @@ Imports:
     reticulate,
     stats,
     usedist,
-    utils
+    utils,
+    withr
 Suggests:
     BiocStyle,
     DESeq2,
     GUniFrac,
     ape,
-    dbscan,
     ggplot2,
     knitr,
     permute,

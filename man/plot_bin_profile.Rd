@@ -7,8 +7,7 @@
 plot_bin_profile(bins, min_sim = NULL)
 }
 \arguments{
-\item{bins}{Result of \code{\link[=bin_proteins]{bin_proteins()}} with \code{method = "hclust"}, or its
-\code{tree} (\link[stats:hclust]{stats::hclust}). Other methods do not return a recuttable tree.}
+\item{bins}{Result of \code{\link[=bin_proteins]{bin_proteins()}}, or its \code{tree} (\link[stats:hclust]{stats::hclust}).}
 
 \item{min_sim}{Optional threshold in use, marked with a vertical line.}
 }
@@ -27,6 +26,7 @@ curves, on a plateau of the bin count.
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   set.seed(1)
   Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
+  Z <- Z / sqrt(rowSums(Z^2))
   b <- bin_proteins(repdist_matrix(Z), min_sim = 0.7)
   plot_bin_profile(b, min_sim = 0.7)
 }

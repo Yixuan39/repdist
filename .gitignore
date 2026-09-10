@@ -11,13 +11,6 @@ docs/
 raw/
 sources/
 *.html
-# ...except the rendered reports, each kept on its own analysis branch
-!analysis/simulation_study.html
-!analysis/data_curation.html
-!analysis/case_study.html
-!analysis/data_curation_case_study2.html
-!analysis/case_study2.html
-!analysis/case_study2_annotation_report.html
 *.pt
 *.npy
 *.npz

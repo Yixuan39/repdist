@@ -6,7 +6,7 @@
 # which hold 80% of the total mass and reproduce the diet PERMANOVA (Bray-Curtis
 # diet R2 0.275 against 0.253 on the full catalog).
 #
-# Run from the repository root:  Rscript analysis/prepare_vignette_data.R
+# Run from the repository root:  Rscript inst/scripts/prepare_vignette_data.R
 # Output: inst/extdata/diet_metaproteome.rds
 
 suppressMessages({

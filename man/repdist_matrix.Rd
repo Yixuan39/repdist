@@ -4,12 +4,15 @@
 \alias{repdist_matrix}
 \title{Protein distance matrix from embeddings}
 \usage{
-repdist_matrix(embeddings, distance = c("cosine", "euclidean"))
+repdist_matrix(embeddings, block_size = 1000L)
 }
 \arguments{
-\item{embeddings}{Numeric matrix, one row per protein.}
+\item{embeddings}{Numeric matrix, one L2-normalised row per protein, as
+returned by \code{\link[=embed_proteins]{embed_proteins()}}. Computes \verb{1 - inner product} in blocks
+without renormalising rows or allocating a full square matrix.}
 
-\item{distance}{\code{"cosine"} (default) or \code{"euclidean"}.}
+\item{block_size}{Positive integer, the number of protein columns per
+inner-product block. Smaller blocks reduce temporary memory use.}
 }
 \value{
 A \code{dist} object over proteins.
@@ -22,14 +25,15 @@ sizes it is the expensive object (n(n-1)/2 doubles, roughly 400 MB at
 can index; dereplicate the sequences before embedding if you have more.
 }
 \details{
-\code{"cosine"} is \verb{1 - cosine similarity} -- for TM-Vec embeddings, \verb{1 - predicted TM-score}, the scale \code{\link[=bin_proteins]{bin_proteins()}}'s \code{min_sim} is read
-against. It is not a true metric, so it cannot feed an RBF kernel;
-\code{\link[=sample_repdist]{sample_repdist()}} therefore builds its own euclidean ground distance from
+Cosine distance is \verb{1 - cosine similarity} -- for TM-Vec embeddings, \verb{1 - predicted TM-score}, the scale \code{\link[=bin_proteins]{bin_proteins()}}'s \code{min_sim} is read
+against. \code{\link[=sample_repdist]{sample_repdist()}} uses a Gaussian kernel on Euclidean distance
+and builds its own ground distance from
 the embeddings, in blocks, and never reads this one. On the unit-norm rows
 \code{\link[=embed_proteins]{embed_proteins()}} returns, the two are monotone transforms of each other
 (\verb{||a - b|| = sqrt(2 * (1 - cos))}) and rank protein pairs identically.
 }
 \examples{
 Z <- rbind(p1 = c(1, 0), p2 = c(0, 1), p3 = c(1, 1))
+Z <- Z / sqrt(rowSums(Z^2))
 repdist_matrix(Z)
 }
