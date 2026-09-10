@@ -31,12 +31,10 @@ sub-groups that only just met the threshold. The fill scale starts at that
 threshold, so bins are comparable across calls.
 }
 \details{
-The matrix is symmetric, so only the lower triangle is drawn, with the
-diagonal running from the upper left to the lower right. The diagonal itself
-is dropped: a protein's similarity to itself is 1 by construction and is not
-one of the pairs the threshold is about. Every member keeps its row label,
-so the top row and the rightmost column are empty by design -- the first
-protein has no earlier partner, the last no later one.
+The whole square is drawn, with the diagonal running from the upper left to
+the lower right. The matrix is symmetric, so each pair appears twice; that
+redundancy is what lets a row be read straight across, and keeps a
+sub-group that straddles the diagonal square rather than triangular.
 }
 \examples{
 if (requireNamespace("ggplot2", quietly = TRUE)) {
