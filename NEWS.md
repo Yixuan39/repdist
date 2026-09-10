@@ -2,6 +2,15 @@
 
 Initial Bioconductor submission.
 
+- `impute_labels()` now separates KNN label propagation (default k=1) from
+  a shared correctness scorer: spline logistic regression or optional ranger
+  random forest. Grouped held-out predictions train the scorer; an optional
+  cross-fitted selection adjustment weights observed annotation bias.
+  All original annotations remain final references. Scores include support
+  diagnostics and are unavailable when calibration data are insufficient.
+  The previous SVM, cost, gamma, method and KNN tuning-grid arguments are
+  removed; k is now a single neighbour count. The public function name and
+  label/evidence columns remain. Confidence now denotes a correctness estimate.
 - `bin_proteins()` cuts a complete-linkage tree and nothing else. The
   optional MCL, DBSCAN*/DBSCAN and HDBSCAN methods have been removed: on the
   EC benchmark none of them, nor an emergent SOM, improved annotation purity

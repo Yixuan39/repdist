@@ -38,6 +38,7 @@ Suggests:
     knitr,
     permute,
     rmarkdown,
+    ranger,
     testthat (>= 3.0.0),
     vegan
 VignetteBuilder: knitr

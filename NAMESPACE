@@ -2,6 +2,7 @@
 
 export(bin_proteins)
 export(embed_proteins)
+export(impute_labels)
 export(known_models)
 export(plot_bin_profile)
 export(plot_bin_similarity)
@@ -11,3 +12,4 @@ export(repdist_matrix)
 export(sample_repdist)
 importClassesFrom(Matrix,dsparseMatrix)
 importClassesFrom(Matrix,sparseMatrix)
+importFrom(utils,globalVariables)
