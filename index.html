@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>repdist analyses</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfaf8;
+  --panel: #ffffff;
+  --ink: #1b1a18;
+  --muted: #5f5b55;
+  --line: #e2ddd5;
+  --accent: #7a4b2a;
+  --accent-soft: #f2ebe3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17161a;
+    --panel: #1f1e23;
+    --ink: #ece9e4;
+    --muted: #a29c94;
+    --line: #33313a;
+    --accent: #d9a273;
+    --accent-soft: #2a2630;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 46rem; margin: 0 auto; padding: 4rem 1.5rem 5rem; }
+header { border-bottom: 1px solid var(--line); padding-bottom: 2rem; margin-bottom: 2.5rem; }
+h1 { margin: 0 0 .35rem; font-size: 2rem; letter-spacing: -.02em; }
+h1 .sub { color: var(--muted); font-weight: 400; }
+.lede { margin: 0; color: var(--muted); max-width: 34rem; }
+h2 {
+  font-size: .78rem; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--muted); font-weight: 600; margin: 3rem 0 1rem;
+}
+ol.reports { list-style: none; margin: 0; padding: 0; counter-reset: r; }
+ol.reports li { counter-increment: r; margin-bottom: 1rem; }
+a.card {
+  display: block; padding: 1.15rem 1.35rem; text-decoration: none; color: inherit;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  transition: border-color .15s ease, transform .15s ease;
+}
+a.card:hover { border-color: var(--accent); transform: translateY(-1px); }
+a.card .num {
+  display: inline-block; min-width: 1.5rem; color: var(--accent);
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}
+a.card .title { font-weight: 600; }
+a.card p { margin: .4rem 0 0 1.5rem; color: var(--muted); font-size: .93rem; }
+.tag {
+  display: inline-block; margin-left: .5rem; padding: .05rem .45rem; border-radius: 4px;
+  background: var(--accent-soft); color: var(--accent); font-size: .7rem;
+  letter-spacing: .04em; text-transform: uppercase; font-weight: 600; vertical-align: 1px;
+}
+.note { color: var(--muted); font-size: .93rem; }
+.note code, .note kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .87em;
+  background: var(--accent-soft); padding: .1rem .3rem; border-radius: 4px;
+}
+.note a { color: var(--accent); }
+footer {
+  margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: .88rem;
+}
+footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>repdist <span class="sub">/ analyses</span></h1>
+  <p class="lede">
+    Re-analyses of published metaproteomes with homology-aware beta diversity:
+    each sample as an abundance-weighted distribution over protein language
+    model embeddings, compared by maximum mean discrepancy.
+  </p>
+</header>
+
+<h2>Reports</h2>
+<ol class="reports">
+
+  <li><a class="card" href="data_curation.html">
+    <span class="num">01</span><span class="title">Data curation</span>
+    <p>
+      Extended Data Table 1 of Blakeley-Ruiz <em>et al.</em>, <em>ISME J</em>
+      <b>19</b>(1) wraf048, from spectral counts and inline sequences to a
+      phyloseq object, checked against the published PERMANOVA before anything
+      downstream runs.
+    </p>
+  </a></li>
+
+  <li><a class="card" href="case_study.html">
+    <span class="num">02</span><span class="title">Case study &mdash; mouse faecal metaproteomes</span>
+    <p>
+      Six dietary protein sources. MMD beta diversity and PERMANOVA, structural
+      bins at predicted TM-score 0.7, DESeq2 on the bins, and a functional
+      reading of the most responsive annotated bins &mdash; on every protein
+      retained after rarefaction and a 3,000&nbsp;aa length ceiling.
+    </p>
+  </a></li>
+
+  <li><a class="card" href="case_study2.html">
+    <span class="num">03</span><span class="title">Case study 2 &mdash; marine plastic substrates</span>
+    <p>
+      Three incubations each across four plastics, two PHBH formulations, filter
+      paper and ambient sediment; PLA dropped for inconsistent depth. The same
+      four-step workflow on a community whose proteins are largely unannotated.
+    </p>
+  </a></li>
+
+  <li><a class="card" href="case_study2_annotation_report.html">
+    <span class="num">04</span><span class="title">Case study 2 &mdash; annotation-oriented clustering</span>
+    <p>
+      Which clustering setting groups the plastic-substrate catalog best for
+      annotation: complete linkage across TM thresholds against MCL,
+      DBSCAN*/DBSCAN and HDBSCAN, scored on KO and on the paper's own broad and
+      detailed function labels.
+      <span class="tag">historical</span>
+    </p>
+  </a></li>
+
+</ol>
+
+<h2>Reproducing</h2>
+<p class="note">
+  The <code>.Rmd</code> and <code>.R</code> sources sit in
+  <code>inst/scripts/</code> on this branch and expect to run from a
+  <a href="https://github.com/Yixuan39/repdist">repdist</a> checkout, with the
+  study inputs under <code>data/</code>. Those inputs are not redistributed
+  here; each report names its source files and the accession they come from.
+  Report 04 also needs <code>results/case_study2_annotation_clustering/</code>,
+  written by <code>inst/scripts/case_study2_annotation.R</code>.
+</p>
+<p class="note">
+  Report 04 is kept as a record: the MCL, DBSCAN*/DBSCAN and HDBSCAN options it
+  compares have since been removed from <code>bin_proteins()</code>, which now
+  cuts a complete-linkage tree and nothing else. Its own conclusion is the
+  reason.
+</p>
+
+<footer>
+  Package source, installation and the two vignettes live on
+  <a href="https://github.com/Yixuan39/repdist">github.com/Yixuan39/repdist</a>.
+  This site is built from the <code>gh-pages</code> branch.
+</footer>
+
+</div>
+</body>
+</html>

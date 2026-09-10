@@ -1,0 +1,26 @@
+.DS_Store
+.Rhistory
+.Rproj.user/
+.RData
+.Ruserdata
+*_cache/
+*_files/
+*.Rproj
+.claude/settings.local.json
+
+# analysis inputs and outputs, not redistributed here
+data/
+results/
+raw/
+cache/
+sources/
+docs/
+wiki/
+graphify-out/
+repdist.BiocCheck/
+*.tar.gz
+*.rds
+*.pt
+*.npy
+*.npz
+*.parquet
