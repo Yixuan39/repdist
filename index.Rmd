@@ -1,5 +1,5 @@
 ---
-title: "repdist: homology-aware beta diversity for metaproteomics"
+title: "repdist: measure, analyze and compare protein representation distances"
 ---
 
 <style>
@@ -7,20 +7,31 @@ title: "repdist: homology-aware beta diversity for metaproteomics"
 .caption-note { color: #b52b27; }
 </style>
 
-`repdist` represents each sample as an abundance-weighted distribution over
-protein embeddings from a frozen protein language model, and compares samples
-by **maximum mean discrepancy** under an RBF kernel. The ground distance is
-defined for any sequence — including proteins with no tree position and no
-annotation — so a metaproteome can be compared without first resolving it to
-known accessions.
+`repdist` measures the distance between proteins in a frozen protein language
+model's representation space, and lifts that protein-level distance to a
+distance between whole samples.
+
+The default representation is **TM-Vec**, where the cosine distance between two
+embeddings approximates `1 - predicted TM-score` — that is, **structural
+homology**. That choice is the argument, not an implementation detail. What
+usually matters about a microbial community is whether the *function* it
+carries has shifted, and function tracks structure far more closely than it
+tracks sequence identity: two communities can run the same reaction on
+accessions that never overlap. A distance built on structural homology sees
+that; a distance built on accession identity cannot.
+
+The ground distance is defined for any sequence, including proteins with no
+tree position and no annotation, so a community's proteins can be compared
+without first resolving them to something already named.
 
 ![](figures/simulation-pcoa.png)
 
 <span class="caption-note">Two groups of simulated samples differing by
-*function*, carried on non-overlapping homologs.</span> MMD, a structure tree
-and structural bins all separate them. Protein-level Bray-Curtis, which can
-only ask whether two samples hold the same accession, sees nothing. Built in
-`vignette("simulation", package = "repdist")`.
+*function*, carried on non-overlapping homologs.</span> Sample distances built
+on structural homology separate them — by maximum mean discrepancy over the
+embeddings, by a structure tree, or by structural bins. Protein-level
+Bray-Curtis, which can only ask whether two samples hold the same accession,
+sees nothing. Built in `vignette("simulation", package = "repdist")`.
 
 # Installation
 
@@ -33,8 +44,7 @@ remotes::install_github("Yixuan39/repdist")
 ```
 
 Embeddings run through a pinned `basilisk` Python environment, so no manual
-Python setup is needed. The default ground metric is TM-Vec: cosine distance
-between two protein embeddings approximates `1 - predicted TM-score`.
+Python setup is needed.
 
 ```r
 library(repdist)
@@ -42,7 +52,7 @@ library(repdist)
 seqs <- read_fasta("proteins.fasta")
 Z <- embed_proteins(seqs, model = "tmvec")
 
-D <- sample_repdist(counts, Z)          # RBF-MMD between samples
+D <- sample_repdist(counts, Z)          # distance between samples
 vegan::adonis2(D ~ condition, data = meta)
 
 G <- repdist_matrix(Z)                  # 1 - predicted TM-score

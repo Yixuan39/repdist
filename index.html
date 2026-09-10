@@ -11,7 +11,7 @@
 
 
 
-<title>repdist: homology-aware beta diversity for metaproteomics</title>
+<title>repdist: measure, analyze and compare protein representation distances</title>
 
 <script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -273,8 +273,8 @@ $(document).ready(function () {
 
 
 
-<h1 class="title toc-ignore">repdist: homology-aware beta diversity for
-metaproteomics</h1>
+<h1 class="title toc-ignore">repdist: measure, analyze and compare
+protein representation distances</h1>
 
 </div>
 
@@ -283,19 +283,29 @@ metaproteomics</h1>
 .main-container img { max-width: 620px; display: block; margin: 1.5em auto 0.5em; }
 .caption-note { color: #b52b27; }
 </style>
-<p><code>repdist</code> represents each sample as an abundance-weighted
-distribution over protein embeddings from a frozen protein language
-model, and compares samples by <strong>maximum mean discrepancy</strong>
-under an RBF kernel. The ground distance is defined for any sequence —
-including proteins with no tree position and no annotation — so a
-metaproteome can be compared without first resolving it to known
-accessions.</p>
+<p><code>repdist</code> measures the distance between proteins in a
+frozen protein language model’s representation space, and lifts that
+protein-level distance to a distance between whole samples.</p>
+<p>The default representation is <strong>TM-Vec</strong>, where the
+cosine distance between two embeddings approximates
+<code>1 - predicted TM-score</code> — that is, <strong>structural
+homology</strong>. That choice is the argument, not an implementation
+detail. What usually matters about a microbial community is whether the
+<em>function</em> it carries has shifted, and function tracks structure
+far more closely than it tracks sequence identity: two communities can
+run the same reaction on accessions that never overlap. A distance built
+on structural homology sees that; a distance built on accession identity
+cannot.</p>
+<p>The ground distance is defined for any sequence, including proteins
+with no tree position and no annotation, so a community’s proteins can
+be compared without first resolving them to something already named.</p>
 <p><img src="figures/simulation-pcoa.png" /></p>
 <p><span class="caption-note">Two groups of simulated samples differing
-by <em>function</em>, carried on non-overlapping homologs.</span> MMD, a
-structure tree and structural bins all separate them. Protein-level
-Bray-Curtis, which can only ask whether two samples hold the same
-accession, sees nothing. Built in
+by <em>function</em>, carried on non-overlapping homologs.</span> Sample
+distances built on structural homology separate them — by maximum mean
+discrepancy over the embeddings, by a structure tree, or by structural
+bins. Protein-level Bray-Curtis, which can only ask whether two samples
+hold the same accession, sees nothing. Built in
 <code>vignette("simulation", package = "repdist")</code>.</p>
 <div id="installation" class="section level1">
 <h1>Installation</h1>
@@ -305,15 +315,13 @@ from GitHub:</p>
     install.packages(&quot;remotes&quot;)
 remotes::install_github(&quot;Yixuan39/repdist&quot;)</code></pre>
 <p>Embeddings run through a pinned <code>basilisk</code> Python
-environment, so no manual Python setup is needed. The default ground
-metric is TM-Vec: cosine distance between two protein embeddings
-approximates <code>1 - predicted TM-score</code>.</p>
+environment, so no manual Python setup is needed.</p>
 <pre class="r"><code>library(repdist)
 
 seqs &lt;- read_fasta(&quot;proteins.fasta&quot;)
 Z &lt;- embed_proteins(seqs, model = &quot;tmvec&quot;)
 
-D &lt;- sample_repdist(counts, Z)          # RBF-MMD between samples
+D &lt;- sample_repdist(counts, Z)          # distance between samples
 vegan::adonis2(D ~ condition, data = meta)
 
 G &lt;- repdist_matrix(Z)                  # 1 - predicted TM-score
