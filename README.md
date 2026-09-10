@@ -1,8 +1,18 @@
 # repdist analyses
 
-The `gh-pages` branch: rendered re-analyses of published metaproteomes with
-[repdist](https://github.com/Yixuan39/repdist), served at
-<https://yixuan39.github.io/repdist/>.
+The `gh-pages` branch: the [repdist](https://github.com/Yixuan39/repdist) site,
+served at <https://yixuan39.github.io/repdist/>.
+
+The landing page is an `rmarkdown` website (`_site.yml` + `index.Rmd`, Bootstrap
+`cosmo`), rendered in place. To rebuild it after editing `index.Rmd`:
+
+```r
+rmarkdown::render_site()
+```
+
+That writes `index.html` and `site_libs/` into the branch root. It renders
+`index.Rmd` only — `README.md` and `inst/` are excluded in `_site.yml`, and the
+four report HTMLs are committed renders, not rebuilt by the site.
 
 | Report | Source |
 | --- | --- |
@@ -16,6 +26,7 @@ comparisons need), `case_study2_annotation.R` (writes
 `results/case_study2_annotation_clustering/` for the annotation report) and
 `case_study_bin_ordination.R`.
 
-The sources expect to run from a repdist checkout with the study inputs under
-`data/`; those inputs are not redistributed here. The package itself, its
-vignettes and its tests are on `main`.
+The reports expect to run from a repdist checkout with the study inputs under
+`data/`; those inputs are not redistributed here, so the committed HTML cannot
+be regenerated from this branch alone. The package itself, its vignettes and
+its tests are on `main`.

@@ -1,160 +1,449 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+
+<html>
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>repdist analyses</title>
-<style>
-:root {
-  color-scheme: light dark;
-  --bg: #fbfaf8;
-  --panel: #ffffff;
-  --ink: #1b1a18;
-  --muted: #5f5b55;
-  --line: #e2ddd5;
-  --accent: #7a4b2a;
-  --accent-soft: #f2ebe3;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #17161a;
-    --panel: #1f1e23;
-    --ink: #ece9e4;
-    --muted: #a29c94;
-    --line: #33313a;
-    --accent: #d9a273;
-    --accent-soft: #2a2630;
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>repdist: homology-aware beta diversity for metaproteomics</title>
+
+<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
   }
 }
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
 }
-.wrap { max-width: 46rem; margin: 0 auto; padding: 4rem 1.5rem 5rem; }
-header { border-bottom: 1px solid var(--line); padding-bottom: 2rem; margin-bottom: 2.5rem; }
-h1 { margin: 0 0 .35rem; font-size: 2rem; letter-spacing: -.02em; }
-h1 .sub { color: var(--muted); font-weight: 400; }
-.lede { margin: 0; color: var(--muted); max-width: 34rem; }
-h2 {
-  font-size: .78rem; text-transform: uppercase; letter-spacing: .09em;
-  color: var(--muted); font-weight: 600; margin: 3rem 0 1rem;
+img {
+  max-width:100%;
 }
-ol.reports { list-style: none; margin: 0; padding: 0; counter-reset: r; }
-ol.reports li { counter-increment: r; margin-bottom: 1rem; }
-a.card {
-  display: block; padding: 1.15rem 1.35rem; text-decoration: none; color: inherit;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  transition: border-color .15s ease, transform .15s ease;
+.tabbed-pane {
+  padding-top: 12px;
 }
-a.card:hover { border-color: var(--accent); transform: translateY(-1px); }
-a.card .num {
-  display: inline-block; min-width: 1.5rem; color: var(--accent);
-  font-variant-numeric: tabular-nums; font-weight: 600;
+.html-widget {
+  margin-bottom: 20px;
 }
-a.card .title { font-weight: 600; }
-a.card p { margin: .4rem 0 0 1.5rem; color: var(--muted); font-size: .93rem; }
-.tag {
-  display: inline-block; margin-left: .5rem; padding: .05rem .45rem; border-radius: 4px;
-  background: var(--accent-soft); color: var(--accent); font-size: .7rem;
-  letter-spacing: .04em; text-transform: uppercase; font-weight: 600; vertical-align: 1px;
+button.code-folding-btn:focus {
+  outline: none;
 }
-.note { color: var(--muted); font-size: .93rem; }
-.note code, .note kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .87em;
-  background: var(--accent-soft); padding: .1rem .3rem; border-radius: 4px;
+summary {
+  display: list-item;
 }
-.note a { color: var(--accent); }
-footer {
-  margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
-  color: var(--muted); font-size: .88rem;
+details > summary > p:only-child {
+  display: inline;
 }
-footer a { color: var(--accent); }
+pre code {
+  padding: 0;
+}
 </style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
 </head>
+
 <body>
-<div class="wrap">
 
-<header>
-  <h1>repdist <span class="sub">/ analyses</span></h1>
-  <p class="lede">
-    Re-analyses of published metaproteomes with homology-aware beta diversity:
-    each sample as an abundance-weighted distribution over protein language
-    model embeddings, compared by maximum mean discrepancy.
-  </p>
-</header>
 
-<h2>Reports</h2>
-<ol class="reports">
+<div class="container-fluid main-container">
 
-  <li><a class="card" href="data_curation.html">
-    <span class="num">01</span><span class="title">Data curation</span>
-    <p>
-      Extended Data Table 1 of Blakeley-Ruiz <em>et al.</em>, <em>ISME J</em>
-      <b>19</b>(1) wraf048, from spectral counts and inline sequences to a
-      phyloseq object, checked against the published PERMANOVA before anything
-      downstream runs.
-    </p>
-  </a></li>
 
-  <li><a class="card" href="case_study.html">
-    <span class="num">02</span><span class="title">Case study &mdash; mouse faecal metaproteomes</span>
-    <p>
-      Six dietary protein sources. MMD beta diversity and PERMANOVA, structural
-      bins at predicted TM-score 0.7, DESeq2 on the bins, and a functional
-      reading of the most responsive annotated bins &mdash; on every protein
-      retained after rarefaction and a 3,000&nbsp;aa length ceiling.
-    </p>
-  </a></li>
 
-  <li><a class="card" href="case_study2.html">
-    <span class="num">03</span><span class="title">Case study 2 &mdash; marine plastic substrates</span>
-    <p>
-      Three incubations each across four plastics, two PHBH formulations, filter
-      paper and ambient sediment; PLA dropped for inconsistent depth. The same
-      four-step workflow on a community whose proteins are largely unannotated.
-    </p>
-  </a></li>
 
-  <li><a class="card" href="case_study2_annotation_report.html">
-    <span class="num">04</span><span class="title">Case study 2 &mdash; annotation-oriented clustering</span>
-    <p>
-      Which clustering setting groups the plastic-substrate catalog best for
-      annotation: complete linkage across TM thresholds against MCL,
-      DBSCAN*/DBSCAN and HDBSCAN, scored on KO and on the paper's own broad and
-      detailed function labels.
-      <span class="tag">historical</span>
-    </p>
-  </a></li>
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">repdist</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Analyses
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="data_curation.html">Data curation</a>
+    </li>
+    <li>
+      <a href="case_study.html">Case study: mouse faecal metaproteomes</a>
+    </li>
+    <li>
+      <a href="case_study2.html">Case study 2: marine plastic substrates</a>
+    </li>
+    <li class="divider"></li>
+    <li>
+      <a href="case_study2_annotation_report.html">Case study 2: annotation clustering</a>
+    </li>
+  </ul>
+</li>
+<li>
+  <a href="index.html#reproducing">Reproducing</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Yixuan39/repdist">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
 
-</ol>
+<div id="header">
 
-<h2>Reproducing</h2>
-<p class="note">
-  The <code>.Rmd</code> and <code>.R</code> sources sit in
-  <code>inst/scripts/</code> on this branch and expect to run from a
-  <a href="https://github.com/Yixuan39/repdist">repdist</a> checkout, with the
-  study inputs under <code>data/</code>. Those inputs are not redistributed
-  here; each report names its source files and the accession they come from.
-  Report 04 also needs <code>results/case_study2_annotation_clustering/</code>,
-  written by <code>inst/scripts/case_study2_annotation.R</code>.
-</p>
-<p class="note">
-  Report 04 is kept as a record: the MCL, DBSCAN*/DBSCAN and HDBSCAN options it
-  compares have since been removed from <code>bin_proteins()</code>, which now
-  cuts a complete-linkage tree and nothing else. Its own conclusion is the
-  reason.
-</p>
 
-<footer>
-  Package source, installation and the two vignettes live on
-  <a href="https://github.com/Yixuan39/repdist">github.com/Yixuan39/repdist</a>.
-  This site is built from the <code>gh-pages</code> branch.
-</footer>
+
+<h1 class="title toc-ignore">repdist: homology-aware beta diversity for
+metaproteomics</h1>
 
 </div>
+
+
+<style>
+.main-container img { max-width: 620px; display: block; margin: 1.5em auto 0.5em; }
+.caption-note { color: #b52b27; }
+</style>
+<p><code>repdist</code> represents each sample as an abundance-weighted
+distribution over protein embeddings from a frozen protein language
+model, and compares samples by <strong>maximum mean discrepancy</strong>
+under an RBF kernel. The ground distance is defined for any sequence —
+including proteins with no tree position and no annotation — so a
+metaproteome can be compared without first resolving it to known
+accessions.</p>
+<p><img src="figures/simulation-pcoa.png" /></p>
+<p><span class="caption-note">Two groups of simulated samples differing
+by <em>function</em>, carried on non-overlapping homologs.</span> MMD, a
+structure tree and structural bins all separate them. Protein-level
+Bray-Curtis, which can only ask whether two samples hold the same
+accession, sees nothing. Built in
+<code>vignette("simulation", package = "repdist")</code>.</p>
+<div id="installation" class="section level1">
+<h1>Installation</h1>
+<p><code>repdist</code> is an R package. Install the development version
+from GitHub:</p>
+<pre class="r"><code>if (!requireNamespace(&quot;remotes&quot;, quietly = TRUE))
+    install.packages(&quot;remotes&quot;)
+remotes::install_github(&quot;Yixuan39/repdist&quot;)</code></pre>
+<p>Embeddings run through a pinned <code>basilisk</code> Python
+environment, so no manual Python setup is needed. The default ground
+metric is TM-Vec: cosine distance between two protein embeddings
+approximates <code>1 - predicted TM-score</code>.</p>
+<pre class="r"><code>library(repdist)
+
+seqs &lt;- read_fasta(&quot;proteins.fasta&quot;)
+Z &lt;- embed_proteins(seqs, model = &quot;tmvec&quot;)
+
+D &lt;- sample_repdist(counts, Z)          # RBF-MMD between samples
+vegan::adonis2(D ~ condition, data = meta)
+
+G &lt;- repdist_matrix(Z)                  # 1 - predicted TM-score
+bins &lt;- bin_proteins(G, min_sim = 0.7)  # structural bins for biomarkers</code></pre>
+<p>Two vignettes ship with the package: <code>vignette("repdist")</code>
+walks the workflow on a package data subset,
+<code>vignette("simulation")</code> builds the figure above.</p>
+</div>
+<div id="analyses" class="section level1">
+<h1>Analyses</h1>
+<p>These are the full re-analyses behind the method, run on complete
+protein sets rather than the package subsets. Each one is a standalone
+report.</p>
+<p><strong><a href="data_curation.html">Data curation</a></strong> —
+Extended Data Table 1 of Blakeley-Ruiz <em>et al.</em>, <em>ISME J</em>
+<strong>19</strong>(1) wraf048, from spectral counts and inline
+sequences to a phyloseq object, checked against the published PERMANOVA
+before anything downstream runs.</p>
+<p><strong><a href="case_study.html">Case study: mouse faecal
+metaproteomes</a></strong> — six dietary protein sources. MMD beta
+diversity and PERMANOVA, structural bins at predicted TM-score 0.7,
+DESeq2 on the bins, and a functional reading of the most responsive
+annotated bins, on every protein retained after rarefaction and a 3,000
+aa length ceiling.</p>
+<p><strong><a href="case_study2.html">Case study 2: marine plastic
+substrates</a></strong> — three incubations each across four plastics,
+two PHBH formulations, filter paper and ambient sediment; PLA dropped
+for inconsistent depth. The same four-step workflow on a community whose
+proteins are largely unannotated.</p>
+<p><strong><a href="case_study2_annotation_report.html">Case study 2:
+annotation-oriented clustering</a></strong> — which clustering setting
+groups the plastic-substrate catalog best for annotation: complete
+linkage across TM thresholds against MCL, DBSCAN*/DBSCAN and HDBSCAN,
+scored on KO and on the paper’s own broad and detailed function
+labels.</p>
+<p><span class="caption-note">The clustering report is kept as a
+record.</span> The MCL, DBSCAN*/DBSCAN and HDBSCAN options it compares
+have since been removed from <code>bin_proteins()</code>, which now cuts
+a complete-linkage tree and nothing else. That report’s own conclusion
+is the reason.</p>
+</div>
+<div id="reproducing" class="section level1">
+<h1>Reproducing</h1>
+<p>The sources for every report live in <code>inst/scripts/</code> on
+the <a
+href="https://github.com/Yixuan39/repdist/tree/gh-pages/inst/scripts"><code>gh-pages</code>
+branch</a> and expect to run from a <code>repdist</code> checkout with
+the study inputs under <code>data/</code>:</p>
+<pre><code>inst/scripts/data_curation.Rmd                    # -&gt; data/test_study/ps.rds
+inst/scripts/case_study.Rmd
+inst/scripts/case_study2.Rmd
+inst/scripts/case_study2_annotation_report.Rmd
+inst/scripts/build_trees.R                        # k-mer and TM-Vec trees
+inst/scripts/case_study2_annotation.R             # -&gt; results/case_study2_annotation_clustering/
+inst/scripts/case_study_bin_ordination.R</code></pre>
+<p>The study inputs are not redistributed here; each report names the
+files it reads and the accession they come from. Run
+<code>data_curation.Rmd</code> first — the case studies read the
+phyloseq object it writes. The annotation clustering report reads
+<code>results/case_study2_annotation_clustering/</code>, written by
+<code>case_study2_annotation.R</code>.</p>
+</div>
+<div id="source" class="section level1">
+<h1>Source</h1>
+<p>Package source, issues and the vignettes are at <a
+href="https://github.com/Yixuan39/repdist">github.com/Yixuan39/repdist</a>.
+This site is built from the repository’s <code>gh-pages</code> branch.
+Released under MIT.</p>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
 </body>
 </html>

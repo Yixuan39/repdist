@@ -1,0 +1,30 @@
+name: "repdist"
+output_dir: "."
+exclude: ["README.md", "inst", "figures"]
+navbar:
+  title: "repdist"
+  left:
+    - text: "Install"
+      href: index.html#installation
+    - text: "Analyses"
+      menu:
+        - text: "Data curation"
+          href: data_curation.html
+        - text: "Case study: mouse faecal metaproteomes"
+          href: case_study.html
+        - text: "Case study 2: marine plastic substrates"
+          href: case_study2.html
+        - text: "---------"
+        - text: "Case study 2: annotation clustering"
+          href: case_study2_annotation_report.html
+    - text: "Reproducing"
+      href: index.html#reproducing
+  right:
+    - icon: fa-github fa-lg
+      href: https://github.com/Yixuan39/repdist
+output:
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    self_contained: true
+    fig_caption: false

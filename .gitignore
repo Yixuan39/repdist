@@ -3,9 +3,10 @@
 .Rproj.user/
 .RData
 .Ruserdata
-*_cache/
-*_files/
 *.Rproj
+*_cache/
+index.knit.md
+index.utf8.md
 .claude/settings.local.json
 
 # analysis inputs and outputs, not redistributed here
