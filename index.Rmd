@@ -86,17 +86,13 @@ and expect to run from a `repdist` checkout with the study inputs under
 `data/test_study/`:
 
 ```
-inst/scripts/data_curation.Rmd            # -> data/test_study/ps.rds
+inst/scripts/data_curation.Rmd   # -> data/test_study/ps.rds
 inst/scripts/case_study.Rmd
-inst/scripts/case_study_bin_ordination.R  # PCoA/UMAP/t-SNE over bin medoids
 ```
 
 Run `data_curation.Rmd` first — the case study reads the phyloseq object it
-writes. `case_study_bin_ordination.R` reads the embedding cache the case
-study's Embedding section writes, rather than recomputing it.
-
-The study inputs are not redistributed here; the curation report names the
-files it reads and the accession they come from.
+writes. The study inputs are not redistributed here; the curation report names
+the files it reads and the accession they come from.
 
 # Source
 

@@ -353,15 +353,12 @@ aa length ceiling.</p>
 href="https://github.com/Yixuan39/repdist/tree/gh-pages/inst/scripts"><code>gh-pages</code>
 branch</a> and expect to run from a <code>repdist</code> checkout with
 the study inputs under <code>data/test_study/</code>:</p>
-<pre><code>inst/scripts/data_curation.Rmd            # -&gt; data/test_study/ps.rds
-inst/scripts/case_study.Rmd
-inst/scripts/case_study_bin_ordination.R  # PCoA/UMAP/t-SNE over bin medoids</code></pre>
+<pre><code>inst/scripts/data_curation.Rmd   # -&gt; data/test_study/ps.rds
+inst/scripts/case_study.Rmd</code></pre>
 <p>Run <code>data_curation.Rmd</code> first — the case study reads the
-phyloseq object it writes. <code>case_study_bin_ordination.R</code>
-reads the embedding cache the case study’s Embedding section writes,
-rather than recomputing it.</p>
-<p>The study inputs are not redistributed here; the curation report
-names the files it reads and the accession they come from.</p>
+phyloseq object it writes. The study inputs are not redistributed here;
+the curation report names the files it reads and the accession they come
+from.</p>
 </div>
 <div id="source" class="section level1">
 <h1>Source</h1>

@@ -20,8 +20,7 @@ report HTMLs are committed renders, not rebuilt by the site.
 | [Case study](https://yixuan39.github.io/repdist/case_study.html) | `inst/scripts/case_study.Rmd` |
 
 Both use the mouse faecal metaproteome of Blakeley-Ruiz *et al.*, *ISME J*
-**19**(1) wraf048, under `data/test_study/`. `case_study_bin_ordination.R`
-ordinates the structural bins from the embedding cache the case study writes.
+**19**(1) wraf048, under `data/test_study/`.
 
 The reports expect to run from a repdist checkout with those inputs in place;
 they are not redistributed here, so the committed HTML cannot be regenerated
