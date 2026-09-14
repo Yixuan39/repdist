@@ -65,26 +65,32 @@ class _TMVecHead(nn.Module):
 # Cached so one embed() call loads the multi-GB backbone once, not per batch.
 
 @lru_cache(maxsize=None)
-def _load_prott5(backbone, device):
-    tok = T5Tokenizer.from_pretrained(backbone, do_lower_case=False)
-    return tok, T5EncoderModel.from_pretrained(backbone).eval().to(device)
+def _load_prott5(backbone, revision, device):
+    tok = T5Tokenizer.from_pretrained(
+        backbone, revision=revision, do_lower_case=False)
+    return tok, T5EncoderModel.from_pretrained(
+        backbone, revision=revision).eval().to(device)
 
 
 @lru_cache(maxsize=None)
-def _load_generic(repo, device):
-    return (AutoTokenizer.from_pretrained(repo),
-            AutoModel.from_pretrained(repo).eval().to(device))
+def _load_generic(repo, revision, device):
+    return (AutoTokenizer.from_pretrained(repo, revision=revision),
+            AutoModel.from_pretrained(
+                repo, revision=revision).eval().to(device))
 
 
 @lru_cache(maxsize=None)
-def _load_head(weights, device, cfg_json):
+def _load_head(weights, revision, device, cfg_json):
     """An empty cfg_json means `weights` is a repo carrying its own config.json."""
     if cfg_json:
         cfg = json.loads(cfg_json)
         state = torch.load(weights, map_location="cpu", weights_only=True)["state_dict"]
     else:
-        cfg = json.load(open(hf_hub_download(weights, "config.json")))
-        state = load_file(hf_hub_download(weights, "model.safetensors"))
+        with open(hf_hub_download(
+                weights, "config.json", revision=revision)) as handle:
+            cfg = json.load(handle)
+        state = load_file(hf_hub_download(
+            weights, "model.safetensors", revision=revision))
     head = _TMVecHead(cfg)
     # strict=True checks every shape cfg implies; only nhead and activation,
     # which leave no shape behind, would pass silently if the registry were wrong.
@@ -92,8 +98,8 @@ def _load_head(weights, device, cfg_json):
     return head.eval().to(device)
 
 
-def _run_tmvec(seqs, device, backbone, head):
-    tok, body = _load_prott5(backbone, device)
+def _run_tmvec(seqs, device, backbone, revision, head):
+    tok, body = _load_prott5(backbone, revision, device)
     # ProtT5 wants space-separated residues, rare amino acids mapped to X.
     enc = tok([" ".join(re.sub(r"[UZOB]", "X", s)) for s in seqs],
               padding=True, return_tensors="pt")
@@ -164,6 +170,14 @@ def embed(seqs, spec_json, weights, device, batch_size):
     """
     spec = json.loads(spec_json)
     head, backbone = spec["head"], spec["backbone"]
+    # A tag or branch would let the weights move under a cached embedding, so
+    # the registry pins commits and this only accepts a full commit SHA.
+    for key in ("backbone_revision", "head_revision"):
+        if key in spec and not re.fullmatch(r"[0-9a-f]{40}", spec[key]):
+            raise ValueError("{} must be an immutable commit SHA".format(key))
+    revision = spec["backbone_revision"]
+    if head == "tmvec1" and "head_revision" not in spec:
+        raise ValueError("tmvec1 requires a pinned head_revision")
     seqs = list(seqs)
     batch_size = int(batch_size)
     device = resolve_device(device)
@@ -173,13 +187,15 @@ def embed(seqs, spec_json, weights, device, batch_size):
         asking for "cpu" after "cuda" costs a second copy of the backbone in
         host RAM -- only paid if the OOM fallback below actually fires."""
         if head == "generic":
-            tok, model = _load_generic(backbone, dev)
+            tok, model = _load_generic(backbone, revision, dev)
             return lambda batch: _run_generic(batch, dev, tok, model)
         if head in ("tmvec1", "tmvec1-large"):
             cfg_json = json.dumps(spec["config"]) if "config" in spec else ""
-            top = _load_head(weights, dev, cfg_json)
-            _load_prott5(backbone, dev)
-            return lambda batch: _run_tmvec(batch, dev, backbone, top)
+            top = _load_head(weights, spec.get("head_revision"), dev,
+                             cfg_json)
+            _load_prott5(backbone, revision, dev)
+            return lambda batch: _run_tmvec(
+                batch, dev, backbone, revision, top)
         raise ValueError("unknown head type '{}'".format(head))
 
     run = make_run(device)
@@ -221,7 +237,7 @@ def embed(seqs, spec_json, weights, device, batch_size):
 
     # Raw TM-Vec norms vary with protein length, so only the normalised inner
     # product is the calibrated cosine the head predicts a TM-score from
-    # (see docs/ground_metric_models.md).
+    # (Hamamsy et al., https://doi.org/10.1038/s41587-023-01917-2).
     out = np.concatenate(pieces)
     return out / np.linalg.norm(out, axis=1, keepdims=True)
 

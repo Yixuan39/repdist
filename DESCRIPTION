@@ -1,19 +1,32 @@
 Package: repdist
-Title: Homology-Aware Beta Diversity from Protein Language Model Embeddings
+Title: Structure-Aware Protein Distances, Clustering and Beta Diversity
 Version: 0.99.0
-Authors@R: person("Yixuan", "Yang", email = "yixuanyang309@icloud.com", role = c("aut", "cre"))
-Description: Sample distances for metaproteomics that represent each sample as an
-    abundance-weighted distribution over protein embeddings in a frozen protein
-    language model space, then compares samples by maximum mean discrepancy
-    under an RBF kernel. The ground distance is defined for any sequence,
-    including proteins with no tree position or annotation. Returns 'dist'
-    objects for direct use with vegan::adonis2().
+Authors@R: person("Yixuan", "Yang", email = "yixuanyang309@icloud.com",
+    role = c("aut", "cre"),
+    comment = c(ORCID = "0009-0003-5064-6512"))
+Description: Structure-aware protein distances from pretrained protein
+    embeddings, with clustering and beta diversity built on them. Embeddings
+    are computed by models with frozen weights through a pinned Python
+    environment provisioned by 'basilisk'; with the default TM-Vec model the
+    distance between two proteins is calibrated to a predicted TM-score, and
+    it is defined for every amino-acid sequence, including proteins with no
+    annotation and no place in a reference tree. Complete-linkage clustering
+    groups proteins into structural bins at a chosen minimum within-bin
+    similarity, with quality-control plots for picking that threshold and for
+    inspecting a bin; bin membership collapses a protein table to bin level
+    for downstream testing. For beta diversity, each sample is represented as
+    an abundance-weighted distribution over the same embeddings, and samples
+    are compared by maximum mean discrepancy under a Gaussian kernel, so two
+    samples holding different accessions of similar proteins come out close
+    rather than maximally apart. Distances are returned as 'dist' objects for
+    direct use with 'vegan' and other distance-based methods.
 License: MIT + file LICENSE
 URL: https://github.com/Yixuan39/repdist
 BugReports: https://github.com/Yixuan39/repdist/issues
 Encoding: UTF-8
 StagedInstall: no
-biocViews: Proteomics, Metagenomics, Microbiome, Clustering, Software
+biocViews: Proteomics, Metagenomics, Microbiome, Clustering,
+    QualityControl, Software
 Roxygen: list(markdown = TRUE)
 Depends: R (>= 4.5.0)
 Imports:
