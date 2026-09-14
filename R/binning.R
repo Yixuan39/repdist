@@ -51,31 +51,10 @@
 #' bin_proteins(repdist_matrix(Z), min_sim = 0.7)
 #' @export
 bin_proteins <- function(D, min_sim = 0.7) {
-  if (!inherits(D, "dist")) {
-    if (!is.matrix(D) || !is.numeric(D) || nrow(D) != ncol(D) ||
-        !isSymmetric(D) || any(diag(D) != 0))
-      stop("`D` must be a symmetric numeric distance matrix with zero diagonal.",
-           call. = FALSE)
-    D <- stats::as.dist(D)
-  }
+  D <- .repdist_check_dist(D)
   labels <- attr(D, "Labels")
-  n <- attr(D, "Size")
-  stopifnot(length(n) == 1L, is.finite(n), n >= 2L, n == floor(n),
-            is.numeric(D), length(D) == n * (n - 1) / 2,
-            length(labels) == n, !anyNA(labels), all(nzchar(labels)),
-            !anyDuplicated(labels))
-  .repdist_check_n(n, "proteins")
   stopifnot(is.numeric(min_sim), length(min_sim) == 1L,
             is.finite(min_sim), min_sim > 0, min_sim <= 1)
-  if (identical(attr(D, "method"), "euclidean"))
-    stop("`D` must be on the 1 - similarity scale, not euclidean; ",
-         "use repdist_matrix(Z).", call. = FALSE)
-  # sum(), not all(is.finite()): the latter allocates a logical the size of the
-  # ground metric. Distances are non-negative, so any NA/NaN/Inf reaches the sum.
-  if (!is.finite(sum(D)))
-    stop("`D` contains non-finite values.", call. = FALSE)
-  if (min(D) < 0 || max(D) > 2 + 1e-8)
-    stop("`D` must contain cosine distances in [0, 2].", call. = FALSE)
 
   tree <- fastcluster::hclust(D, method = "complete")
   clusters <- unname(split(labels, stats::cutree(tree, h = 1 - min_sim)))

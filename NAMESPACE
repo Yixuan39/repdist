@@ -2,6 +2,7 @@
 
 export(bin_proteins)
 export(embed_proteins)
+export(funfhmmer)
 export(impute_labels)
 export(known_models)
 export(plot_bin_profile)

@@ -30,6 +30,7 @@ Imports:
     utils
 Suggests:
     BiocStyle,
+    DECIPHER,
     DESeq2,
     GUniFrac,
     ape,
