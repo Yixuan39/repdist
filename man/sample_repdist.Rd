@@ -5,26 +5,27 @@
 \title{RBF-MMD distance between samples}
 \usage{
 sample_repdist(
-  counts,
-  embeddings,
-  weighted = TRUE,
-  sigma = NULL,
-  block_size = 1000L,
-  sigma_max_proteins = 2000L
+    counts,
+    embeddings,
+    weighted = TRUE,
+    sigma = NULL,
+    block_size = 1000L,
+    sigma_max_proteins = 2000L
 )
 }
 \arguments{
 \item{counts}{Numeric matrix of counts or relative abundances, including a
-sparse \code{Matrix}, with samples in rows and proteins in columns. Every row
-must have a positive total.}
+sparse \code{Matrix}, with samples in rows and proteins in columns. Every
+row must have a finite positive total. Sample and protein names must be
+unique, non-missing and non-empty.}
 
-\item{embeddings}{Numeric matrix, one row per protein with rownames matching
-\code{colnames(counts)}.}
+\item{embeddings}{Numeric matrix, one row per protein with rownames
+matching \code{colnames(counts)}.}
 
-\item{weighted}{Use abundance as the weight (default). \code{FALSE} replaces each
-sample's abundances with \code{sign(abundance)}, so every expressed protein
-carries equal weight -- the presence/absence counterpart, as unweighted
-UniFrac stands to weighted UniFrac.}
+\item{weighted}{Use abundance as the weight (default). \code{FALSE}
+replaces each sample's abundances with \code{sign(abundance)}, so every
+expressed protein carries equal weight -- the presence/absence
+counterpart, as unweighted UniFrac stands to weighted UniFrac.}
 
 \item{sigma}{RBF bandwidth. Defaults to the median heuristic; see the
 Bandwidth section.}
@@ -32,27 +33,29 @@ Bandwidth section.}
 \item{block_size}{Positive integer, the maximum number of proteins per side
 of a kernel block. Smaller blocks reduce temporary memory use.}
 
-\item{sigma_max_proteins}{Integer at least 2, the maximum number of proteins
-used to estimate the median bandwidth. Only used when \code{sigma = NULL}.}
+\item{sigma_max_proteins}{Integer at least 2, the maximum number of
+proteins used to estimate the median bandwidth. Only used when
+\code{sigma = NULL}.}
 }
 \value{
-A \code{dist} object, for direct use with \code{vegan::adonis2()}, with the
-bandwidth used as \code{attr(, "sigma")}.
+A \code{dist} object, for direct use with \code{vegan::adonis2()},
+with the bandwidth used as \code{attr(, "sigma")}.
 }
 \description{
 Treats each sample as an abundance-weighted distribution over protein
 embeddings and returns the maximum mean discrepancy between those
 distributions under a median-heuristic RBF kernel. The ground metric is
 always Euclidean, whose Gaussian RBF is positive semidefinite. On unit-norm
-embeddings it equals \verb{exp(-(1 - cosine similarity) / sigma^2)}; for TM-Vec,
-cosine similarity is the predicted TM-score. Squaring cosine distance in
-the Gaussian formula instead would give a different kernel without this
-guarantee.
+embeddings it equals \verb{exp(-(1 - cosine similarity) / sigma^2)}; for
+TM-Vec, cosine similarity is the predicted TM-score. Squaring cosine
+distance in the Gaussian formula instead would give a different kernel
+without this guarantee.
 }
 \details{
 Proteins with zero abundance in every sample are dropped before the kernel
-or bandwidth is computed. Rarefy \code{counts} first (e.g. \code{vegan::rrarefy()})
-if samples weren't collected at a common depth.
+or bandwidth is computed. Row normalization removes total-count scaling,
+but sampling effects on composition and richness still need assessment.
+Rarefaction is one possible preprocessing choice, with information loss.
 }
 \section{Bandwidth}{
 
@@ -67,17 +70,19 @@ kernel's \code{1/e} point at predicted TM-score \code{t}.
 
 The default depends on which proteins are retained, so the same two samples
 sit at a slightly different distance when a third sample brings in new
-proteins. The bandwidth actually used is returned as \code{attr(, "sigma")};
-pass it back as \code{sigma} to hold it fixed across runs or studies.
+proteins. The bandwidth actually used is returned as
+\code{attr(, "sigma")}; pass it back as \code{sigma} to hold it fixed
+across runs or studies.
 }
 
 \section{Memory}{
 
-The full protein kernel is never stored: \code{block_size}-by-\code{block_size} tiles
-are accumulated into the samples-by-samples Gram matrix. Sparse \code{Matrix}
-counts stay sparse. Automatic bandwidth selection holds pairwise distances
-for at most \code{sigma_max_proteins} proteins, using quadratic memory in that
-limit; lowering it reduces memory use at the cost of a smaller subsample.
+The full protein kernel is never stored: tiles of
+\code{block_size}-by-\code{block_size} are accumulated
+into the samples-by-samples Gram matrix. Sparse \code{Matrix} counts stay
+sparse. Automatic bandwidth selection holds pairwise distances for at most
+\code{sigma_max_proteins} proteins, using quadratic memory in that limit;
+lowering it reduces memory use at the cost of a smaller subsample.
 }
 
 \examples{

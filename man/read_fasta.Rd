@@ -11,10 +11,10 @@ read_fasta(path)
 dereplicate a larger catalog before reading it.}
 }
 \value{
-Named character vector, names taken from the first whitespace-delimited
-token of each header. Sequences are uppercased and terminal stops are
-removed. Invalid, empty, duplicate-named, and model-incompatible records
-are rejected.
+Named character vector, names taken from the first
+whitespace-delimited token of each header. Sequences are uppercased and
+terminal stops are removed. Invalid, empty, duplicate-named, and
+model-incompatible records are rejected.
 }
 \description{
 Read and validate protein sequences from a FASTA file

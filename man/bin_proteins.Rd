@@ -7,11 +7,14 @@
 bin_proteins(D, min_sim = 0.7)
 }
 \arguments{
-\item{D}{Protein \code{dist} from \code{\link[=repdist_matrix]{repdist_matrix()}}, or a square distance matrix
-on the same \code{1 - similarity} scale. A euclidean \code{dist} is rejected,
-because \code{1 - min_sim} would be a meaningless cut height on it.}
+\item{D}{Protein \code{dist} from
+\code{\link[=repdist_matrix]{repdist_matrix()}}, or a square distance
+matrix on the same \code{1 - similarity} scale. A euclidean \code{dist}
+is rejected, because \code{1 - min_sim} would be a meaningless cut height
+on it.}
 
-\item{min_sim}{All-pairs similarity threshold in \verb{(0, 1]} (default 0.7).}
+\item{min_sim}{All-pairs similarity threshold in \verb{(0, 1]} (default
+0.7).}
 }
 \value{
 A list:
@@ -22,25 +25,30 @@ per bin.}
 representatives.}
 \item{\code{representatives}}{Bin-named character vector of medoid
 accessions -- each bin's member closest to all the others.}
-\item{\code{tree}}{The complete-linkage \link[stats:hclust]{stats::hclust} tree over all
-proteins. Cut it at \code{1 - s} with \code{\link[stats:cutree]{stats::cutree()}} to explore other
-thresholds without reclustering.}
+\item{\code{tree}}{The complete-linkage \link[stats:hclust]{stats::hclust} tree
+over all proteins. Cut it at \code{1 - s} with
+\code{\link[stats:cutree]{stats::cutree()}} to explore other thresholds without
+reclustering.}
 \item{\code{min_sim}}{The similarity parameter the tree was cut at.}
 }
 }
 \description{
-Cuts a complete-linkage tree over a \code{\link[=repdist_matrix]{repdist_matrix()}} cosine distance at
-\code{1 - min_sim}, so every within-bin pair has similarity at least \code{min_sim}.
-Bins are named \code{bin1}, \code{bin2}, ... from largest to smallest.
+Cuts a complete-linkage tree over a
+\code{\link[=repdist_matrix]{repdist_matrix()}} cosine distance at
+\code{1 - min_sim}, so every within-bin pair has similarity at least
+\code{min_sim}. Bins are named \code{bin1}, \code{bin2}, ... from largest
+to smallest.
 }
 \details{
-Structural similarity is not shared function: compare annotation agreement
-together with non-singleton coverage and fragmentation before transferring
-annotations to uncharacterised members.
+Structural similarity is not shared function: weigh annotation agreement
+against how many proteins the non-singleton bins hold, and how far the
+families fragment, before transferring annotations to uncharacterised
+members.
 
 Collapse a sample-by-protein counts table to bin level with the returned
-membership, e.g. \code{t(rowsum(t(counts), bin[colnames(counts)]))} where \code{bin}
-maps protein to bin name.
+membership, e.g.
+\code{t(rowsum(t(counts), bin[colnames(counts)]))},
+where \code{bin} maps a protein to its bin name.
 }
 \examples{
 Z <- rbind(p1 = c(1, 0), p2 = c(0.95, 0.05), p3 = c(0, 1))

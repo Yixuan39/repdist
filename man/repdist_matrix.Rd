@@ -8,8 +8,9 @@ repdist_matrix(embeddings, block_size = 1000L)
 }
 \arguments{
 \item{embeddings}{Numeric matrix, one L2-normalised row per protein, as
-returned by \code{\link[=embed_proteins]{embed_proteins()}}. Computes \verb{1 - inner product} in blocks
-without renormalising rows or allocating a full square matrix.}
+returned by \code{\link[=embed_proteins]{embed_proteins()}}. Computes
+\verb{1 - inner product} in blocks without renormalising rows or
+allocating a full square matrix.}
 
 \item{block_size}{Positive integer, the number of protein columns per
 inner-product block. Smaller blocks reduce temporary memory use.}
@@ -18,19 +19,23 @@ inner-product block. Smaller blocks reduce temporary memory use.}
 A \code{dist} object over proteins.
 }
 \description{
-Builds the protein-by-protein \code{dist} that \code{\link[=bin_proteins]{bin_proteins()}} and the QC
-plots consume. Compute it once and reuse it: at real proteome
-sizes it is the expensive object (n(n-1)/2 doubles, roughly 400 MB at
-10,000 proteins). Capped at 46341 proteins, the largest set this package
-can index; dereplicate the sequences before embedding if you have more.
+Builds the protein-by-protein \code{dist} that
+\code{\link[=bin_proteins]{bin_proteins()}} and the QC plots consume.
+Compute it once and reuse it: at real proteome sizes it is the expensive
+object (n(n-1)/2 doubles, roughly 400 MB at 10,000 proteins). Capped at
+46341 proteins, the largest set this package can index; dereplicate the
+sequences before embedding if you have more.
 }
 \details{
-Cosine distance is \verb{1 - cosine similarity} -- for TM-Vec embeddings, \verb{1 - predicted TM-score}, the scale \code{\link[=bin_proteins]{bin_proteins()}}'s \code{min_sim} is read
-against. \code{\link[=sample_repdist]{sample_repdist()}} uses a Gaussian kernel on Euclidean distance
-and builds its own ground distance from
-the embeddings, in blocks, and never reads this one. On the unit-norm rows
-\code{\link[=embed_proteins]{embed_proteins()}} returns, the two are monotone transforms of each other
-(\verb{||a - b|| = sqrt(2 * (1 - cos))}) and rank protein pairs identically.
+Cosine distance is \verb{1 - cosine similarity} -- for TM-Vec embeddings,
+\verb{1 - predicted TM-score}, the scale
+\code{\link[=bin_proteins]{bin_proteins()}}'s \code{min_sim} is read
+against. \code{\link[=sample_repdist]{sample_repdist()}} uses a Gaussian
+kernel on Euclidean distance and builds its own ground distance from the
+embeddings, in blocks, and never reads this one. On the unit-norm rows
+\code{\link[=embed_proteins]{embed_proteins()}} returns, the two are
+monotone transforms of each other (\verb{||a - b|| = sqrt(2 * (1 - cos))})
+and rank protein pairs identically.
 }
 \examples{
 Z <- rbind(p1 = c(1, 0), p2 = c(0, 1), p3 = c(1, 1))

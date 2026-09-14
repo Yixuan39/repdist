@@ -7,7 +7,8 @@
 plot_bin_profile(bins, min_sim = NULL)
 }
 \arguments{
-\item{bins}{Result of \code{\link[=bin_proteins]{bin_proteins()}}, or its \code{tree} (\link[stats:hclust]{stats::hclust}).}
+\item{bins}{Result of \code{\link[=bin_proteins]{bin_proteins()}}, or its
+\code{tree} (\link[stats:hclust]{stats::hclust}).}
 
 \item{min_sim}{Optional threshold in use, marked with a vertical line.}
 }
@@ -15,19 +16,20 @@ plot_bin_profile(bins, min_sim = NULL)
 A ggplot object. Needs the \code{ggplot2} package.
 }
 \description{
-Sweeps \code{min_sim} over the complete-linkage tree \code{\link[=bin_proteins]{bin_proteins()}} already
-computed -- no reclustering. The lower panel brackets the two ways binning
-stops being informative: proteins collapsing into one bin as the threshold
-drops is chaining, and proteins falling out as singletons as it rises is no
+Sweeps \code{min_sim} over the complete-linkage tree
+\code{\link[=bin_proteins]{bin_proteins()}} already computed -- no
+reclustering. The lower panel brackets the two ways binning stops being
+informative: proteins collapsing into one bin as the threshold drops is
+chaining, and proteins falling out as singletons as it rises is no
 aggregation at all. A usable threshold sits in the valley between the two
 curves, on a plateau of the bin count.
 }
 \examples{
 if (requireNamespace("ggplot2", quietly = TRUE)) {
-  set.seed(1)
-  Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
-  Z <- Z / sqrt(rowSums(Z^2))
-  b <- bin_proteins(repdist_matrix(Z), min_sim = 0.7)
-  plot_bin_profile(b, min_sim = 0.7)
+    set.seed(1)
+    Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
+    Z <- Z / sqrt(rowSums(Z^2))
+    b <- bin_proteins(repdist_matrix(Z), min_sim = 0.7)
+    plot_bin_profile(b, min_sim = 0.7)
 }
 }

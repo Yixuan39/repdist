@@ -25,23 +25,25 @@ A ggplot object. Needs the \code{ggplot2} package.
 \description{
 Heatmap of every pairwise similarity among one bin's members -- for TM-Vec
 embeddings, predicted TM-scores -- ordered by the clustering tree.
-\code{\link[=bin_proteins]{bin_proteins()}} guarantees the whole block sits at or above \code{min_sim}; this
-is where you see how far above, and whether a bin is one tight group or two
-sub-groups that only just met the threshold. The fill scale starts at that
-threshold, so bins are comparable across calls.
+\code{\link[=bin_proteins]{bin_proteins()}} guarantees the whole block sits
+at or above \code{min_sim}; this is where you see how far above, and
+whether a bin is one tight group or two sub-groups that only just met the
+threshold. The fill scale starts at that threshold, so bins are comparable
+across calls.
 }
 \details{
-The whole square is drawn, with the diagonal running from the upper left to
-the lower right. The matrix is symmetric, so each pair appears twice; that
-redundancy is what lets a row be read straight across, and keeps a
-sub-group that straddles the diagonal square rather than triangular.
+The whole square is drawn, with the diagonal running from the
+upper left to the lower right. The matrix is symmetric, so each pair
+appears twice; that redundancy is what lets a row be read straight across,
+and keeps a sub-group that straddles the diagonal square rather than
+triangular.
 }
 \examples{
 if (requireNamespace("ggplot2", quietly = TRUE)) {
-  set.seed(1)
-  Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
-  Z <- Z / sqrt(rowSums(Z^2))
-  D <- repdist_matrix(Z)
-  plot_bin_similarity(bin_proteins(D, min_sim = 0.5), "bin1", D)
+    set.seed(1)
+    Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
+    Z <- Z / sqrt(rowSums(Z^2))
+    D <- repdist_matrix(Z)
+    plot_bin_similarity(bin_proteins(D, min_sim = 0.5), "bin1", D)
 }
 }
