@@ -25,3 +25,7 @@ repdist.BiocCheck/
 *.npy
 *.npz
 *.parquet
+
+# validation/ outputs, rebuilt by its scripts
+validation/case_study1/
+!validation/*.rds

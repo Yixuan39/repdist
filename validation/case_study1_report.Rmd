@@ -1,0 +1,260 @@
+---
+title: "repdist on case study 1"
+subtitle: "The full mouse dietary-protein metaproteome through the current API"
+author: "Yixuan Yang"
+date: "`r format(Sys.Date())`"
+params:
+  dir: "case_study1"
+output:
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+    self_contained: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+res <- readRDS(file.path(params$dir, "results.rds"))
+img <- function(name) {
+    knitr::include_graphics(file.path(params$dir, paste0(name, ".png")))
+}
+tab <- function(x, ...) {
+    knitr::kable(x, format.args = list(big.mark = ","), row.names = FALSE, ...)
+}
+perf <- res$perf
+secs <- function(step) perf$seconds[perf$step == step]
+bins <- res$bins
+mmd <- res$permanova[res$permanova$distance == "MMD", ]
+bc <- res$permanova[res$permanova$distance == "Bray-Curtis", ]
+near <- function(a, b) abs(a - b) < 1e-9
+gated <- bins$setting == "similarity + coverage"
+same_floor <- bins[gated & near(bins$floor, res$floors[[1]]), ]
+chosen <- bins[gated & near(bins$floor, res$floors[[2]]), ]
+ungated_edges <- res$pairs$pairs[near(res$pairs$min_sim, res$floors[[1]])]
+removed <- 1 - same_floor$edges / ungated_edges
+ungated <- bins[bins$setting == "similarity only", ]
+big <- function(v) format(v, big.mark = ",")
+in_pick <- function(i) res$members$bin == res$picks$bin[i]
+n_m <- function(i) sum(in_pick(i))
+n_ko <- function(i) sum(in_pick(i) & !is.na(res$members$KO))
+```
+
+# Summary
+
+* **Scale.** `r format(res$data[["proteins"]], big.mark = ",")` proteins and
+  `r res$data[["samples"]]` samples ran end to end in
+  `r round(sum(perf$seconds) / 60, 1)` minutes of timed steps on
+  `r res$workers` workers.
+* **Beta diversity.** Diet explains R² = `r mmd$R2` under MMD against
+  `r bc$R2` under Bray-Curtis (PERMANOVA, permutations within mouse).
+* **Coverage gate.** At the similarity-only floor (`r res$floors[[1]]`),
+  requiring an alignment over half of both sequences removes
+  `r round(100 * removed)`% of the edges and shrinks the largest connected
+  component from `r if (nrow(ungated)) big(ungated$largest_component) else "?"`
+  to `r big(same_floor$largest_component)` proteins. The same label-free
+  floor rule then picks `r res$floors[[2]]`, the lowest floor gated, giving
+  `r format(chosen$bins, big.mark = ",")` bins.
+* **MCL.** `bin_proteins()` took `r secs("bin_proteins, coverage gate")` s
+  at inflation 2 on the gated graph, whose largest component holds
+  `r format(chosen$largest_component, big.mark = ",")` proteins as one dense
+  matrix. At inflation 4 the `MCL` package had not converged after 35
+  minutes.
+* **Function.** KOfamScan gives `r round(100 * res$kofam[["with a KO"]] /
+  res$kofam[["proteins"]])`% of proteins a KO; the t-SNE map is coloured by
+  their KEGG BRITE category.
+* **Differential abundance.** `r res$deseq[["diet_significant"]]` of
+  `r format(res$deseq[["bins_tested"]], big.mark = ",")` bins respond to diet
+  (DESeq2 LRT, BH 0.05).
+* **Checks.** Both file readers return the same proteins, sequences and
+  embeddings at full size, and thresholding the gated matrix equals building
+  it at the higher floor (`r res$subset_equal`).
+
+# Data
+
+Rarefied once (seed 1), baseline samples dropped, proteins over 3,000 aa
+removed, as on the project site.
+
+```{r data}
+tab(data.frame(quantity = names(res$data),
+    value = vapply(res$data, format, "", big.mark = ",")))
+```
+
+Annotations come from Extended Data Table 6, joined on *Protein Identifier*
+with a fallback to the species-code column, keeping a match only where the
+residue count agrees.
+
+```{r annotation}
+tab(data.frame(join = names(res$annotation), proteins = unname(res$annotation)))
+```
+
+# Reading embeddings from files
+
+The cached TM-Vec embeddings were written out in the `tmvec build-db` layout
+(`.npz`) and the `tmvec embed` HDF5 layout, then read back with
+`read_embeddings()`.
+
+```{r readers}
+r <- cbind(file = rownames(res$readers), res$readers,
+    MB = res$file_MB,
+    seconds = c(secs("read_embeddings, tmvec .npz"),
+        secs("read_embeddings, HDF5")))
+r$max_abs_embedding_diff <- format(r$max_abs_embedding_diff, digits = 2)
+tab(r)
+```
+
+# Beta diversity
+
+```{r permanova}
+tab(res$permanova)
+```
+
+```{r pcoa, out.width = "100%"}
+img("pcoa")
+```
+
+# Embedding map
+
+`plot_tsne()` on all proteins (cosine distance, perplexity 30).
+
+```{r tsne-plain, out.width = "75%"}
+img("tsne_plain")
+```
+
+Members of the responsive bins are coloured on the same coordinates in the
+last section.
+
+# Embedding map by function
+
+KOfamScan (prokaryote profiles) assigned a KO to
+`r big(res$kofam[["with a KO"]])` of `r big(res$kofam[["proteins"]])`
+proteins. Each KO is coloured by its KEGG BRITE level-B category; the
+`r big(res$kofam[["KO in more than one category"]])` proteins whose KO sits in
+several categories take the one holding most of its pathways, then the one
+KEGG lists first. Same t-SNE coordinates as above.
+
+```{r kofam}
+tab(data.frame(quantity = names(res$kofam), proteins = unname(res$kofam)))
+```
+
+```{r tsne-ko, out.width = "100%"}
+img("tsne_ko")
+```
+
+```{r categories}
+tab(data.frame(category = names(res$categories),
+    proteins = as.vector(res$categories)))
+```
+
+# Similarity graph
+
+Pairs at each predicted TM-score floor; only those at 0.6 and above were
+aligned for the coverage gate.
+
+```{r pairs}
+tab(res$pairs)
+```
+
+```{r nn, out.width = "85%"}
+img("nn")
+```
+
+The floor rule from the project site: the lowest floor at which the largest
+connected component holds under half of the proteins. Dashed lines mark the
+floor each graph gets.
+
+```{r graph, out.width = "100%"}
+img("graph")
+```
+
+```{r bins}
+tab(bins)
+```
+
+`plot_mcl_profile()` is not shown. In the first full run, at inflations 2
+and 4 on this graph, the `MCL` package finished inflation 2 in about 3 minutes
+but was still iterating at inflation 4 after 35 minutes, short of its
+exact-equality convergence test, and the run was stopped.
+
+```{r bin-sizes}
+tab(data.frame(bin_size = names(res$bin_sizes),
+    bins = as.vector(res$bin_sizes)))
+```
+
+# Differential abundance
+
+DESeq2 likelihood-ratio test of diet against `~ subject` on unrarefied bin
+counts; effect is the largest shrunken log2 fold change against Casein.
+
+```{r deseq}
+tab(data.frame(quantity = names(res$deseq), bins = unname(res$deseq)))
+tab(res$top)
+```
+
+```{r volcano, out.width = "100%"}
+img("volcano")
+```
+
+# The most responsive annotated bins
+
+The three most responsive bins with more than one member and at least two
+annotated members.
+
+```{r picks}
+tab(res$picks)
+tab(res$members)
+```
+
+`r res$picks$bin[1]` is sixteen GH92 family glycosyl hydrolases (the family of
+exo-α-mannosidases), higher on the yeast diet, whose cell walls are rich in
+mannan. `r res$picks$bin[3]` is SusD-like glycan-binding proteins, higher on
+egg. `r res$picks$bin[2]` is the caution: an S-adenosylmethionine synthase, a
+GH109 protein and four unannotated proteins share a structural bin, not a
+function.
+
+KOfamScan's per-family thresholds are stricter than the study's annotation:
+it assigns a KO to `r n_ko(1)` of the `r n_m(1)` GH92 proteins and to
+`r n_ko(3)` of the `r n_m(3)` members of `r res$picks$bin[3]`, so a bin
+carries a function to members a profile search leaves unlabelled.
+
+```{r bin, out.width = "70%"}
+if (file.exists(file.path(params$dir, "bin.png"))) img("bin")
+```
+
+The same t-SNE coordinates, with these bins' members coloured:
+
+```{r tsne, out.width = "75%"}
+if (file.exists(file.path(params$dir, "tsne.png"))) img("tsne")
+```
+
+# Run time and memory
+
+Wall-clock seconds and peak R heap per step (max-used cells × 8 bytes, so
+everything live at the time counts), on `r res$workers` `BiocParallel`
+workers; forked alignment workers are not counted.
+
+```{r perf}
+tab(perf)
+```
+
+* The dense protein-by-protein matrices set the memory ceiling: about
+  `r max(perf$peak_R_GB)` GB at `r big(res$data[["proteins"]])` proteins,
+  growing with the square of the protein count.
+* `sample_mmd()` spends most of its time in `stats::dist()` over all
+  protein pairs, which is single-threaded.
+* MCL cost follows the largest connected component, because the `MCL`
+  package holds each component as a dense matrix and stops only when two
+  iterations are identical.
+* The HDF5 reader is slower than the `.npz` reader because `rhdf5` reads one
+  group per protein.
+
+# Appendix
+
+```{r code, results = "asis"}
+cat("<details><summary>Analysis script (validation/case_study1.R)",
+    "</summary>\n\n```r\n",
+    paste(readLines("case_study1.R"), collapse = "\n"),
+    "\n```\n\n</details>\n\n", sep = "")
+cat("<details><summary>Session</summary>\n\n```\n",
+    paste(res$session, collapse = "\n"), "\n```\n\n</details>\n", sep = "")
+```

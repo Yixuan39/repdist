@@ -1,5 +1,5 @@
 ---
-title: "Case study: structural bins and sample distances on a real metaproteome"
+title: "Real-data validation: the mouse dietary-protein metaproteome"
 author: "Yixuan Yang"
 ---
 
@@ -8,24 +8,14 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
                       fig.height = 4, message = FALSE, warning = FALSE)
 ```
 
-# Why a representation distance
+The [simulation benchmark](simulation.html) tests the method against a known
+functional truth. This page runs the same workflow on a real metaproteome,
+where there is no such truth, to check that it behaves sensibly at the size
+of a full catalog:
 
-Bray-Curtis, Jaccard and their relatives compare samples through protein
-*identity*: two proteins are either the same accession or maximally different.
-Metaproteomes break that assumption. Two communities can carry the same
-enzymatic function on accessions that never overlap, and an identity-based
-distance cannot tell that case apart from any other difference.
-
-`repdist` replaces identity with distance in a protein language model's
-representation space. Each sample becomes an abundance-weighted distribution
-over protein embeddings, and two samples are compared by maximum mean
-discrepancy (MMD) under an RBF kernel.
-
-This report follows the package vignette's workflow on the complete retained
-protein set:
-
-1. **Beta diversity** with MMD and PERMANOVA.
-2. **Structural bins** at a predicted TM-score of 0.7.
+1. **Beta diversity** with RBF-MMD and PERMANOVA.
+2. **MCL bins** on the TM-Vec similarity graph, with the edge floor read off
+   the graph diagnostics.
 3. **Differential abundance** on the bins with DESeq2.
 4. **Functional reading** of the most responsive annotated bins.
 
@@ -150,14 +140,17 @@ monotone transforms of one another.
 
 ```{r scales}
 c(median_predicted_TM = round(1 - median(G_cos), 3),
-  pairs_above_0.7 = sum(G_cos <= 0.3))
+  share_of_pairs_at_or_above_0.5 = round(mean(G_cos <= 0.5), 4))
 ```
 
 # Step 1: beta diversity
 
 Bray-Curtis is the protein-identity baseline. MMD asks how far apart different
 proteins actually are. The sparse count matrix stays sparse throughout the MMD
-calculation.
+calculation. `sample_repdist_ot()` is not run here: it solves one exact
+transport problem per pair of samples, sized by the proteins whose abundance
+differs, which at `r ncol(d$counts)` proteins and `r nrow(d$counts)` samples is
+far heavier than MMD's blocked kernel.
 
 ```{r distances}
 D <- list(
@@ -212,27 +205,44 @@ ggplot(ord, aes(Axis1, Axis2, colour = diet)) +
   theme(legend.position = "bottom")
 ```
 
-# Step 2: structural bins at TM-score 0.7
+# Step 2: MCL bins
 
-`bin_proteins()` uses complete linkage, so every pair inside a bin meets the
-threshold. A 0.7 cut is stricter than the conventional same-fold boundary of
-0.5: bins are tighter, at the cost of more singletons.
+`bin_proteins()` joins every pair at or above an edge floor, `min_edge_sim`,
+and runs Markov clustering on the resulting graph; proteins with no edge stay
+singletons. The floor decides which pairs connect, not what a bin holds. The
+default floor of 0.5 is a fold-scale starting point, so first look at the
+graph it gives:
+
+```{r qc-graph, fig.height = 6, fig.alt = "Retained edges, isolated proteins, connected components and largest component across edge floors"}
+gp <- plot_graph_profile(G_cos, min_edge_sim = seq(0.5, 0.9, by = 0.05))
+gp
+```
+
+At 0.5 almost every protein falls in one connected component, which MCL
+would have to split on flow alone. The rule fixed before running anything
+downstream: take the lowest floor on this grid at which the largest
+component no longer holds a majority of the proteins. It uses the graph only.
+
+```{r floor-choice}
+largest <- gp$data[gp$data$metric == "largest component (% of proteins)", ]
+edge_floor <- min(largest$min_edge_sim[largest$value < 50])
+edge_floor
+```
+
+```{r qc-mcl, fig.height = 6, fig.alt = "MCL bin count, singleton share, largest bin and median bin size across inflations"}
+plot_mcl_profile(G_cos, min_edge_sim = edge_floor, inflation = c(1.4, 2, 4), mark = 2)
+```
 
 ```{r bins}
-b <- bin_proteins(G_cos, min_sim = 0.7)
+b <- bin_proteins(G_cos, min_edge_sim = edge_floor, inflation = 2)
+b$graph
 ```
 
-```{r qc-bins, fig.height = 5, fig.alt = "Nearest-neighbour similarity and structural-bin profiles"}
-plot_similarity_profile(G_cos, min_sim = 0.7)
-plot_bin_profile(b, min_sim = 0.7)
-```
-
-The unrarefied counts roll up to bin level with one `rowsum()`.
+The unrarefied counts sum to bin level with `bin_counts()`.
 
 ```{r bin-counts}
-bin <- setNames(rep(names(b$clusters), lengths(b$clusters)), unlist(b$clusters))
-bin_counts <- t(rowsum(t(d$counts_raw), bin[colnames(d$counts_raw)]))
-c(proteins = ncol(d$counts_raw), bins = ncol(bin_counts))
+bin_cnt <- bin_counts(d$counts_raw, b)
+c(proteins = ncol(d$counts_raw), bins = ncol(bin_cnt))
 ```
 
 ```{r bin-sizes}
@@ -242,9 +252,9 @@ table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
 ```
 
 `r sum(sizes == 1)` proteins remain singleton bins. The other
-`r sum(sizes > 1)` bins combine structurally related accessions, reducing the
-number of tested units by a factor of
-`r round(ncol(d$counts_raw) / ncol(bin_counts), 1)`.
+`r sum(sizes > 1)` bins are communities of proteins connected above the
+floor, reducing the number of tested units by a factor of
+`r round(ncol(d$counts_raw) / ncol(bin_cnt), 1)`.
 
 # Step 3: differential abundance with DESeq2
 
@@ -253,7 +263,7 @@ design blocks on subject, and diet is tested by likelihood ratio against the
 model without diet.
 
 ```{r deseq}
-dds <- DESeq2::DESeqDataSetFromMatrix(t(bin_counts), md,
+dds <- DESeq2::DESeqDataSetFromMatrix(t(bin_cnt), md,
                                       design = ~ subject + diet)
 dds <- DESeq2::DESeq(dds, test = "LRT", reduced = ~ subject,
                      sfType = "poscounts", quiet = TRUE)
@@ -331,12 +341,16 @@ info <- do.call(rbind, lapply(seq_len(nrow(picks)), function(i) {
 knitr::kable(info, row.names = FALSE)
 ```
 
-The complete-linkage guarantee can be inspected directly for the leading
-annotated bin.
+An MCL bin makes no all-pairs promise. The within-bin similarities of the
+leading annotated bin, diverging at the edge floor, with the share of pairs
+above it:
 
-```{r floor, fig.height = 4.5, fig.alt = "Pairwise predicted TM-score heatmap for the leading annotated bin"}
+```{r bin-similarity, fig.height = 4.5, fig.alt = "Pairwise predicted TM-scores inside the leading annotated bin, diverging at the edge floor"}
 plot_bin_similarity(b, picks$bin[1], G_cos)
 ```
+
+A bin is a community in a similarity graph. Agreement among its members'
+annotations is evidence about its function; membership alone is not.
 
 # Practical notes
 
@@ -345,9 +359,10 @@ model uses the corresponding unrarefied counts and handles depth through size
 factors.
 
 **Memory.** `repdist_matrix()` remains quadratic because binning needs the
-condensed protein distance. `sample_repdist()` does not: it accumulates
-two-dimensional 1000-by-1000 kernel tiles directly into the sample Gram matrix,
-and sparse counts remain sparse.
+condensed protein distance; `bin_proteins()` reads it in slices into a sparse
+graph, so its cost follows the retained edges. `sample_repdist()` accumulates
+1000-by-1000 kernel tiles directly into the sample Gram matrix, and sparse
+counts remain sparse.
 
 **Bandwidth.** `sample_repdist()` returns its bandwidth as `attr(, "sigma")`;
 pass it back when comparisons across studies need one fixed kernel.

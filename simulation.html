@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Yixuan Yang" />
+
+
+<title>Simulation: shared function without shared accessions</title>
+
+<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">repdist</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="simulation.html">Simulation</a>
+</li>
+<li>
+  <a href="case_study.html">Real-data validation</a>
+</li>
+<li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Reproducing
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="index.html#reproducing">Rebuilding the site</a>
+    </li>
+    <li>
+      <a href="data_curation.html">Data curation for the real-data validation</a>
+    </li>
+  </ul>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Yixuan39/repdist">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Simulation: shared function without shared
+accessions</h1>
+<h4 class="author">Yixuan Yang</h4>
+
+</div>
+
+
+<div id="the-question" class="section level1">
+<h1>The question</h1>
+<p>When different proteins contribute the same function, can a
+beta-diversity method tell two groups apart? Bray-Curtis compares
+samples through accession identity, so a functional shift spread across
+<em>non-overlapping</em> homologs is invisible to it by construction.
+This page builds exactly that case and runs three distances over it:</p>
+<ol style="list-style-type: decimal">
+<li><strong>RBF-MMD</strong> on TM-Vec embeddings
+(<code>sample_mmd()</code>).</li>
+<li><strong>Bray-Curtis on MCL bins</strong>, from a graph joining
+proteins with a predicted TM-score of at least 0.7.</li>
+<li><strong>Bray-Curtis at the protein level</strong> — the conventional
+baseline.</li>
+</ol>
+<p>The first two read protein relatedness, each through a different
+lens; the third reads identity only.</p>
+<pre class="r"><code>library(repdist)
+library(ggplot2)</code></pre>
+</div>
+<div id="the-protein-universe" class="section level1">
+<h1>The protein universe</h1>
+<p>Ten CATH FunFams — functional families of structural domains — with
+150 members each, embedded with TM-Vec. The membership table and
+embeddings are <code>validation/funfam_universe.rds</code> on this
+branch; <code>validation/README.md</code> describes their source and
+<code>validation/prepare_funfam_universe.R</code> their reconstruction.
+These coordinates come from the older <code>scikit-bio/tmvec</code>
+head, not the current default, and their model revisions were not
+recorded: they are a fixed example, not a reference for new
+inference.</p>
+<pre class="r"><code>u &lt;- readRDS(file.path(&quot;validation&quot;, &quot;funfam_universe.rds&quot;))
+members &lt;- u$members
+x &lt;- u$proteins
+ids &lt;- members$protein
+table(members$label)
+#&gt; 
+#&gt; ABC binding protein    Dihydrolipoyl DH       FtsH protease               GAPDH 
+#&gt;                 150                 150                 150                 150 
+#&gt;      LysR regulator     MFS transporter       PdxS synthase       Ribosomal S12 
+#&gt;                 150                 150                 150                 150 
+#&gt;      RuvC resolvase                SHMT 
+#&gt;                 150                 150</code></pre>
+</div>
+<div id="the-design" class="section level1">
+<h1>The design</h1>
+<p>Twenty samples, ten per group, and <strong>every sample contains
+every protein</strong>, so presence/absence carries no information and
+only abundance can be read. Each sample has ten proteins upregulated
+twenty-fold over lognormal baseline abundances:</p>
+<ul>
+<li><strong>Group A</strong> draws its ten at random across all ten
+families — diffuse noise with no functional theme.</li>
+<li><strong>Group B</strong> draws its ten from a single family (SHMT) —
+a coherent functional shift.</li>
+</ul>
+<p>Within each group the upregulated sets are <strong>disjoint</strong>,
+and group A never draws a protein group B uses, so <em>no two samples
+share a single upregulated accession</em>. Group B’s samples have
+nothing in common at the accession level and everything in common at the
+family level — the case an identity-based distance cannot see.</p>
+<pre class="r"><code>n_per_group &lt;- 10L
+n_up &lt;- 10L
+fold &lt;- 20
+depth &lt;- 100000L
+set.seed(20260901)
+
+group &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n_per_group))
+b_family &lt;- members$family[members$label == &quot;SHMT&quot;][1]
+
+# Disjoint, not merely independent: draw once, then cut into blocks.
+draw_blocks &lt;- function(pool) {
+    unname(split(
+        sample(pool, n_per_group * n_up), rep(seq_len(n_per_group), each = n_up)
+    ))
+}
+up_B &lt;- draw_blocks(ids[members$family == b_family])
+up_A &lt;- draw_blocks(setdiff(ids, unlist(up_B)))
+up &lt;- c(up_A, up_B)
+
+w &lt;- matrix(rlnorm(length(group) * length(ids), sdlog = 0.7),
+    nrow = length(group),
+    dimnames = list(sprintf(&quot;s%02d&quot;, seq_along(group)), ids)
+)
+for (i in seq_along(group)) w[i, up[[i]]] &lt;- w[i, up[[i]]] * fold
+counts &lt;- t(apply(w, 1, function(x) rmultinom(1, depth, x)[, 1]))
+
+c(
+    shared_upregulated_accessions = sum(duplicated(unlist(up))),
+    observed_in_every_sample = mean(colSums(counts &gt; 0) == length(group))
+)
+#&gt; shared_upregulated_accessions      observed_in_every_sample 
+#&gt;                             0                             1</code></pre>
+</div>
+<div id="three-distances" class="section level1">
+<h1>Three distances</h1>
+<p>One similarity matrix feeds the bins:
+<code>protein_similarity()</code> keeps every pair of proteins with a
+predicted TM-score of at least 0.7, and an alignment covering half of
+both sequences, as an edge, and <code>bin_proteins()</code> splits the
+graph by Markov clustering (MCL) at inflation 2. The 0.7 is an edge
+floor, not an all-pairs guarantee: a bin can hold pairs below it, joined
+through shared neighbours. MMD builds its euclidean ground metric from
+the same embeddings internally.</p>
+<pre class="r"><code>S &lt;- protein_similarity(x, min_sim = 0.7)
+b &lt;- bin_proteins(S, inflation = 2)
+binned &lt;- bin_glom(counts, b)
+sizes &lt;- lengths(b$clusters)
+c(b$graph, bins = length(sizes), largest_bin = max(sizes),
+    singleton_fraction = sum(sizes == 1) / sum(sizes))
+#&gt;           proteins              edges           isolated         components 
+#&gt;               1500             111735                  0                  9 
+#&gt;  largest_component               bins        largest_bin singleton_fraction 
+#&gt;                300                 10                150                  0</code></pre>
+<p>The graph leaves no protein isolated and joins some families into
+shared components; MCL splits those again, and the ten families come
+back as 10 bins without ever being told there were ten.</p>
+<div id="what-rbf-mmd-computes" class="section level2">
+<h2>What RBF-MMD computes</h2>
+<p>Each sample is a weighted point cloud in embedding space: protein
+<span class="math inline">\(a\)</span> enters with its relative
+abundance <span class="math inline">\(w_a\)</span>. For samples <span
+class="math inline">\(p\)</span> and <span
+class="math inline">\(q\)</span>,</p>
+<p><span class="math display">\[\mathrm{MMD}^2(p,q)\;=\;\sum_{a,b} w^p_a
+w^p_b\,k(a,b)
+\;-\;2\sum_{a,b} w^p_a w^q_b\,k(a,b)
+\;+\;\sum_{a,b} w^q_a w^q_b\,k(a,b),\]</span></p>
+<p>under a Gaussian kernel on the euclidean ground metric, <span
+class="math inline">\(k(a,b)=\exp\!\left(-\lVert
+z_a-z_b\rVert^2/2\sigma^2\right)\)</span>, which on the unit-norm rows
+<code>embed_proteins()</code> returns is exactly <span
+class="math inline">\(\exp\!\left(-(1-\mathrm{TM}_{ab})/\sigma^2\right)\)</span>.</p>
+<p>The middle term is the whole difference from Bray-Curtis. Two
+<em>different</em> proteins with <span
+class="math inline">\(k(a,b)\approx 1\)</span> cancel there almost as
+completely as the same accession would. Shrink <span
+class="math inline">\(k\)</span> to the indicator of <span
+class="math inline">\(a=b\)</span> and the expression collapses to <span
+class="math inline">\(\lVert w^p - w^q\rVert^2\)</span> — an
+identity-only distance, blind to any relationship between distinct
+proteins. That is the corner this simulation puts the protein-level
+baseline in by construction.</p>
+<p><code>sigma</code> defaults to the median pairwise distance among the
+retained proteins, the usual median heuristic; the value actually used
+comes back as <code>attr(D, "sigma")</code>, and passing it back holds
+the bandwidth fixed across runs or studies.</p>
+<pre class="r"><code>D &lt;- list(
+    `RBF-MMD` = sample_mmd(counts, x),
+    `Bray-Curtis (MCL bins)` = vegan::vegdist(binned, &quot;bray&quot;),
+    `Bray-Curtis (protein)` = vegan::vegdist(counts, &quot;bray&quot;)
+)</code></pre>
+</div>
+</div>
+<div id="permanova" class="section level1">
+<h1>PERMANOVA</h1>
+<pre class="r"><code>md &lt;- data.frame(group = group)
+perma &lt;- do.call(rbind, lapply(names(D), function(n) {
+    set.seed(1)
+    a &lt;- vegan::adonis2(D[[n]] ~ group, data = md, permutations = 999)
+    data.frame(
+        distance = n, R2 = round(a$R2[1], 3),
+        F = round(a[[&quot;F&quot;]][1], 2), p = a$`Pr(&gt;F)`[1]
+    )
+}))
+knitr::kable(perma, row.names = FALSE)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">distance</th>
+<th align="right">R2</th>
+<th align="right">F</th>
+<th align="right">p</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">RBF-MMD</td>
+<td align="right">0.470</td>
+<td align="right">15.99</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (MCL bins)</td>
+<td align="right">0.461</td>
+<td align="right">15.41</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="right">0.051</td>
+<td align="right">0.98</td>
+<td align="right">0.741</td>
+</tr>
+</tbody>
+</table>
+<p>Both distances that can read protein relatedness — through the kernel
+or the bins — find the group difference decisively. Protein-level
+Bray-Curtis finds nothing: each sample’s upregulated set is private, so
+to an identity-based comparison every sample is equally unlike every
+other, in both groups.</p>
+</div>
+<div id="ordination" class="section level1">
+<h1>Ordination</h1>
+<p>PCoA on each distance, in the order above. The percentages in each
+panel heading are that axis’s share of the total variation, computed per
+distance because each has its own eigenvalues.</p>
+<pre class="r"><code>ord &lt;- do.call(rbind, lapply(names(D), function(n) {
+    e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
+    rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0]) # negative eigenvalues excluded
+    data.frame(
+        Axis1 = e$points[, 1], Axis2 = e$points[, 2], group = group,
+        panel = sprintf(&quot;%s\n(PCo1 %.1f%%, PCo2 %.1f%%)&quot;, n, rel[1], rel[2])
+    )
+}))
+ord$panel &lt;- factor(ord$panel, unique(ord$panel))
+
+ggplot(ord, aes(Axis1, Axis2, colour = group)) +
+    geom_point(size = 2, alpha = 0.85) +
+    stat_ellipse(type = &quot;t&quot;, linewidth = 0.3) +
+    facet_wrap(~panel, nrow = 1, scales = &quot;free&quot;) +
+    labs(x = &quot;PCo1&quot;, y = &quot;PCo2&quot;, colour = &quot;group&quot;) +
+    theme_bw() +
+    theme(legend.position = &quot;bottom&quot;)</code></pre>
+<p><img src="simulation_files/figure-html/pcoa-1.png" alt="PCoA of the simulated samples under RBF-MMD, MCL-bin Bray-Curtis, and protein-level Bray-Curtis, coloured by group" width="960" /></p>
+<p>In the first two panels group B collapses into a tight cluster away
+from group A, and the first axis — about half of the total variation —
+carries the separation. In the protein-level Bray-Curtis panel the two
+groups sit interleaved, and the leading axes hold a few percent each:
+the distance is near-constant across all pairs, within group and
+between.</p>
+</div>
+<div id="reading" class="section level1">
+<h1>Reading</h1>
+<p>The two structure-aware routes are not interchangeable in general —
+MMD weighs graded similarity through a kernel, the bins through a graph
+floor and MCL — but on a coherent functional shift they agree, and the
+conventional baseline is blind to it. When homologs rather than shared
+accessions carry a signal, the choice of representation is not a
+refinement; it is the difference between detecting the effect and
+missing it entirely.</p>
+<pre class="r"><code>sessionInfo()
+#&gt; R version 4.5.2 (2025-10-31)
+#&gt; Platform: aarch64-apple-darwin20
+#&gt; Running under: macOS 27.0.1
+#&gt; 
+#&gt; Matrix products: default
+#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+#&gt; 
+#&gt; locale:
+#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt; 
+#&gt; time zone: America/New_York
+#&gt; tzcode source: internal
+#&gt; 
+#&gt; attached base packages:
+#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
+#&gt; 
+#&gt; other attached packages:
+#&gt; [1] ggplot2_4.0.3  repdist_0.99.0
+#&gt; 
+#&gt; loaded via a namespace (and not attached):
+#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.22-9     
+#&gt;  [4] digest_0.6.39       magrittr_2.0.5      MCL_1.0            
+#&gt;  [7] evaluate_1.0.5      grid_4.5.2          RColorBrewer_1.1-3 
+#&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-5       
+#&gt; [13] mgcv_1.9-4          scales_1.4.0        permute_0.9-10     
+#&gt; [16] Biostrings_2.78.0   codetools_0.2-20    jquerylib_0.1.4    
+#&gt; [19] cli_3.6.6           rlang_1.3.0         crayon_1.5.3       
+#&gt; [22] expm_1.0-0          XVector_0.50.0      splines_4.5.2      
+#&gt; [25] withr_3.0.3         cachem_1.1.0        yaml_2.3.12        
+#&gt; [28] otel_0.2.0          vegan_2.7-5         tools_4.5.2        
+#&gt; [31] parallel_4.5.2      BiocParallel_1.44.0 dplyr_1.2.1        
+#&gt; [34] BiocGenerics_0.56.0 vctrs_0.7.3         R6_2.6.1           
+#&gt; [37] stats4_4.5.2        lifecycle_1.0.5     pwalign_1.6.0      
+#&gt; [40] Seqinfo_1.0.0       S4Vectors_0.48.1    IRanges_2.44.0     
+#&gt; [43] MASS_7.3-65         cluster_2.1.8.2     pkgconfig_2.0.3    
+#&gt; [46] pillar_1.11.1       bslib_0.11.0        gtable_0.3.6       
+#&gt; [49] glue_1.8.1          xfun_0.58           tibble_3.3.1       
+#&gt; [52] tidyselect_1.2.1    knitr_1.51          farver_2.1.2       
+#&gt; [55] nlme_3.1-169        htmltools_0.5.9     labeling_0.4.3     
+#&gt; [58] rmarkdown_2.31      compiler_4.5.2      S7_0.2.2</code></pre>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

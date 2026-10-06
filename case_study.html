@@ -12,7 +12,7 @@
 <meta name="author" content="Yixuan Yang" />
 
 
-<title>Case study: structural bins and sample distances on a real metaproteome</title>
+<title>Real-data validation: the mouse dietary-protein metaproteome</title>
 
 <script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -322,16 +322,28 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
+  <a href="simulation.html">Simulation</a>
+</li>
+<li>
+  <a href="case_study.html">Real-data validation</a>
+</li>
+<li>
   <a href="index.html#installation">Install</a>
 </li>
-<li>
-  <a href="data_curation.html">Data curation</a>
-</li>
-<li>
-  <a href="case_study.html">Case study</a>
-</li>
-<li>
-  <a href="index.html#reproducing">Reproducing</a>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Reproducing
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="index.html#reproducing">Rebuilding the site</a>
+    </li>
+    <li>
+      <a href="data_curation.html">Data curation for the real-data validation</a>
+    </li>
+  </ul>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -350,31 +362,21 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Case study: structural bins and sample
-distances on a real metaproteome</h1>
+<h1 class="title toc-ignore">Real-data validation: the mouse
+dietary-protein metaproteome</h1>
 <h4 class="author">Yixuan Yang</h4>
 
 </div>
 
 
-<div id="why-a-representation-distance" class="section level1">
-<h1>Why a representation distance</h1>
-<p>Bray-Curtis, Jaccard and their relatives compare samples through
-protein <em>identity</em>: two proteins are either the same accession or
-maximally different. Metaproteomes break that assumption. Two
-communities can carry the same enzymatic function on accessions that
-never overlap, and an identity-based distance cannot tell that case
-apart from any other difference.</p>
-<p><code>repdist</code> replaces identity with distance in a protein
-language model’s representation space. Each sample becomes an
-abundance-weighted distribution over protein embeddings, and two samples
-are compared by maximum mean discrepancy (MMD) under an RBF kernel.</p>
-<p>This report follows the package vignette’s workflow on the complete
-retained protein set:</p>
+<p>The <a href="simulation.html">simulation benchmark</a> tests the
+method against a known functional truth. This page runs the same
+workflow on a real metaproteome, where there is no such truth, to check
+that it behaves sensibly at the size of a full catalog:</p>
 <ol style="list-style-type: decimal">
-<li><strong>Beta diversity</strong> with MMD and PERMANOVA.</li>
-<li><strong>Structural bins</strong> at a predicted TM-score of
-0.7.</li>
+<li><strong>Beta diversity</strong> with RBF-MMD and PERMANOVA.</li>
+<li><strong>MCL bins</strong> on the TM-Vec similarity graph, with the
+edge floor read off the graph diagnostics.</li>
 <li><strong>Differential abundance</strong> on the bins with
 DESeq2.</li>
 <li><strong>Functional reading</strong> of the most responsive annotated
@@ -383,7 +385,6 @@ bins.</li>
 <pre class="r"><code>library(repdist)
 library(ggplot2)
 library(phyloseq)</code></pre>
-</div>
 <div id="the-full-dataset" class="section level1">
 <h1>The full dataset</h1>
 <p>The study is Blakeley-Ruiz <em>et al.</em>, <em>ISME J</em>
@@ -493,15 +494,18 @@ so the kernel remains positive semi-definite. On unit-norm TM-Vec
 embeddings the two ground distances are monotone transforms of one
 another.</p>
 <pre class="r"><code>c(median_predicted_TM = round(1 - median(G_cos), 3),
-  pairs_above_0.7 = sum(G_cos &lt;= 0.3))
-#&gt; median_predicted_TM     pairs_above_0.7 
-#&gt;               0.345          797141.000</code></pre>
+  share_of_pairs_at_or_above_0.5 = round(mean(G_cos &lt;= 0.5), 4))
+#&gt;            median_predicted_TM share_of_pairs_at_or_above_0.5 
+#&gt;                         0.3450                         0.0542</code></pre>
 </div>
 <div id="step-1-beta-diversity" class="section level1">
 <h1>Step 1: beta diversity</h1>
 <p>Bray-Curtis is the protein-identity baseline. MMD asks how far apart
 different proteins actually are. The sparse count matrix stays sparse
-throughout the MMD calculation.</p>
+throughout the MMD calculation. <code>sample_repdist_ot()</code> is not
+run here: it solves one exact transport problem per pair of samples,
+sized by the proteins whose abundance differs, which at 19171 proteins
+and 99 samples is far heavier than MMD’s blocked kernel.</p>
 <pre class="r"><code>D &lt;- list(
   `Bray-Curtis` = vegan::vegdist(as.matrix(d$counts), &quot;bray&quot;),
   `MMD` = sample_repdist(d$counts, Z))</code></pre>
@@ -571,33 +575,49 @@ ggplot(ord, aes(Axis1, Axis2, colour = diet)) +
 <p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under Bray-Curtis and RBF-MMD, coloured by dietary protein source" width="624" /></p>
 </div>
 </div>
-<div id="step-2-structural-bins-at-tm-score-0.7" class="section level1">
-<h1>Step 2: structural bins at TM-score 0.7</h1>
-<p><code>bin_proteins()</code> uses complete linkage, so every pair
-inside a bin meets the threshold. A 0.7 cut is stricter than the
-conventional same-fold boundary of 0.5: bins are tighter, at the cost of
-more singletons.</p>
-<pre class="r"><code>b &lt;- bin_proteins(G_cos, min_sim = 0.7)</code></pre>
-<pre class="r"><code>plot_similarity_profile(G_cos, min_sim = 0.7)</code></pre>
-<p><img src="case_study_files/figure-html/qc-bins-1.png" alt="Nearest-neighbour similarity and structural-bin profiles" width="672" /></p>
-<pre class="r"><code>plot_bin_profile(b, min_sim = 0.7)</code></pre>
-<p><img src="case_study_files/figure-html/qc-bins-2.png" alt="Nearest-neighbour similarity and structural-bin profiles" width="672" /></p>
-<p>The unrarefied counts roll up to bin level with one
-<code>rowsum()</code>.</p>
-<pre class="r"><code>bin &lt;- setNames(rep(names(b$clusters), lengths(b$clusters)), unlist(b$clusters))
-bin_counts &lt;- t(rowsum(t(d$counts_raw), bin[colnames(d$counts_raw)]))
-c(proteins = ncol(d$counts_raw), bins = ncol(bin_counts))
+<div id="step-2-mcl-bins" class="section level1">
+<h1>Step 2: MCL bins</h1>
+<p><code>bin_proteins()</code> joins every pair at or above an edge
+floor, <code>min_edge_sim</code>, and runs Markov clustering on the
+resulting graph; proteins with no edge stay singletons. The floor
+decides which pairs connect, not what a bin holds. The default floor of
+0.5 is a fold-scale starting point, so first look at the graph it
+gives:</p>
+<pre class="r"><code>gp &lt;- plot_graph_profile(G_cos, min_edge_sim = seq(0.5, 0.9, by = 0.05))
+gp</code></pre>
+<p><img src="case_study_files/figure-html/qc-graph-1.png" alt="Retained edges, isolated proteins, connected components and largest component across edge floors" width="672" /></p>
+<p>At 0.5 almost every protein falls in one connected component, which
+MCL would have to split on flow alone. The rule fixed before running
+anything downstream: take the lowest floor on this grid at which the
+largest component no longer holds a majority of the proteins. It uses
+the graph only.</p>
+<pre class="r"><code>largest &lt;- gp$data[gp$data$metric == &quot;largest component (% of proteins)&quot;, ]
+edge_floor &lt;- min(largest$min_edge_sim[largest$value &lt; 50])
+edge_floor
+#&gt; [1] 0.75</code></pre>
+<pre class="r"><code>plot_mcl_profile(G_cos, min_edge_sim = edge_floor, inflation = c(1.4, 2, 4), mark = 2)</code></pre>
+<p><img src="case_study_files/figure-html/qc-mcl-1.png" alt="MCL bin count, singleton share, largest bin and median bin size across inflations" width="672" /></p>
+<pre class="r"><code>b &lt;- bin_proteins(G_cos, min_edge_sim = edge_floor, inflation = 2)
+b$graph
+#&gt;          proteins             edges          isolated        components 
+#&gt;             19171            526859              1196              1911 
+#&gt; largest_component 
+#&gt;              8871</code></pre>
+<p>The unrarefied counts sum to bin level with
+<code>bin_counts()</code>.</p>
+<pre class="r"><code>bin_cnt &lt;- bin_counts(d$counts_raw, b)
+c(proteins = ncol(d$counts_raw), bins = ncol(bin_cnt))
 #&gt; proteins     bins 
-#&gt;    19171     3376</code></pre>
+#&gt;    19171     2543</code></pre>
 <pre class="r"><code>sizes &lt;- lengths(b$clusters)
 table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
           labels = c(&quot;1&quot;, &quot;2&quot;, &quot;3-5&quot;, &quot;6-10&quot;, &quot;&gt;10&quot;)))
 #&gt; 
 #&gt;    1    2  3-5 6-10  &gt;10 
-#&gt; 1138  651  787  395  405</code></pre>
-<p>1138 proteins remain singleton bins. The other 2238 bins combine
-structurally related accessions, reducing the number of tested units by
-a factor of 5.7.</p>
+#&gt; 1203  374  409  208  349</code></pre>
+<p>1203 proteins remain singleton bins. The other 1340 bins are
+communities of proteins connected above the floor, reducing the number
+of tested units by a factor of 7.5.</p>
 </div>
 <div id="step-3-differential-abundance-with-deseq2"
 class="section level1">
@@ -605,7 +625,7 @@ class="section level1">
 <p>DESeq2 fits a negative-binomial model per bin on unrarefied counts.
 The paired design blocks on subject, and diet is tested by likelihood
 ratio against the model without diet.</p>
-<pre class="r"><code>dds &lt;- DESeq2::DESeqDataSetFromMatrix(t(bin_counts), md,
+<pre class="r"><code>dds &lt;- DESeq2::DESeqDataSetFromMatrix(t(bin_cnt), md,
                                       design = ~ subject + diet)
 dds &lt;- DESeq2::DESeq(dds, test = &quot;LRT&quot;, reduced = ~ subject,
                      sfType = &quot;poscounts&quot;, quiet = TRUE)
@@ -614,7 +634,7 @@ res_lrt &lt;- DESeq2::results(dds)
 c(bins_tested = nrow(res_lrt),
   diet_significant = sum(res_lrt$padj &lt;= 0.05, na.rm = TRUE))
 #&gt;      bins_tested diet_significant 
-#&gt;             3376              719</code></pre>
+#&gt;             2543              478</code></pre>
 <p>Each significant bin is assigned its largest shrunken diet-vs-Casein
 fold change for ranking and display.</p>
 <pre class="r"><code>lev &lt;- setdiff(levels(md$diet), &quot;Casein&quot;)
@@ -648,60 +668,60 @@ knitr::kable(head(top, 8), row.names = FALSE)</code></pre>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="right">16</td>
-<td align="left">1.69e-115</td>
+<td align="left">1.33e-119</td>
 <td align="left">Yeast</td>
-<td align="right">9.25</td>
+<td align="right">8.92</td>
 </tr>
 <tr class="even">
-<td align="left">bin2182</td>
-<td align="right">2</td>
-<td align="left">5.20e-32</td>
-<td align="left">Egg</td>
-<td align="right">8.51</td>
+<td align="left">bin962</td>
+<td align="right">3</td>
+<td align="left">5.76e-151</td>
+<td align="left">Yeast</td>
+<td align="right">7.89</td>
 </tr>
 <tr class="odd">
-<td align="left">bin1573</td>
-<td align="right">3</td>
-<td align="left">1.06e-166</td>
-<td align="left">Yeast</td>
-<td align="right">8.18</td>
-</tr>
-<tr class="even">
-<td align="left">bin3036</td>
+<td align="left">bin2187</td>
 <td align="right">1</td>
-<td align="left">1.85e-42</td>
+<td align="left">2.51e-41</td>
 <td align="left">Yeast</td>
-<td align="right">8.03</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="right">44</td>
-<td align="left">6.52e-17</td>
-<td align="left">Yeast</td>
-<td align="right">-7.97</td>
+<td align="right">7.50</td>
 </tr>
 <tr class="even">
-<td align="left">bin1394</td>
-<td align="right">3</td>
-<td align="left">5.71e-06</td>
+<td align="left">bin724</td>
+<td align="right">4</td>
+<td align="left">1.45e-35</td>
 <td align="left">Yeast</td>
-<td align="right">7.38</td>
+<td align="right">7.29</td>
 </tr>
 <tr class="odd">
-<td align="left">bin2175</td>
-<td align="right">2</td>
-<td align="left">1.72e-73</td>
+<td align="left">bin557</td>
+<td align="right">6</td>
+<td align="left">1.17e-73</td>
 <td align="left">Yeast</td>
 <td align="right">7.28</td>
 </tr>
 <tr class="even">
-<td align="left">bin932</td>
-<td align="right">5</td>
-<td align="left">8.20e-04</td>
+<td align="left">bin1303</td>
+<td align="right">2</td>
+<td align="left">3.62e-68</td>
 <td align="left">Yeast</td>
-<td align="right">7.26</td>
+<td align="right">6.92</td>
+</tr>
+<tr class="odd">
+<td align="left">bin346</td>
+<td align="right">11</td>
+<td align="left">1.28e-39</td>
+<td align="left">Egg</td>
+<td align="right">6.62</td>
+</tr>
+<tr class="even">
+<td align="left">bin733</td>
+<td align="right">4</td>
+<td align="left">2.38e-21</td>
+<td align="left">Yeast</td>
+<td align="right">6.12</td>
 </tr>
 </tbody>
 </table>
@@ -741,25 +761,25 @@ knitr::kable(picks, row.names = FALSE)</code></pre>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="right">16</td>
-<td align="left">1.69e-115</td>
+<td align="left">1.33e-119</td>
 <td align="left">Yeast</td>
-<td align="right">9.25</td>
+<td align="right">8.92</td>
 </tr>
 <tr class="even">
-<td align="left">bin61</td>
-<td align="right">44</td>
-<td align="left">6.52e-17</td>
+<td align="left">bin733</td>
+<td align="right">4</td>
+<td align="left">2.38e-21</td>
 <td align="left">Yeast</td>
-<td align="right">-7.97</td>
+<td align="right">6.12</td>
 </tr>
 <tr class="odd">
-<td align="left">bin1394</td>
-<td align="right">3</td>
-<td align="left">5.71e-06</td>
+<td align="left">bin644</td>
+<td align="right">4</td>
+<td align="left">1.97e-25</td>
 <td align="left">Yeast</td>
-<td align="right">7.38</td>
+<td align="right">-5.87</td>
 </tr>
 </tbody>
 </table>
@@ -775,13 +795,13 @@ knitr::kable(picks, row.names = FALSE)</code></pre>
                                            drop = FALSE]), 1))
 }))
 knitr::kable(info, row.names = FALSE)</code></pre>
-<table style="width:100%;">
+<table>
 <colgroup>
 <col width="8%" />
-<col width="16%" />
-<col width="54%" />
-<col width="12%" />
-<col width="9%" />
+<col width="19%" />
+<col width="45%" />
+<col width="14%" />
+<col width="11%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -794,490 +814,183 @@ knitr::kable(info, row.names = FALSE)</code></pre>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">Paramuribaculum</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
 <td align="right">0.0</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">UBA7173</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
 <td align="right">0.0</td>
 <td align="right">1.9</td>
 </tr>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">1.0</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">30.7</td>
 </tr>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">20.0</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">16.5</td>
 </tr>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">1.9</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">0.3</td>
 </tr>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">0.6</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">8.5</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">77.5</td>
 </tr>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">186.3</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="odd">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="even">
-<td align="left">bin264</td>
+<td align="left">bin262</td>
 <td align="left">NA</td>
 <td align="left">NA</td>
 <td align="right">0.0</td>
 <td align="right">2.5</td>
 </tr>
 <tr class="odd">
-<td align="left">bin61</td>
-<td align="left">CAG-95</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
+<td align="left">bin733</td>
+<td align="left">UBA7173</td>
+<td align="left">Glycoside hydrolase family GH125</td>
 <td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">CAG-95</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">CAG-95</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">UBA866</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
 <td align="right">0.3</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">UBA866</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
-<td align="right">0.4</td>
-<td align="right">0.0</td>
 </tr>
 <tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acutalibacter</td>
-<td align="left">Polygalacturonan/rhamnogalacturonan-binding
-protein</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acutalibacter</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">2.5</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">UBA9475</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">UBA1405</td>
-<td align="left">Polygalacturonan/rhamnogalacturonan-binding
-protein</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">UBA1405</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
+<td align="left">bin733</td>
 <td align="left">Romboutsia</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
+<td align="left">Glycoside hydrolase family GH125</td>
 <td align="right">0.2</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
+<td align="left">bin733</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
 <td align="right">0.0</td>
-<td align="right">0.0</td>
+<td align="right">0.6</td>
 </tr>
 <tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Lipoprotein LipO</td>
-<td align="right">0.1</td>
+<td align="left">bin733</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
 <td align="right">0.0</td>
+<td align="right">62.8</td>
 </tr>
 <tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
-<td align="right">0.2</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
+<td align="left">bin644</td>
+<td align="left">1XD42-69</td>
+<td align="left">Endo-alpha-N-acetylgalactosaminidase</td>
+<td align="right">2.4</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Lipoprotein LipO</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
+<td align="left">bin644</td>
+<td align="left">1XD42-69</td>
+<td align="left">Endo-alpha-N-acetylgalactosaminidase</td>
 <td align="right">0.4</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.4</td>
+<td align="left">bin644</td>
+<td align="left">14-2</td>
+<td align="left">Endo-alpha-N-acetylgalactosaminidase</td>
+<td align="right">4.8</td>
 <td align="right">0.0</td>
 </tr>
 <tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.2</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
-<td align="right">0.8</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
-<td align="right">4.1</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Polygalacturonan/rhamnogalacturonan-binding
-protein</td>
-<td align="right">4.9</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Lipoprotein LipO</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">3.5</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
-<td align="right">0.1</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">NA</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">4.2</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">Acetatifactor</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">COE1</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Polygalacturonan/rhamnogalacturonan-binding
-protein</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">1.4</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Lipoprotein LipO</td>
-<td align="right">13.6</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Fructooligosaccharide ABC transporter
-substrate-bind</td>
-<td align="right">0.4</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.3</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Polygalacturonan/rhamnogalacturonan-binding
-protein</td>
-<td align="right">0.9</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Lipoprotein LipO</td>
+<td align="left">bin644</td>
+<td align="left">UBA9475</td>
+<td align="left">Endo-alpha-N-acetylgalactosaminidase</td>
 <td align="right">0.6</td>
 <td align="right">0.0</td>
 </tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Polygalacturonan/rhamnogalacturonan-binding
-protein</td>
-<td align="right">1.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">1.9</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin61</td>
-<td align="left">NA</td>
-<td align="left">Carbohydrate ABC transporter substrate-binding
-prote</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin1394</td>
-<td align="left">UBA7173</td>
-<td align="left">SusC</td>
-<td align="right">0.0</td>
-<td align="right">0.2</td>
-</tr>
-<tr class="even">
-<td align="left">bin1394</td>
-<td align="left">NA</td>
-<td align="left">SusC</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin1394</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="right">0.0</td>
-<td align="right">56.3</td>
-</tr>
 </tbody>
 </table>
-<p>The complete-linkage guarantee can be inspected directly for the
-leading annotated bin.</p>
+<p>An MCL bin makes no all-pairs promise. The within-bin similarities of
+the leading annotated bin, diverging at the edge floor, with the share
+of pairs above it:</p>
 <pre class="r"><code>plot_bin_similarity(b, picks$bin[1], G_cos)</code></pre>
-<p><img src="case_study_files/figure-html/floor-1.png" alt="Pairwise predicted TM-score heatmap for the leading annotated bin" width="672" /></p>
+<p><img src="case_study_files/figure-html/bin-similarity-1.png" alt="Pairwise predicted TM-scores inside the leading annotated bin, diverging at the edge floor" width="672" /></p>
+<p>A bin is a community in a similarity graph. Agreement among its
+members’ annotations is evidence about its function; membership alone is
+not.</p>
 </div>
 <div id="practical-notes" class="section level1">
 <h1>Practical notes</h1>
@@ -1285,10 +998,11 @@ leading annotated bin.</p>
 differential-abundance model uses the corresponding unrarefied counts
 and handles depth through size factors.</p>
 <p><strong>Memory.</strong> <code>repdist_matrix()</code> remains
-quadratic because binning needs the condensed protein distance.
-<code>sample_repdist()</code> does not: it accumulates two-dimensional
-1000-by-1000 kernel tiles directly into the sample Gram matrix, and
-sparse counts remain sparse.</p>
+quadratic because binning needs the condensed protein distance;
+<code>bin_proteins()</code> reads it in slices into a sparse graph, so
+its cost follows the retained edges. <code>sample_repdist()</code>
+accumulates 1000-by-1000 kernel tiles directly into the sample Gram
+matrix, and sparse counts remain sparse.</p>
 <p><strong>Bandwidth.</strong> <code>sample_repdist()</code> returns its
 bandwidth as <code>attr(, "sigma")</code>; pass it back when comparisons
 across studies need one fixed kernel.</p>
@@ -1314,50 +1028,49 @@ across studies need one fixed kernel.</p>
 #&gt; [1] phyloseq_1.54.2 ggplot2_4.0.3   repdist_0.99.0 
 #&gt; 
 #&gt; loaded via a namespace (and not attached):
-#&gt;  [1] ade4_1.7-24                 tidyselect_1.2.1           
-#&gt;  [3] viridisLite_0.4.3           dplyr_1.2.1                
-#&gt;  [5] farver_2.1.2                Biostrings_2.78.0          
-#&gt;  [7] S7_0.2.2                    fastmap_1.2.0              
-#&gt;  [9] digest_0.6.39               lifecycle_1.0.5            
-#&gt; [11] cluster_2.1.8.2             survival_3.8-6             
-#&gt; [13] magrittr_2.0.5              compiler_4.5.2             
-#&gt; [15] rlang_1.3.0                 sass_0.4.10                
-#&gt; [17] tools_4.5.2                 igraph_2.3.1               
-#&gt; [19] yaml_2.3.12                 data.table_1.18.4          
-#&gt; [21] knitr_1.51                  S4Arrays_1.10.1            
-#&gt; [23] labeling_0.4.3              DelayedArray_0.36.1        
-#&gt; [25] plyr_1.8.9                  RColorBrewer_1.1-3         
-#&gt; [27] abind_1.4-8                 BiocParallel_1.44.0        
-#&gt; [29] withr_3.0.3                 BiocGenerics_0.56.0        
-#&gt; [31] grid_4.5.2                  stats4_4.5.2               
-#&gt; [33] multtest_2.66.0             biomformat_1.38.3          
-#&gt; [35] Rhdf5lib_1.32.0             fastcluster_1.3.0          
-#&gt; [37] scales_1.4.0                iterators_1.0.14           
-#&gt; [39] MASS_7.3-65                 SummarizedExperiment_1.40.0
-#&gt; [41] cli_3.6.6                   rmarkdown_2.31             
-#&gt; [43] vegan_2.7-5                 crayon_1.5.3               
-#&gt; [45] generics_0.1.4              otel_0.2.0                 
-#&gt; [47] reshape2_1.4.5              usedist_0.4.0              
-#&gt; [49] ape_5.8-1                   cachem_1.1.0               
-#&gt; [51] rhdf5_2.54.1                stringr_1.6.0              
-#&gt; [53] splines_4.5.2               parallel_4.5.2             
-#&gt; [55] XVector_0.50.0              matrixStats_1.5.0          
-#&gt; [57] vctrs_0.7.3                 Matrix_1.7-5               
-#&gt; [59] jsonlite_2.0.0              IRanges_2.44.0             
-#&gt; [61] S4Vectors_0.48.1            locfit_1.5-9.12            
-#&gt; [63] foreach_1.5.2               jquerylib_0.1.4            
-#&gt; [65] glue_1.8.1                  codetools_0.2-20           
-#&gt; [67] stringi_1.8.9               gtable_0.3.6               
-#&gt; [69] GenomicRanges_1.62.1        tibble_3.3.1               
-#&gt; [71] pillar_1.11.1               htmltools_0.5.9            
-#&gt; [73] Seqinfo_1.0.0               rhdf5filters_1.22.0        
-#&gt; [75] R6_2.6.1                    evaluate_1.0.5             
-#&gt; [77] lattice_0.22-9              Biobase_2.70.0             
-#&gt; [79] bslib_0.11.0                Rcpp_1.1.2                 
-#&gt; [81] SparseArray_1.10.10         nlme_3.1-169               
-#&gt; [83] permute_0.9-10              mgcv_1.9-4                 
-#&gt; [85] DESeq2_1.50.2               xfun_0.58                  
-#&gt; [87] MatrixGenerics_1.22.0       pkgconfig_2.0.3</code></pre>
+#&gt;  [1] SummarizedExperiment_1.40.0 gtable_0.3.6               
+#&gt;  [3] xfun_0.58                   bslib_0.11.0               
+#&gt;  [5] rhdf5_2.54.1                Biobase_2.70.0             
+#&gt;  [7] lattice_0.22-9              rhdf5filters_1.22.0        
+#&gt;  [9] vctrs_0.7.3                 tools_4.5.2                
+#&gt; [11] generics_0.1.4              biomformat_1.38.3          
+#&gt; [13] stats4_4.5.2                parallel_4.5.2             
+#&gt; [15] tibble_3.3.1                cluster_2.1.8.2            
+#&gt; [17] pkgconfig_2.0.3             Matrix_1.7-5               
+#&gt; [19] data.table_1.18.4           RColorBrewer_1.1-3         
+#&gt; [21] S7_0.2.2                    S4Vectors_0.48.1           
+#&gt; [23] lifecycle_1.0.5             compiler_4.5.2             
+#&gt; [25] farver_2.1.2                stringr_1.6.0              
+#&gt; [27] Biostrings_2.78.0           DESeq2_1.50.2              
+#&gt; [29] Seqinfo_1.0.0               codetools_0.2-20           
+#&gt; [31] permute_0.9-10              htmltools_0.5.9            
+#&gt; [33] sass_0.4.10                 yaml_2.3.12                
+#&gt; [35] pillar_1.11.1               crayon_1.5.3               
+#&gt; [37] jquerylib_0.1.4             MASS_7.3-65                
+#&gt; [39] BiocParallel_1.44.0         DelayedArray_0.36.1        
+#&gt; [41] cachem_1.1.0                vegan_2.7-5                
+#&gt; [43] iterators_1.0.14            abind_1.4-8                
+#&gt; [45] foreach_1.5.2               nlme_3.1-169               
+#&gt; [47] locfit_1.5-9.12             tidyselect_1.2.1           
+#&gt; [49] digest_0.6.39               stringi_1.8.9              
+#&gt; [51] dplyr_1.2.1                 reshape2_1.4.5             
+#&gt; [53] labeling_0.4.3              splines_4.5.2              
+#&gt; [55] ade4_1.7-24                 fastmap_1.2.0              
+#&gt; [57] grid_4.5.2                  SparseArray_1.10.10        
+#&gt; [59] cli_3.6.6                   magrittr_2.0.5             
+#&gt; [61] S4Arrays_1.10.1             survival_3.8-6             
+#&gt; [63] ape_5.8-1                   withr_3.0.3                
+#&gt; [65] scales_1.4.0                usedist_0.4.0              
+#&gt; [67] rmarkdown_2.31              XVector_0.50.0             
+#&gt; [69] matrixStats_1.5.0           igraph_2.3.1               
+#&gt; [71] multtest_2.66.0             otel_0.2.0                 
+#&gt; [73] evaluate_1.0.5              knitr_1.51                 
+#&gt; [75] GenomicRanges_1.62.1        IRanges_2.44.0             
+#&gt; [77] mgcv_1.9-4                  rlang_1.3.0                
+#&gt; [79] Rcpp_1.1.2                  glue_1.8.1                 
+#&gt; [81] BiocGenerics_0.56.0         jsonlite_2.0.0             
+#&gt; [83] R6_2.6.1                    Rhdf5lib_1.32.0            
+#&gt; [85] plyr_1.8.9                  MatrixGenerics_1.22.0</code></pre>
 </div>
 
 

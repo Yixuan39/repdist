@@ -8,30 +8,43 @@ title: "repdist: measure, analyze and compare protein representation distances"
 </style>
 
 `repdist` measures the distance between proteins in a frozen protein language
-model's representation space, and lifts that protein-level distance to a
-distance between whole samples.
+model's representation space and uses it twice:
 
-The default representation is **TM-Vec**, where the cosine distance between two
-embeddings approximates `1 - predicted TM-score` — that is, **structural
-homology**. That choice is the argument, not an implementation detail. What
-usually matters about a microbial community is whether the *function* it
-carries has shifted, and function tracks structure far more closely than it
-tracks sequence identity: two communities can run the same reaction on
-accessions that never overlap. A distance built on structural homology sees
-that; a distance built on accession identity cannot.
+1. **Between samples.** Each sample is an abundance-weighted distribution
+   over protein embeddings, compared by maximum mean discrepancy
+   (`sample_mmd()`).
+2. **Between proteins.** Pairs above a similarity and alignment-coverage
+   floor form a sparse graph (`protein_similarity()`), Markov clustering
+   splits it into bins (`bin_proteins()`), and the bins' summed counts
+   (`bin_glom()`) go to differential abundance.
 
-The ground distance is defined for any sequence, including proteins with no
-tree position and no annotation, so a community's proteins can be compared
-without first resolving them to something already named.
+The default representation is **TM-Vec**, whose cosine similarity
+approximates the TM-score of two structures. Two communities can run the same
+reaction on accessions that never overlap; an identity-based comparison
+cannot see that, and a structure-aware one can when the proteins share
+structure.
 
 ![](figures/simulation-pcoa.png)
 
 <span class="caption-note">Two groups of simulated samples differing by
-*function*, carried on non-overlapping homologs.</span> Sample distances built
-on structural homology separate them — by maximum mean discrepancy over the
-embeddings, by a structure tree, or by structural bins. Protein-level
-Bray-Curtis, which can only ask whether two samples hold the same accession,
-sees nothing. Built in `vignette("simulation", package = "repdist")`.
+function, carried on non-overlapping homologs.</span> MMD and MCL bins both
+separate them; protein-level Bray-Curtis, which can only ask whether two
+samples hold the same accession, sees nothing.
+
+# The method, then the data
+
+**[Simulation](simulation.html)** — the methodological test. Ten CATH
+FunFams, every protein in every sample, and a functional shift carried by
+accessions no two samples share: RBF-MMD, Bray-Curtis on MCL bins and
+protein-level Bray-Curtis, by PERMANOVA and PCoA. The benchmark over
+experimentally characterised enzyme classes (EC3) is kept, unrendered, under
+`validation/` on this branch.
+
+**[Real-data validation](case_study.html)** — the same workflow on the full
+mouse faecal metaproteome of Blakeley-Ruiz *et al.*, *ISME J* **19**(1)
+wraf048: six dietary protein sources, 19,171 proteins. MMD beta diversity,
+MCL bins with the edge floor read off the graph diagnostics, DESeq2 on the
+bins, and a functional reading of the most responsive annotated bins.
 
 # Installation
 
@@ -49,56 +62,44 @@ Python setup is needed.
 ```r
 library(repdist)
 
-seqs <- read_fasta("proteins.fasta")
-Z <- embed_proteins(seqs, model = "tmvec")
+x <- embed_proteins("proteins.fasta", model = "tmvec")
 
-D <- sample_repdist(counts, Z)          # distance between samples
+D <- sample_mmd(counts, x)                # RBF-MMD between samples
 vegan::adonis2(D ~ condition, data = meta)
 
-G <- repdist_matrix(Z)                  # 1 - predicted TM-score
-bins <- bin_proteins(G, min_sim = 0.7)  # structural bins for biomarkers
+S <- protein_similarity(x, min_sim = 0.7, min_coverage = 0.5)
+bins <- bin_proteins(S, inflation = 2)
+bin_glom(counts, bins)                    # samples x bins
 ```
 
-Two vignettes ship with the package: `vignette("repdist")` walks the workflow
-on a package data subset, `vignette("simulation")` builds the figure above.
-
-# Analyses
-
-The full re-analysis behind the method, run on the complete protein set rather
-than the package subset. Both reports use the mouse faecal metaproteome of
-Blakeley-Ruiz *et al.*, *ISME J* **19**(1) wraf048: six dietary protein
-sources, quantified by spectral counting.
-
-**[Data curation](data_curation.html)** — Extended Data Table 1, from spectral
-counts and inline sequences to a phyloseq object, checked against the published
-PERMANOVA before anything downstream runs.
-
-**[Case study](case_study.html)** — MMD beta diversity and PERMANOVA,
-structural bins at predicted TM-score 0.7, DESeq2 on the bins, and a functional
-reading of the most responsive annotated bins, on every protein that survives
-rarefaction and a 3,000 aa ceiling -- a choice the report explains, not
-something `repdist` requires.
+`protein_similarity()` keeps a pair as an edge only above `min_sim` and when
+the alignment covers at least `min_coverage` of both sequences;
+`bin_proteins()` runs MCL on those edges. The floor applies to edges, not all
+pairs: a bin can hold pairs below it. `vignette("repdist")` tours the
+functions.
 
 # Reproducing
 
-Both reports are pages of this site: their sources sit beside `index.Rmd` at
-the root of the
-[`gh-pages` branch](https://github.com/Yixuan39/repdist/tree/gh-pages), and
-`rmarkdown::render_site()` rebuilds all three.
+Every page's source sits beside `index.Rmd` at the root of the
+[`gh-pages` branch](https://github.com/Yixuan39/repdist/tree/gh-pages);
+`rmarkdown::render_site()` rebuilds them with the installed `repdist`.
 
 ```
+simulation.Rmd      # reads validation/funfam_universe.rds
 data_curation.Rmd   # -> data/test_study/ps.rds
-case_study.Rmd
+case_study.Rmd      # reads ps.rds and cached TM-Vec embeddings
+validation/         # EC3 benchmark and case-study scripts, not rendered
 ```
 
-They read from `data/test_study/` relative to the working directory, so put
-that directory beside them. Run `data_curation.Rmd` first — the case study
-reads the phyloseq object it writes. The study inputs are not redistributed
-here; the curation report names the files it reads and the accession they come
-from.
+The simulation page needs only the package and `validation/funfam_universe.rds`;
+`validation/README.md` describes that universe and the EC3 benchmark.
+The real-data pages read `data/test_study/` relative to the working
+directory, and `data_curation.Rmd` must run first. Those study inputs are not
+redistributed here; the curation page names the files and the accession they
+come from.
 
 # Source
 
-Package source, issues and the vignettes are at
+Package source, issues and the vignette are at
 [github.com/Yixuan39/repdist](https://github.com/Yixuan39/repdist). This site is
 built from the repository's `gh-pages` branch. Released under MIT.

@@ -1,0 +1,162 @@
+---
+title: "Simulation benchmark: a coherent functional shift on non-overlapping accessions"
+author: "Yixuan Yang"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 4, message = FALSE, warning = FALSE)
+```
+
+The methodological test of `repdist`: a functional shift with a known truth,
+carried by accessions no two samples share. This page summarises the
+benchmark over every eligible target; the worked single-target example, with
+all the code, is `vignette("simulation", package = "repdist")`.
+
+```{r libs}
+library(repdist)
+library(ggplot2)
+bm <- readRDS(system.file("extdata", "simulation_benchmark.rds",
+                          package = "repdist"))
+u <- readRDS(system.file("extdata", "microbial_ec_universe.rds",
+                         package = "repdist"))
+```
+
+# Design
+
+- **Universe.** `r nrow(u$members)` bacterial and archaeal UniProtKB enzymes
+  (release `r u$provenance$uniprot_release`) whose EC number sits on a
+  catalytic-activity reaction with experimental evidence (ECO:0000269), one
+  EC3 each, one per UniRef50 cluster; every EC3 with at least 50 such
+  proteins, 50 of each (`r length(unique(u$members$ec3))` EC3s). Embedded
+  with TM-Vec.
+- **Groups.** Ten samples each. Every group A sample upregulates 5 private
+  proteins of the target EC3; every group B sample 5 private proteins from
+  distinct other EC3s. No accession is upregulated twice, every protein is
+  in every sample, and group B's k-th sample takes the baseline abundances of
+  group A's k-th, so the groups move the same amount of abundance.
+- **Counts.** Negative binomial: lognormal baseline abundance, lognormal size
+  factors, a DESeq2-style mean–dispersion trend with scatter, 8-fold mean
+  increase on upregulated proteins.
+- **Methods.** Protein-level Bray-Curtis; RBF-MMD (`sample_repdist()`);
+  exact Wasserstein-1 with Euclidean embedding cost
+  (`sample_repdist_ot()`); Bray-Curtis on MCL bins (`bin_proteins()` at the
+  defaults, `min_edge_sim = 0.5`, `inflation = 2`); DESeq2 at protein and bin
+  level. Summing by true EC3 is the oracle.
+- **Repeats.** Every EC3 as the target, one seed each:
+  `r nrow(bm$scores)` simulations.
+
+The clustering never sees the EC3 labels; they are used only to score.
+
+# Sample-level separation
+
+```{r separation}
+s <- bm$separation
+tab <- do.call(rbind, lapply(split(s, s$distance), function(x) {
+  data.frame(distance = x$distance[1], detected = mean(x$p < 0.05),
+             median_R2 = median(x$R2), median_ANOSIM_R = median(x$anosim_R))
+}))
+tab <- tab[order(-tab$median_ANOSIM_R), ]
+knitr::kable(tab, row.names = FALSE, digits = 3)
+```
+
+`detected`: share of targets with PERMANOVA $p < 0.05$ (999 permutations).
+$R^2$ is unchanged by multiplying a distance by a constant, so the rows can
+be compared descriptively; the distances encode different geometries, so
+read gaps between them with that in mind. ANOSIM $R$ uses ranks alone.
+
+```{r separation-figure, fig.height = 3.4, fig.alt = "ANOSIM R between groups for every target EC3 under each distance"}
+s$distance <- factor(s$distance, rev(tab$distance))
+ggplot(s, aes(anosim_R, distance)) +
+  geom_vline(xintercept = 0, colour = "grey60") +
+  geom_boxplot(outlier.shape = NA, colour = "grey40") +
+  geom_jitter(height = 0.15, size = 1.3, alpha = 0.7) +
+  labs(x = "ANOSIM R, group A against B", y = NULL) +
+  theme_bw()
+```
+
+Separation follows the target's structural coherence, the median predicted
+TM-score between its own members:
+
+```{r coherence}
+Z <- u$embeddings / sqrt(rowSums(u$embeddings^2))
+ec3 <- setNames(u$members$ec3, u$members$protein)
+coherence <- vapply(split(names(ec3), ec3), function(ids) {
+  S <- tcrossprod(Z[ids, ])
+  median(S[upper.tri(S)])
+}, numeric(1))
+round(vapply(split(bm$separation, bm$separation$distance), function(x)
+  cor(x$anosim_R, coherence[x$target], method = "spearman"), numeric(1)), 2)
+```
+
+# Differential abundance
+
+```{r da}
+sc <- bm$scores
+knitr::kable(data.frame(
+  measure = c("protein level: target proteins significant (total)",
+              "protein level: any protein significant (mean per target)",
+              "MCL bins: targets with a significant target-dominated bin",
+              "MCL bins: recall of the upregulated target proteins (mean)",
+              "MCL bins: significant bins higher in group B (total)",
+              "EC3 oracle: targets significant"),
+  value = c(sum(sc$protein_sig_target), mean(sc$protein_sig),
+            sum(sc$bin_sig_up_a_target > 0), mean(sc$bin_recall),
+            sum(sc$bin_sig_up_b), sum(sc$oracle_padj < 0.05))
+), digits = 3)
+```
+
+Per target, sorted by MCL-bin recall. `completeness` is the share of the
+target EC3 in its largest bin; `target_bins` the number of bins it spans.
+
+```{r per-target}
+sc$coherence <- round(coherence[sc$target], 3)
+knitr::kable(sc[order(-sc$bin_recall),
+                c("target", "coherence", "target_bins", "target_completeness",
+                  "bin_recall", "bin_sig_up_a_target", "target_bin_padj",
+                  "target_bin_rank")],
+             row.names = FALSE, digits = 3)
+```
+
+# Sensitivity to the edge floor and inflation
+
+Averaged over targets and scored with the labels. The defaults were fixed
+before this ran; this table shows how the parameters move the result and is
+not used to choose them.
+
+```{r sensitivity}
+sens <- aggregate(
+  cbind(bins, in_multi_bins, ec3_purity, target_completeness, bin_recall,
+        recovered = bin_sig_up_a_target > 0, bin_sig_up_b) ~
+    min_edge_sim + inflation,
+  data = bm$sensitivity, FUN = mean)
+knitr::kable(sens[order(sens$min_edge_sim, sens$inflation), ],
+             row.names = FALSE, digits = 2)
+```
+
+# Reading
+
+- A coherent shift on private accessions is invisible to identity:
+  protein-level Bray-Curtis detects it at its false-positive rate, and no
+  target protein is significant at protein level.
+- The representation-aware distances detect it for about half to three
+  quarters of targets, more strongly the more structurally coherent the
+  target EC3. An EC3 whose members span several folds gives them nothing to
+  read.
+- MCL bins make part of the shift testable. At the fold-scale default floor
+  the graph is one giant component and communities mix EC3s that share a
+  fold; the sensitivity table shows purer, finer bins at higher floors or
+  inflations, and a floor of 0.4 collapsing everything into a few bins.
+- A bin is a community in a predicted-TM similarity graph, not a functional
+  family; EC3 is the truth only because this is a simulation.
+
+# Reproducing
+
+`inst/scripts/benchmark_simulation.R` in the package source regenerates the
+results (about 15 minutes, mostly exact optimal transport);
+`inst/scripts/prepare_simulation_data.R` rebuilds the universe from UniProt.
+The session that produced the shipped results:
+
+```{r session}
+cat(head(bm$session, 3), sep = "\n")
+```
