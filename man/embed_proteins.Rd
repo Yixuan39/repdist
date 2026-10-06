@@ -16,8 +16,7 @@ embed_proteins(
 path to a FASTA file (see \code{\link[=read_fasta]{read_fasta()}}). Names
 must be unique, non-missing and non-empty. A terminal stop \code{*} is
 removed; gaps, whitespace, internal stops, non-standard letters like
-\code{J}, empty sequences, and missing values are rejected. At most 46341
-sequences -- dereplicate a larger catalog before embedding it.}
+\code{J}, empty sequences, and missing values are rejected.}
 
 \item{model}{A key from \code{\link[=known_models]{known_models()}}.
 Unregistered HuggingFace repos are rejected: the pinned Python
@@ -41,9 +40,11 @@ integer. A throughput knob, not a correctness one: lower it to reduce
 peak memory when sharing a device with other processes.}
 }
 \value{
-Numeric matrix with one unit-norm row per input sequence, in input
-order. Rows are L2-normalised, so the inner product of two rows is their
-cosine similarity.
+An \code{AAStringSet} of the sequences, named by accession, with one
+unit-norm embedding row per protein in the matrix \code{mcols(x)$embedding}.
+To use embeddings from elsewhere, build the same object:
+\code{x <- Biostrings::AAStringSet(seqs)} then
+\code{S4Vectors::mcols(x)$embedding <- Z}.
 }
 \description{
 Dispatches on \code{model}. A TM-Vec head regresses the TM-score of a
@@ -73,8 +74,8 @@ if (interactive()) {
         p1 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ",
         p2 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVE"
     )
-    Z <- embed_proteins(seqs, model = "esm2-8m")
-    dim(Z)
+    x <- embed_proteins(seqs, model = "esm2-8m")
+    dim(S4Vectors::mcols(x)$embedding)
 }
 }
 \references{

@@ -10,16 +10,18 @@ Description: Structure-aware protein distances from pretrained protein
     environment provisioned by 'basilisk'; with the default TM-Vec model the
     distance between two proteins is calibrated to a predicted TM-score, and
     it is defined for every amino-acid sequence, including proteins with no
-    annotation and no place in a reference tree. Complete-linkage clustering
-    groups proteins into structural bins at a chosen minimum within-bin
-    similarity, with quality-control plots for picking that threshold and for
-    inspecting a bin; bin membership collapses a protein table to bin level
-    for downstream testing. For beta diversity, each sample is represented as
-    an abundance-weighted distribution over the same embeddings, and samples
+    annotation and no place in a reference tree. Embeddings made with the
+    'tmvec' command-line tool can be read in instead. Markov clustering of
+    the graph joining protein pairs above a similarity and
+    alignment-coverage floor groups proteins into structural bins, with
+    plots of the embedding space and of the similarities inside a bin; bin
+    membership collapses a protein table to bin level for downstream
+    testing. For beta diversity, each sample is represented as an
+    abundance-weighted distribution over the same embeddings, and samples
     are compared by maximum mean discrepancy under a Gaussian kernel, so two
     samples holding different accessions of similar proteins come out close
-    rather than maximally apart. Distances are returned as 'dist' objects for
-    direct use with 'vegan' and other distance-based methods.
+    rather than maximally apart. Distances are returned as 'dist' objects
+    for direct use with 'vegan' and other distance-based methods.
 License: MIT + file LICENSE
 URL: https://github.com/Yixuan39/repdist
 BugReports: https://github.com/Yixuan39/repdist/issues
@@ -33,23 +35,26 @@ Imports:
     Matrix,
     basilisk,
     BiocFileCache,
+    BiocParallel,
     Biostrings,
     digest,
-    fastcluster,
+    grDevices,
     jsonlite,
+    MCL,
+    pwalign,
     reticulate,
+    rhdf5,
+    S4Vectors,
     stats,
-    usedist,
     utils
 Suggests:
     BiocStyle,
     DESeq2,
-    GUniFrac,
-    ape,
     ggplot2,
     knitr,
     permute,
     rmarkdown,
+    Rtsne,
     testthat (>= 3.0.0),
     vegan
 VignetteBuilder: knitr

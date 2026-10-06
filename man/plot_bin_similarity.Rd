@@ -4,46 +4,42 @@
 \alias{plot_bin_similarity}
 \title{Plot the similarity matrix inside one bin}
 \usage{
-plot_bin_similarity(bins, bin, D, label_max = 20L, name_max = 25L)
+plot_bin_similarity(bins, bin, S, x, label_max = 20L, name_max = 25L)
 }
 \arguments{
 \item{bins}{Result of \code{\link[=bin_proteins]{bin_proteins()}}.}
 
 \item{bin}{Bin name, e.g. \code{"bin1"}.}
 
-\item{D}{The protein \code{dist} that produced \code{bins}.}
+\item{S}{The similarity matrix given to \code{\link[=bin_proteins]{bin_proteins()}}, gates applied.}
+
+\item{x}{The proteins \code{S} was computed from; the colours come from their
+embeddings, so no ungated matrix is needed.}
 
 \item{label_max}{Above this many members, accessions and cell values are
-dropped and only the block structure is drawn.}
+dropped.}
 
-\item{name_max}{Accessions longer than this are elided in the middle, so a
-long naming scheme cannot crowd out the plot.}
+\item{name_max}{Accessions longer than this are elided in the middle.}
 }
 \value{
-A ggplot object. Needs the \code{ggplot2} package.
+A ggplot object whose \code{data} holds each pair's \code{similarity} and
+whether it is an \code{edge}. Needs the \code{ggplot2} package.
 }
 \description{
-Heatmap of every pairwise similarity among one bin's members -- for TM-Vec
-embeddings, predicted TM-scores -- ordered by the clustering tree.
-\code{\link[=bin_proteins]{bin_proteins()}} guarantees the whole block sits
-at or above \code{min_sim}; this is where you see how far above, and
-whether a bin is one tight group or two sub-groups that only just met the
-threshold. The fill scale starts at that threshold, so bins are comparable
-across calls.
-}
-\details{
-The whole square is drawn, with the diagonal running from the
-upper left to the lower right. The matrix is symmetric, so each pair
-appears twice; that redundancy is what lets a row be read straight across,
-and keeps a sub-group that straddles the diagonal square rather than
-triangular.
+Heatmap of every pairwise similarity among one bin's members, the
+representative first and the rest by decreasing similarity to it. Colour
+is the similarity before any gate, from the embeddings; outlined cells
+are the edges of \code{S}, the graph MCL clustered. An MCL bin joins members
+through shared neighbours, so a pair inside it need not be an edge, and a
+pair above \code{min_sim} is not one if it failed the coverage gate.
 }
 \examples{
+d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
+    package = "repdist"
+))
+x <- d$proteins[1:100]
+S <- protein_similarity(x)
 if (requireNamespace("ggplot2", quietly = TRUE)) {
-    set.seed(1)
-    Z <- matrix(rnorm(200), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
-    Z <- Z / sqrt(rowSums(Z^2))
-    D <- repdist_matrix(Z)
-    plot_bin_similarity(bin_proteins(D, min_sim = 0.5), "bin1", D)
+    plot_bin_similarity(bin_proteins(S), "bin1", S, x)
 }
 }

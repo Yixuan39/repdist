@@ -8,6 +8,9 @@
 # inst/extdata were produced by the stack below. Model weights are pinned
 # separately, to commit revisions in inst/extdata/models.json.
 #
+# basilisk is also why DESCRIPTION sets `StagedInstall: no`: its environments
+# cannot carry a staged install path. R CMD check's NOTE about it is expected.
+#
 # This file is sourced standalone by configureBasiliskEnv() from ./configure, so
 # it must not assume the rest of the package is loaded. `repdist_env` carries no
 # leading dot on purpose: configureBasiliskEnv() collects environments with

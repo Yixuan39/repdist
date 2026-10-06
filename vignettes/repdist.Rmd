@@ -39,14 +39,15 @@ This vignette runs the whole workflow on real data:
 
 1. **Beta diversity** with the MMD distance and a PERMANOVA in
     `r BiocStyle::CRANpkg("vegan")`.
-2. **Structural bins** at a predicted TM-score of 0.7.
+2. **Structural bins** by Markov clustering of the graph joining proteins
+    with a predicted TM-score of at least 0.7.
 3. **Differential abundance** on the bins with
     `r BiocStyle::Biocpkg("DESeq2")`.
 4. **Reading the winner**: the functional annotations of the proteins in the
     most responsive bin.
 
-A companion vignette, *Simulation: shared function without shared accessions*,
-shows on simulated data exactly when this matters — and when Bray-Curtis
+The [simulation study](https://yixuan39.github.io/repdist/simulation.html)
+on the package website shows on simulated data exactly when this matters — and when Bray-Curtis
 cannot see a real difference at all.
 
 ```{r libs}
@@ -79,7 +80,7 @@ names(d)
 
 `counts` was rarefied to even depth on the full protein catalog and then cut
 to the 2000 most abundant proteins, so the shipped table's row totals differ —
-it is **not** itself equal-depth. `sample_repdist()` normalizes each row
+it is **not** itself equal-depth. `sample_mmd()` normalizes each row
 anyway. `counts_raw` is the same samples and proteins before rarefaction, which
 is what the differential-abundance step uses — it fits its own per-sample
 normalization. See `?diet_metaproteome` for every field and the installed
@@ -103,17 +104,24 @@ pinned Python environment managed by `r BiocStyle::Biocpkg("basilisk")`; you do
 not manage Python packages yourself. Every sequence is embedded whole and every
 sequence comes back, in input order — nothing is truncated, subset, or silently
 dropped. Because the default model is several gigabytes, the embeddings here
-are precomputed; on your own data this is the one call that needs the model:
+are precomputed; on your own data this is the one call that needs the model.
+Embeddings made with the `tmvec` command-line tool
+(<https://github.com/valentynbez/tmvec>) are read with `read_embeddings()`
+instead:
 
 ```{r embed, eval = FALSE}
-Z <- embed_proteins(d$sequences) # default model: "tmvec"
+x <- embed_proteins("proteins.fasta") # default model: "tmvec"
+x <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
 ```
 
-```{r Z}
-Z <- d$embeddings
-## Normalize rounded cached embeddings to the current unit-row contract.
-Z <- Z / sqrt(rowSums(Z^2))
-dim(Z)
+Either way the result is an `AAStringSet`: the sequences, named by accession,
+with one embedding row per protein in `mcols(x)$embedding`. The shipped data
+holds the same object.
+
+```{r x}
+x <- d$proteins
+x
+dim(S4Vectors::mcols(x)$embedding)
 ```
 
 `known_models()` lists the registered models, each with a `description` of
@@ -136,29 +144,36 @@ A predicted TM-score can.
 names(known_models())
 ```
 
-# The protein ground distance
+# The protein similarity graph
 
-`repdist_matrix()` builds the protein-by-protein distance that binning and the
-QC plots consume. Compute it once and reuse it — at real proteome sizes it is
-the expensive object (roughly 400 MB at 10,000 proteins).
+`protein_similarity()` builds the protein-by-protein similarity -- for
+TM-Vec, the predicted TM-score -- that binning reads. Pairs below `min_sim` are
+set to 0, and so are pairs whose local alignment (BLOSUM62 unless
+`substitutionMatrix` says otherwise) covers less than `min_coverage` (default
+0.5) of either sequence, so two proteins sharing only one domain are not
+joined. Only pairs above `min_sim` are aligned; `n_cores` spreads the
+alignments over several cores.
+
+Build it once with no gates, to see every predicted TM-score, and once with
+the gates you bin at:
 
 ```{r ground}
-G_cos <- repdist_matrix(Z) # 1 - predicted TM-score
+S_all <- protein_similarity(x, min_sim = 0, min_coverage = 0) # every pair
+S <- protein_similarity(x, min_sim = 0.7) # TM >= 0.7, half of both covered
 ```
 
-`bin_proteins()` reads the *value* as a TM-score, which only `"cosine"` gives.
-`sample_repdist()` does not take this object: MMD needs a positive-semi-definite
-kernel, which the Gaussian RBF gives on Euclidean distances but not on
-`1 - cosine`. It computes the Euclidean RBF from the embeddings in
-two-dimensional tiles, so that matrix is never held whole. On the unit-norm rows
-`embed_proteins()` returns the two are monotone transforms of each other
-(`||a - b|| = sqrt(2 * (1 - cos))`) and rank protein pairs identically, so
-nothing is given up.
+`sample_mmd()` does not take this matrix: MMD needs a
+positive-semi-definite kernel, which the Gaussian RBF gives on Euclidean
+distances but not on `1 - cosine`, so it builds the Euclidean distance from the
+embeddings itself. On the unit-norm rows `embed_proteins()` returns the two are
+monotone transforms of each other (`||a - b|| = sqrt(2 * (1 - cos))`) and rank
+protein pairs identically, so nothing is given up.
 
 ```{r scales}
+pairs <- S_all[upper.tri(S_all)]
 c(
-    median_predicted_TM = round(1 - median(G_cos), 3),
-    pairs_above_0.7 = sum(G_cos <= 0.3)
+    median_predicted_TM = round(median(pairs), 3),
+    pairs_above_0.7 = sum(pairs >= 0.7)
 )
 ```
 
@@ -171,11 +186,11 @@ asks how far apart the proteins they hold actually are.
 ```{r distances}
 D <- list(
     `Bray-Curtis` = vegan::vegdist(d$counts, "bray"),
-    `MMD`         = sample_repdist(d$counts, Z)
+    `MMD`         = sample_mmd(d$counts, x)
 )
 ```
 
-`sample_repdist()` treats each sample as an abundance-weighted distribution over
+`sample_mmd()` treats each sample as an abundance-weighted distribution over
 embeddings and returns the maximum mean discrepancy between them. Both are
 `dist` objects, so they drop straight into `r BiocStyle::CRANpkg("vegan")`.
 
@@ -225,8 +240,8 @@ precise about: these are cage-housed lab mice searched against one protein
 database, so samples really do share accessions, and accession identity is
 something Bray-Curtis can read directly. The representation distance is not
 rescuing a failed analysis here — it is being checked against a case where the
-conventional method already works, and it agrees. The simulation vignette
-shows the case where only one of them survives.
+conventional method already works, and it agrees. The simulation study on
+the package website shows the case where only one of them survives.
 
 ## Ordination
 
@@ -266,42 +281,42 @@ proteins carry it. Testing 2000 proteins one at a time would pay a
 multiple-testing price on units that are not independent — homologous proteins
 are the same signal counted repeatedly.
 
-`bin_proteins()` collapses them into bins by complete-linkage clustering on the
-ground distance, so **every** pair inside a bin meets the threshold, not just
-nearest neighbours. Cosine similarity is a predicted TM-score, so
-`min_sim = 0.7` is a stricter cut than TM-score's conventional same-fold
-boundary of 0.5 — tighter, more homogeneous bins, at the cost of more of them.
-
-Two QC plots inform the choice of threshold. `plot_similarity_profile()`
-histograms each protein's similarity to its nearest neighbour: everything left
-of the cut will end up a singleton bin, and a pile-up at 1 would mean
-near-duplicate sequences or a saturated model. `plot_bin_profile()` sweeps the
-threshold over the tree `bin_proteins()` computes anyway, and brackets the two
-ways binning stops saying anything: proteins collapsing into one bin as the
-threshold drops (chaining) and proteins falling out as singletons as it rises
-(no aggregation left). Pick from the valley between them, on a plateau of the
-bin count.
+`bin_proteins()` collapses them into bins: every nonzero pair of `S`, a
+predicted TM-score of at least 0.7 with half of both sequences aligned, is an
+edge, and Markov clustering (MCL) at inflation 2 splits the graph. The 0.7
+sits above TM-score's conventional same-fold boundary of 0.5, but it is an
+edge floor, not an all-pairs guarantee: a bin can hold pairs below it, joined
+through shared neighbours.
 
 ```{r bins}
-b <- bin_proteins(G_cos, min_sim = 0.7)
+b <- bin_proteins(S, inflation = 2)
+b$graph
 ```
 
-```{r qc-bins}
+`b$graph` describes the graph MCL split. Isolated proteins have no edge at
+this floor and become singleton bins; a largest component holding most of the
+proteins would mean the floor is too low to separate anything before MCL
+starts.
+
+`plot_tsne()` maps the embeddings in two dimensions, here with the 12
+largest bins coloured. A bin should sit in one neighbourhood; one split across
+two islands, as a couple are here, is worth a look with
+`plot_bin_similarity()`. t-SNE keeps neighbours together but not the distances
+between groups, so read it for compactness, not for how far apart bins sit.
+
+```{r tsne}
 #| fig.height: 5
 #| fig.alt: >
-#|   Nearest-neighbour similarity histogram, and bin count with chaining
-#|   and singleton shares across binning thresholds
-plot_similarity_profile(G_cos, min_sim = 0.7)
-plot_bin_profile(b, min_sim = 0.7)
+#|   t-SNE of the protein embeddings, the 12 largest bins coloured
+set.seed(1)
+plot_tsne(x, color = b$membership)
 ```
 
-Rolling the unrarefied counts up to bin level is one `rowsum()` over the
-membership:
+Rolling the unrarefied counts up to bin level is one `bin_glom()` call:
 
 ```{r bin-counts}
-bin <- setNames(rep(names(b$clusters), lengths(b$clusters)), unlist(b$clusters))
-bin_counts <- t(rowsum(t(d$counts_raw), bin[colnames(d$counts_raw)]))
-c(proteins = ncol(d$counts_raw), bins = ncol(bin_counts))
+binned <- bin_glom(d$counts_raw, b)
+c(proteins = ncol(d$counts_raw), bins = ncol(binned))
 ```
 
 ```{r bin-sizes}
@@ -312,10 +327,10 @@ table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
 ```
 
 `r sum(sizes == 1)` of the `r ncol(d$counts_raw)` proteins have no structural
-relative at this threshold and stay in a bin of their own. The rest fall into
+relative at this floor and stay in a bin of their own. The rest fall into
 `r sum(sizes > 1)` multi-member bins, which is where the collapse buys
 something: the number of things to test drops by a factor of
-`r round(ncol(d$counts_raw) / ncol(bin_counts), 1)`, and each surviving unit is
+`r round(ncol(d$counts_raw) / ncol(binned), 1)`, and each surviving unit is
 a structural group rather than an accession.
 
 # Step 3: differential abundance with DESeq2
@@ -332,7 +347,7 @@ against the model without diet — the counterpart to `adonis2`'s `by = "terms"`
 not a single contrast.
 
 ```{r deseq}
-dds <- DESeq2::DESeqDataSetFromMatrix(t(bin_counts), md,
+dds <- DESeq2::DESeqDataSetFromMatrix(t(binned), md,
     design = ~ subject + diet
 )
 dds <- DESeq2::DESeq(dds,
@@ -455,61 +470,57 @@ knitr::kable(info, row.names = FALSE)
 Read the annotation column one bin at a time. In **`r picks$bin[1]`** all four
 members carry the same call, *endo-alpha-N-acetylgalactosaminidase* — one
 mucin-O-glycan-cleaving activity supplied by four distinct accessions from four
-different genome bins. **`r picks$bin[2]`** is the same situation with the
-synonyms left in: a component of the oligopeptide permease and a
-dipeptide-binding protein are both substrate-binding subunits of peptide ABC
-importers, one job under two names, and the third member has no annotation at
-all. **`r picks$bin[3]`** is the pattern at scale — nine members, every one a
-*SusD-like protein*, the outer-membrane glycan-binding lipoprotein of the
-Bacteroidetes starch-utilization system, drawn from four named genera and two
-unclassified bins.
+different genome bins. **`r picks$bin[2]`** is the caution: a dihydrolipoyl
+dehydrogenase and a thioredoxin reductase are both flavoprotein disulfide
+reductases, built on the same FAD- and NAD(P)H-binding domains but doing
+different jobs, and the third member has no annotation at all.
+**`r picks$bin[3]`** agrees again: three carbon monoxide dehydrogenases, none
+from a named genus.
 
-That is the workflow's point. At the protein level each of these is several weak
-tests on units that are not independent; as a bin it is one unit, one test, and
-one functional reading — including for the members with no annotation, which
-inherit a specific, checkable hypothesis from their bin-mates instead of
-silence. All three fall on the same diet and in the same direction — glycan
-degradation and peptide uptake moving together — which is a property of that
-diet's proteome rather than of any one accession.
+That is the workflow's point, and its limit. At the protein level each of these
+is several weak tests on units that are not independent; as a bin it is one
+unit, one test, and one structural reading — a shared activity where the
+annotations agree, a shared family where they do not — including for the
+members with no annotation, which inherit a specific, checkable hypothesis
+from their bin-mates instead of silence. All three fall on the same diet and in
+the same direction, which is a property of that diet's proteome rather than of
+any one accession.
 
-The complete-linkage guarantee is that every member is within the threshold of
-every *other* member, not merely of a nearest neighbour. That is true by
-construction, but `plot_bin_similarity()` is where you see how far above the
-threshold a bin actually sits, and whether it is one tight group or two
-sub-groups that only just met it:
+MCL makes no all-pairs promise: members are joined through the graph, so a
+pair inside a bin need not be an edge. `plot_bin_similarity()` colours every
+pair by its predicted TM-score and outlines the edges, so it shows whether a bin
+is one tight group or two sub-groups joined through a few edges. A pair above
+0.7 without an outline failed the coverage gate:
 
 ```{r floor}
 #| fig.height: 4.5
 #| fig.alt: >
 #|   Pairwise predicted TM-score heatmap among the members of the most
 #|   responsive annotated bin
-plot_bin_similarity(b, picks$bin[1], G_cos)
+plot_bin_similarity(b, picks$bin[1], S, x)
 ```
 
 # Practical notes
 
-**Sampling depth.** `sample_repdist()` normalizes each row, which removes
+**Sampling depth.** `sample_mmd()` normalizes each row, which removes
 total-count scaling but not the effect of depth on which proteins were seen at
 all; check depth and richness as confounders, and rarefy with
 `vegan::rrarefy()` if you want them off the table, at the cost of discarded
 counts. The differential-abundance model wants the opposite — raw counts, with
 depth handled by its size factors.
 
-**Memory.** `repdist_matrix()` is quadratic in the number of retained proteins
-and the index cap is 46,341, so bin the *identified* subset of a catalog, never
-a whole search database. `sample_repdist()` never holds a protein-by-protein
-matrix: it accumulates 1000-by-1000 kernel tiles directly into the sample Gram
-matrix and keeps sparse counts sparse. It is still quadratic in the number of
-samples, and in the bandwidth subsample (at most 2000 proteins by default).
+**Memory.** `protein_similarity()` and `sample_mmd()` hold
+protein-by-protein matrices, so bin the *identified* subset of a catalog, never
+a whole search database.
 
-**Bandwidth.** `sample_repdist()` returns the bandwidth it used as
+**Bandwidth.** `sample_mmd()` returns the bandwidth it used as
 `attr(, "sigma")`; pass it back to compare across studies. With the default the
 kernel is nearly linear in TM-score, so the distance is close to the euclidean
 distance between abundance-weighted mean embeddings, and on this data that is
 also where separation peaks. Checking that is one line: the largest exponent the
-kernel ever sees, `max(G_cos) / attr(D$MMD, "sigma")^2` (the euclidean
+kernel ever sees, `(1 - min(S_all)) / attr(D$MMD, "sigma")^2` (the euclidean
 `||a - b||^2 / (2 sigma^2)` on unit-norm rows), is
-`r round(max(G_cos) / attr(D$MMD, "sigma")^2, 2)` here, so `exp()` never
+`r round((1 - min(S_all)) / attr(D$MMD, "sigma")^2, 2)` here, so `exp()` never
 leaves its near-linear stretch. A much larger value means the kernel is
 saturating and only near-identical proteins still count.
 

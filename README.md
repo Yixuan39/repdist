@@ -5,20 +5,21 @@
 `repdist` represents each sample as an abundance-weighted distribution over
 protein embeddings and compares samples with maximum mean discrepancy
 (MMD), giving a beta-diversity metric that is aware of protein representation
-similarity rather than exact sequence identity alone. The same protein
-distances also cluster proteins into structural bins, with quality-control
-plots for choosing the similarity threshold and reading a bin.
+similarity rather than exact sequence identity alone. The same embeddings also
+cluster proteins into structural bins by Markov clustering (MCL).
 
 The default `TM-Vec` model predicts structural similarity: cosine similarity
 between protein embeddings approximates the TM-score. The corresponding cosine
 distance is `1 - similarity`.
 
-![PCoA of 20 simulated samples under four distances: RBF-MMD, structure-tree UniFrac, bin-level Bray-Curtis and protein-level Bray-Curtis](man/figures/README-simulation-pcoa.png)
+![PCoA of 20 simulated samples under three distances: RBF-MMD, MCL-bin Bray-Curtis and protein-level Bray-Curtis](man/figures/README-simulation-pcoa.png)
 
 Two groups of simulated samples differing by *function*, carried on
-non-overlapping homologs. MMD, a structure tree and structural bins all separate
-them; protein-level Bray-Curtis, which can only ask whether two samples hold the
-same accession, sees nothing. Built in `vignette("simulation", package = "repdist")`.
+non-overlapping homologs. MMD and MCL bins both separate them; protein-level
+Bray-Curtis, which can only ask whether two samples hold the same accession,
+sees nothing. Built in the
+[simulation study](https://yixuan39.github.io/repdist/simulation.html) on the
+package website.
 
 ## Install
 
@@ -35,7 +36,8 @@ Until then, install the development version with Bioconductor dependencies:
 ```r
 if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
-BiocManager::install(c("basilisk", "BiocFileCache", "Biostrings"))
+BiocManager::install(c("basilisk", "BiocFileCache", "BiocParallel",
+    "Biostrings", "pwalign", "rhdf5", "S4Vectors", "MCL"))
 if (!requireNamespace("remotes", quietly = TRUE))
     install.packages("remotes")
 remotes::install_github("Yixuan39/repdist")
@@ -46,22 +48,28 @@ remotes::install_github("Yixuan39/repdist")
 ```r
 library(repdist)
 
-seqs <- read_fasta("proteins.fasta")
-Z <- embed_proteins(seqs, model = "tmvec")
+x <- embed_proteins("proteins.fasta", model = "tmvec")
+# or, from the tmvec command-line tool:
+# x <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
 
 # Beta diversity between samples
-D <- sample_repdist(counts, Z)
+D <- sample_mmd(counts, x)
 vegan::adonis2(D ~ condition, data = meta)
 
 # Structure-level protein clusters, e.g. for biomarker discovery
-G <- repdist_matrix(Z)                    # 1 - predicted TM-score
-bins <- bin_proteins(G, min_sim = 0.7)
+S <- protein_similarity(x, min_sim = 0.7, min_coverage = 0.5)
+bins <- bin_proteins(S, inflation = 2)
+bin_glom(counts, bins)            # samples x bins
 ```
 
-`bin_proteins()` cuts a complete-linkage tree, so every pair inside a bin meets
-`min_sim`. Structural similarity alone does not guarantee shared function, so
-weigh annotation agreement against how much of the catalog the non-singleton
-bins hold, and how far families fragment, before transferring labels.
+`x` is an `AAStringSet` of the sequences with the embeddings in
+`mcols(x)$embedding`. `protein_similarity()` sets pairs below `min_sim` to 0,
+and pairs whose alignment covers less than `min_coverage` of either sequence.
+`bin_proteins()` runs MCL on the remaining edges. The floor applies to edges,
+not all pairs: a bin can hold pairs below it. Structural similarity alone does
+not guarantee shared function, so weigh annotation agreement against how much of the catalog the
+non-singleton bins hold, and how far families fragment, before transferring
+labels.
 
 ## License
 

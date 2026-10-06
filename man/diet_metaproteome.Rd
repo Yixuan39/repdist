@@ -9,17 +9,14 @@ A list with \code{counts} (99 samples by 2000 proteins; spectral counts
 after full-catalog rarefaction and protein selection), \code{counts_raw} (same
 dimensions, original integer counts), \code{metadata} (99 rows: sample_id,
 subject, cage, diet, dose in percent, sex, age_week measured since
-baseline,
-period), \code{embeddings} (2000 by 512, TM-Vec coordinates rounded to 4
-decimals),
-\code{taxa} (protein, genus, species, annotation, length in residues),
-\code{sequences}
-(named amino-acid strings), and \code{provenance} (source and processing).
-Count column names, embedding row names, taxa row names and sequence names
-identify the same proteins; metadata rows match count rows. Missing
-taxonomy
-is \code{NA}. The final subset has unequal row totals. Renormalize rounded
-embeddings before using \code{\link[=repdist_matrix]{repdist_matrix()}}.
+baseline, period), \code{proteins} (2000 sequences as an \code{AAStringSet},
+with TM-Vec embeddings rounded to 4 decimals in
+\code{mcols(proteins)$embedding}),
+\code{taxa} (protein, genus, species, annotation, length in residues), and
+\code{provenance} (source and processing). Count column names, protein names
+and taxa row names identify the same proteins; metadata rows match count
+rows. Missing taxonomy is \code{NA}. The final subset has unequal row
+totals.
 }
 \source{
 Blakeley-Ruiz et al. (2025), Data Sets 1 and 6.

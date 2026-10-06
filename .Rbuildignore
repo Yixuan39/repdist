@@ -12,3 +12,6 @@
 ^repdist\.BiocCheck$
 ^inst/(python|scripts)/__pycache__$
 ^LICENSE\.md$
+^Rplots\.pdf$
+^repdist_.*\.tar\.gz$
+^repdist\.Rcheck$

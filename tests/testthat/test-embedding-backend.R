@@ -15,8 +15,11 @@ test_that("R dispatch preserves sequences and validates backend output", {
             result
         }, .package = "basilisk"
     )
-    z <- embed_proteins(s, "esm2-8m", "cpu", 2)
-    expect_identical(rownames(z), names(s))
+    x <- embed_proteins(s, "esm2-8m", "cpu", 2)
+    expect_s4_class(x, "AAStringSet")
+    expect_identical(as.character(x), s)
+    expect_identical(rownames(S4Vectors::mcols(x)$embedding), names(s))
+    expect_equal(unname(S4Vectors::mcols(x)$embedding), diag(2))
     for (bad in list(matrix(0, 2, 2), matrix(NA_real_, 2, 2), diag(3))) {
         result <- bad
         expect_error(embed_proteins(s, "esm2-8m", "cpu", 2), "backend")

@@ -89,21 +89,25 @@ if (length(need)) {
     s <- s[order(nchar(s))] # length-sorted keeps batches tight
     for (i in split(seq_along(s), ceiling(seq_along(s) / 500))) {
         message(sprintf("embedding %d/%d", max(i), length(s)))
-        cached <- rbind(cached, embed_proteins(s[i]))
+        z <- S4Vectors::mcols(embed_proteins(s[i]))$embedding
+        cached <- rbind(cached, z)
         saveRDS(list(fingerprint = fingerprint, embeddings = cached), CACHE)
     }
 }
 Z <- cached[keep, , drop = FALSE]
 
-# Round for storage; callers renormalize before cosine-distance calculations.
+# Round for storage; repdist renormalizes rows before using them.
 # This is lossy compression and can affect pairs close to a bin threshold.
 Z <- round(Z, 4)
+
+proteins <- Biostrings::AAStringSet(seqs)
+S4Vectors::mcols(proteins)$embedding <- Z[names(seqs), , drop = FALSE]
 
 dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
 saveRDS(
     list(
         counts = counts, counts_raw = counts_raw, metadata = md,
-        embeddings = Z, taxa = taxa, sequences = seqs,
+        proteins = proteins, taxa = taxa,
         provenance = list(
             source = "https://doi.org/10.1093/ismejo/wraf048",
             license = "CC BY 4.0",

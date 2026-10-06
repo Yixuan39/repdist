@@ -1,5 +1,5 @@
 # read_fasta only. The model paths in embed_proteins need network + multi-GB
-# downloads, so they are exercised by the analyses rather than here.
+# downloads; test-embed-model.R runs them on request.
 
 fasta_file <- function(lines) {
     p <- tempfile(fileext = ".fasta")

@@ -1,26 +1,27 @@
 #' Structure-aware protein distances, clustering and beta diversity
 #'
 #' Embed protein sequences with [read_fasta()] and
-#' [embed_proteins()], or load the documented
-#' [diet_metaproteome] and [funfam_universe]
-#' examples. Everything else reads those embeddings.
+#' [embed_proteins()],
+#' read embeddings made with the tmvec tool with
+#' [read_embeddings()], or load the documented
+#' [diet_metaproteome] example. Each gives an `AAStringSet` with the embeddings in
+#' `mcols()`.
 #'
-#' [repdist_matrix()] builds the
-#' protein-by-protein distance, and
-#' [bin_proteins()] cuts it into
-#' complete-linkage structural bins;
-#' [plot_similarity_profile()],
-#' [plot_bin_profile()] and
-#' [plot_bin_similarity()] are the
-#' quality-control plots for choosing a threshold and reading a bin.
+#' [protein_similarity()] builds the
+#' protein-by-protein similarity graph, gated on similarity and alignment
+#' coverage, and [bin_proteins()] groups proteins into
+#' structural bins by Markov clustering of it;
+#' [bin_glom()] sums a count table to those bins.
+#' [plot_tsne()] maps the embeddings and [plot_bin_similarity()] shows the
+#' pairwise similarities inside one bin.
 #'
-#' [sample_repdist()] is the beta-diversity
-#' side: it represents each sample as an abundance-weighted distribution over
-#' the same embeddings and compares samples by Gaussian-kernel maximum mean
-#' discrepancy. Counts have samples in rows and proteins in columns;
-#' embedding rows are matched by protein identifier.
+#' [sample_mmd()]
+#' is the beta-diversity side: it represents each sample
+#' as an abundance-weighted distribution over the same embeddings and compares
+#' samples by Gaussian-kernel maximum mean discrepancy. Counts have samples in
+#' rows and proteins in columns, matched to the proteins by name.
 #'
-#' See `vignette("repdist")` and `vignette("simulation")`.
+#' See `vignette("repdist")`.
 #'
 #' @references Gretton et al. (2012). A Kernel Two-Sample Test. JMLR 13,
 #' 723-773. <https://jmlr.org/papers/v13/gretton12a.html>.
@@ -43,6 +44,11 @@
 #' @importFrom utils globalVariables
 "_PACKAGE"
 
+# Loads Biostrings with the package. Without it, an AAStringSet that readRDS()
+# brings back, such as the example data's, cannot be subset with `[`.
+#' @importFrom Biostrings AAStringSet
+NULL
+
 #' Dietary metaproteome example
 #'
 #' A subset of the mouse dietary-protein study of Blakeley-Ruiz et al. (2025).
@@ -52,17 +58,14 @@
 #'   after full-catalog rarefaction and protein selection), `counts_raw` (same
 #'   dimensions, original integer counts), `metadata` (99 rows: sample_id,
 #'   subject, cage, diet, dose in percent, sex, age_week measured since
-#'   baseline,
-#'   period), `embeddings` (2000 by 512, TM-Vec coordinates rounded to 4
-#'   decimals),
-#'   `taxa` (protein, genus, species, annotation, length in residues),
-#'   `sequences`
-#'   (named amino-acid strings), and `provenance` (source and processing).
-#'   Count column names, embedding row names, taxa row names and sequence names
-#'   identify the same proteins; metadata rows match count rows. Missing
-#'   taxonomy
-#'   is `NA`. The final subset has unequal row totals. Renormalize rounded
-#'   embeddings before using [repdist_matrix()].
+#'   baseline, period), `proteins` (2000 sequences as an `AAStringSet`,
+#'   with TM-Vec embeddings rounded to 4 decimals in
+#'   `mcols(proteins)$embedding`),
+#'   `taxa` (protein, genus, species, annotation, length in residues), and
+#'   `provenance` (source and processing). Count column names, protein names
+#'   and taxa row names identify the same proteins; metadata rows match count
+#'   rows. Missing taxonomy is `NA`. The final subset has unequal row
+#'   totals.
 #' @source Blakeley-Ruiz et al. (2025), Data Sets 1 and 6.
 #'   \doi{10.1093/ismejo/wraf048}. CC BY 4.0. See installed
 #'   `scripts/DATA_PROVENANCE.md` and `scripts/curate_diet_data.R`.
@@ -73,33 +76,4 @@
 #' dim(d$counts)
 #' @docType data
 #' @name diet_metaproteome
-NULL
-
-#' CATH FunFam protein universe
-#'
-#' Ten CATH v4.3 functional families with 150 domains each, used for
-#' simulation. Stored as `extdata/funfam_universe.rds`; load with
-#' `readRDS()`.
-#'
-#' @format A list with `members` (1500 rows: protein identifier, family, label),
-#'   `embeddings` (1500 by 512, historical scikit-bio/tmvec coordinates rounded
-#'   to 4 decimals), `sequences` (named domain amino-acid strings), and
-#'   `provenance` (source, selection parameters and model identity).
-#'   Member identifiers match embedding row names and sequence names in order.
-#'   Renormalize rounded rows before computing cosine distances.
-#' @details The historical head differs from the current default `tmvec`.
-#'   Original model revisions were not recorded; these fixed coordinates are
-#'   an example, not a bitwise inference reference. The installed
-#'   `scripts/DATA_PROVENANCE.md` describes recovery of the exact
-#'   sequence set and recomputation using a pinned version of the historical
-#'   head.
-#' @source CATH v4.3 FunFam Stockholm alignments, accessed 2026-08-23.
-#'   <https://www.cathdb.info/>. CATH database content: CC BY 4.0.
-#' @examples
-#' u <- readRDS(system.file("extdata", "funfam_universe.rds",
-#'     package = "repdist"
-#' ))
-#' table(u$members$label)
-#' @docType data
-#' @name funfam_universe
 NULL
