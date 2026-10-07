@@ -24,7 +24,7 @@ reaction on accessions that never overlap; an identity-based comparison
 cannot see that, and a structure-aware one can when the proteins share
 structure.
 
-![](figures/simulation-pcoa.png)
+![](simulation_files/figure-html/pcoa-1.png)
 
 <span class="caption-note">Two groups of simulated samples differing by
 function, carried on non-overlapping homologs.</span> MMD and MCL bins both
@@ -36,15 +36,18 @@ samples hold the same accession, sees nothing.
 **[Simulation](simulation.html)** — the methodological test. Ten CATH
 FunFams, every protein in every sample, and a functional shift carried by
 accessions no two samples share: RBF-MMD, Bray-Curtis on MCL bins and
-protein-level Bray-Curtis, by PERMANOVA and PCoA. The benchmark over
-experimentally characterised enzyme classes (EC3) is kept, unrendered, under
-`validation/` on this branch.
+protein-level Bray-Curtis, by PERMANOVA and PCoA. The
+[benchmark over experimentally characterised enzyme classes
+(EC3)](validation/benchmark_report.html) repeats the test with every EC3 as
+the target.
 
 **[Real-data validation](case_study.html)** — the same workflow on the full
 mouse faecal metaproteome of Blakeley-Ruiz *et al.*, *ISME J* **19**(1)
 wraf048: six dietary protein sources, 19,171 proteins. MMD beta diversity,
-MCL bins with the edge floor read off the graph diagnostics, DESeq2 on the
-bins, and a functional reading of the most responsive annotated bins.
+MCL bins at the package defaults, DESeq2 on the bins, and a functional
+reading of the most responsive annotated bins. The [full-catalog
+run](validation/case_study1_report.html) adds the file readers,
+KEGG function on the embedding map, and run time and memory at this size.
 
 # Installation
 
@@ -88,7 +91,7 @@ Every page's source sits beside `index.Rmd` at the root of the
 simulation.Rmd      # reads validation/funfam_universe.rds
 data_curation.Rmd   # -> data/test_study/ps.rds
 case_study.Rmd      # reads ps.rds and cached TM-Vec embeddings
-validation/         # EC3 benchmark and case-study scripts, not rendered
+validation/         # EC3 benchmark and full-catalog run, with their reports
 ```
 
 The simulation page needs only the package and `validation/funfam_universe.rds`;

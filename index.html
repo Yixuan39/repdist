@@ -389,7 +389,7 @@ similarity approximates the TM-score of two structures. Two communities
 can run the same reaction on accessions that never overlap; an
 identity-based comparison cannot see that, and a structure-aware one can
 when the proteins share structure.</p>
-<p><img src="figures/simulation-pcoa.png" /></p>
+<p><img src="simulation_files/figure-html/pcoa-1.png" /></p>
 <p><span class="caption-note">Two groups of simulated samples differing
 by function, carried on non-overlapping homologs.</span> MMD and MCL
 bins both separate them; protein-level Bray-Curtis, which can only ask
@@ -400,15 +400,19 @@ whether two samples hold the same accession, sees nothing.</p>
 methodological test. Ten CATH FunFams, every protein in every sample,
 and a functional shift carried by accessions no two samples share:
 RBF-MMD, Bray-Curtis on MCL bins and protein-level Bray-Curtis, by
-PERMANOVA and PCoA. The benchmark over experimentally characterised
-enzyme classes (EC3) is kept, unrendered, under <code>validation/</code>
-on this branch.</p>
+PERMANOVA and PCoA. The <a
+href="validation/benchmark_report.html">benchmark over experimentally
+characterised enzyme classes (EC3)</a> repeats the test with every EC3
+as the target.</p>
 <p><strong><a href="case_study.html">Real-data validation</a></strong> —
 the same workflow on the full mouse faecal metaproteome of Blakeley-Ruiz
 <em>et al.</em>, <em>ISME J</em> <strong>19</strong>(1) wraf048: six
 dietary protein sources, 19,171 proteins. MMD beta diversity, MCL bins
-with the edge floor read off the graph diagnostics, DESeq2 on the bins,
-and a functional reading of the most responsive annotated bins.</p>
+at the package defaults, DESeq2 on the bins, and a functional reading of
+the most responsive annotated bins. The <a
+href="validation/case_study1_report.html">full-catalog run</a> adds the
+file readers, KEGG function on the embedding map, and run time and
+memory at this size.</p>
 </div>
 <div id="installation" class="section level1">
 <h1>Installation</h1>
@@ -446,7 +450,7 @@ installed <code>repdist</code>.</p>
 <pre><code>simulation.Rmd      # reads validation/funfam_universe.rds
 data_curation.Rmd   # -&gt; data/test_study/ps.rds
 case_study.Rmd      # reads ps.rds and cached TM-Vec embeddings
-validation/         # EC3 benchmark and case-study scripts, not rendered</code></pre>
+validation/         # EC3 benchmark and full-catalog run, with their reports</code></pre>
 <p>The simulation page needs only the package and
 <code>validation/funfam_universe.rds</code>;
 <code>validation/README.md</code> describes that universe and the EC3

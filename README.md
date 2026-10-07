@@ -12,6 +12,8 @@ all pages share one theme and navbar:
 | [Simulation](https://yixuan39.github.io/repdist/simulation.html) | `simulation.Rmd` |
 | [Real-data validation](https://yixuan39.github.io/repdist/case_study.html) | `case_study.Rmd` |
 | [Data curation](https://yixuan39.github.io/repdist/data_curation.html) | `data_curation.Rmd` |
+| [EC3 benchmark](https://yixuan39.github.io/repdist/validation/benchmark_report.html) | `validation/benchmark_report.Rmd` |
+| [Full-catalog run](https://yixuan39.github.io/repdist/validation/case_study1_report.html) | `validation/case_study1_report.Rmd` |
 
 Rebuild with:
 
@@ -20,10 +22,11 @@ rmarkdown::render_site()
 ```
 
 That writes the page HTMLs, `site_libs/` and `*_files/` into the branch
-root. `README.md`, `figures/` and `data/` are excluded in `_site.yml`.
+root. `README.md` and `data/` are excluded in `_site.yml`. The two
+`validation/` reports are rendered on their own with `rmarkdown::render()`.
 
 The simulation page reads `validation/funfam_universe.rds`; `validation/`
-also holds the EC3 benchmark and case-study scripts, which are not rendered.
+also holds the EC3 benchmark and the full-catalog case-study scripts.
 The real-data pages use the mouse faecal metaproteome of Blakeley-Ruiz
 *et al.*, *ISME J* **19**(1) wraf048 and read `data/test_study/` relative to
 the working directory. Those inputs are not redistributed here, so a rebuild needs them

@@ -1,6 +1,6 @@
 name: "repdist"
 output_dir: "."
-exclude: ["README.md", "figures", "data"]
+exclude: ["README.md", "data"]
 navbar:
   title: "repdist"
   left:

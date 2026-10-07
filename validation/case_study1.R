@@ -206,7 +206,7 @@ rm(x_npz, x_h5)
 
 # 3. Beta diversity ---------------------------------------------------------
 D <- list(`Bray-Curtis` = vegan::vegdist(as.matrix(counts), "bray"),
-    MMD = cache_step("sample_repdist", sample_mmd(counts, x)))
+    MMD = cache_step("sample_mmd", sample_mmd(counts, x)))
 res$sigma <- attr(D$MMD, "sigma")
 perm <- permute::how(blocks = md$subject, nperm = 999)
 res$permanova <- do.call(rbind, lapply(names(D), function(n) {
@@ -247,76 +247,29 @@ if (!is.null(category)) {
 }
 
 # 4. The similarity graph ---------------------------------------------------
-# the gh-pages rule, fixed before looking downstream: the lowest floor at
-# which the largest component holds under half of the proteins
-rule <- function(gp) {
-    l <- gp[gp$curve == "largest component", ]
-    if (any(l$value < 50)) min(l$min_sim[l$value < 50]) else max(l$min_sim)
-}
-S_all <- timed("repdist_matrix, no gates", protein_similarity(x, min_sim = 0,
-    min_coverage = 0))
+# Pairs at each predicted TM-score floor, before any gate
+S_all <- timed("protein_similarity, no gates", protein_similarity(x,
+    min_sim = 0, min_coverage = 0))
 u <- S_all[upper.tri(S_all)]
 grid <- c(0.5, 0.6, 0.7, 0.75, 0.8, 0.9)
 res$pairs <- data.frame(min_sim = grid,
     pairs = vapply(grid, function(t) sum(u >= t), numeric(1)))
-rm(u)
-gp_all <- plot_graph_profile(S_all, min_sim = seq(0.5, 0.9, by = 0.05))$data
-floor_sim <- rule(gp_all)
-fig("nn", plot_similarity_profile(S_all, mark = floor_sim), height = 3.5)
-rm(S_all)
+rm(S_all, u)
 invisible(gc())
 
-# timed together with the sparse copy kept in the cache
-S <- as.matrix(cache_step("repdist_matrix, coverage 0.5, TM >= 0.6",
-    Matrix::Matrix(protein_similarity(x, min_sim = 0.6, min_coverage = 0.5,
-        n_cores = n_cores),
-        sparse = TRUE)))
-gp_cov <- plot_graph_profile(S, min_sim = seq(0.6, 0.9, by = 0.05))$data
-floor_cov <- rule(gp_cov)
-res$floors <- c(similarity_only = floor_sim, with_coverage = floor_cov)
-gp <- rbind(cbind(gp_all, gate = "similarity only"),
-    cbind(gp_cov, gate = "similarity + coverage 0.5"))
-gp$panel <- ifelse(gp$metric == "% of proteins",
-    paste("% of proteins,", gp$curve), as.character(gp$metric))
-fig("graph", ggplot(gp, aes(min_sim, value, colour = gate)) +
-    geom_step(linewidth = 0.8) +
-    geom_vline(data = data.frame(gate = c("similarity only",
-        "similarity + coverage 0.5"), at = c(floor_sim, floor_cov)),
-        aes(xintercept = at, colour = gate), linetype = "dashed") +
-    facet_wrap(~panel, scales = "free_y", ncol = 2) +
-    labs(x = "similarity floor (min_sim)", y = NULL, colour = NULL) +
-    theme_minimal() + theme(legend.position = "top"), height = 5)
-
-# Thresholding the 0.6 matrix equals building it at the higher floor, since a
-# pair's coverage does not depend on the floor; checked on a subset.
-set.seed(2)
-sub <- sort(sample(length(x), 600))
-direct <- protein_similarity(x[sub], min_sim = floor_cov, min_coverage = 0.5,
-    n_cores = n_cores)
-S[S < floor_cov] <- 0
-res$subset_equal <- isTRUE(all.equal(direct, S[sub, sub]))
-
+# The package defaults, TM >= 0.7 and coverage 0.5; timed together with the
+# sparse copy kept in the cache
+S <- as.matrix(cache_step("protein_similarity, defaults",
+    Matrix::Matrix(protein_similarity(x, n_cores = n_cores), sparse = TRUE)))
 b <- cache_step("bin_proteins, coverage gate", bin_proteins(S, inflation = 2))
-# plot_mcl_profile(S, inflation = c(2, 4)) is not run: in the first full run
-# the MCL package was still iterating at inflation 4 after 35 minutes, having
-# finished inflation 2 in 3.
 
-summarise_bins <- function(b, setting, floor, t) {
+summarise_bins <- function(b, setting, t) {
     size <- lengths(b$clusters)
-    data.frame(setting = setting, floor = floor, t(b$graph),
-        bins = length(size), singletons = sum(size == 1),
-        largest_bin = max(size), mcl_seconds = t)
+    data.frame(setting = setting, t(b$graph), bins = length(size),
+        singletons = sum(size == 1), largest_bin = max(size), mcl_seconds = t)
 }
-S_same <- S
-S_same[S_same < floor_sim] <- 0
-t_same <- system.time(b_same <- bin_proteins(S_same))[["elapsed"]]
-rm(S_same)
-res$bins <- rbind(
-    summarise_bins(b_same, "similarity + coverage", floor_sim,
-        round(t_same, 1)),
-    summarise_bins(b, "similarity + coverage", floor_cov,
-        perf[["bin_proteins, coverage gate"]]$seconds))
-rm(b_same)
+res$bins <- summarise_bins(b, "similarity + coverage",
+    perf[["bin_proteins, coverage gate"]]$seconds)
 sizes <- lengths(b$clusters)
 res$bin_sizes <- table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
     labels = c("1", "2", "3-5", "6-10", ">10")))
@@ -387,16 +340,15 @@ if (nrow(picks)) {
         width = 6.5, height = 5.5)
 }
 
-# Last, the similarity-only graph at its own floor: its largest component is
+# Last, the same floor without the coverage gate: its largest component is
 # the biggest dense MCL problem here.
-S_u <- protein_similarity(x, min_sim = floor_sim, min_coverage = 0)
+S_u <- protein_similarity(x, min_coverage = 0)
 rm(S)
 invisible(gc())
 b_u <- attempt(timed("bin_proteins, similarity only", bin_proteins(S_u)))
 rm(S_u)
 res$bins <- rbind(if (is.list(b_u)) summarise_bins(b_u, "similarity only",
-    floor_sim, perf[["bin_proteins, similarity only"]]$seconds),
-    res$bins)
+    perf[["bin_proteins, similarity only"]]$seconds), res$bins)
 res$similarity_only_mcl <- if (is.character(b_u)) b_u else "ok"
 
 res$perf <- do.call(rbind, perf)

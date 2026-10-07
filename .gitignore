@@ -11,21 +11,9 @@ index.utf8.md
 
 # analysis inputs and outputs, not redistributed here
 /data
-results/
-raw/
-cache/
-sources/
-docs/
-wiki/
-graphify-out/
-repdist.BiocCheck/
-*.tar.gz
 *.rds
-*.pt
-*.npy
-*.npz
-*.parquet
 
-# validation/ outputs, rebuilt by its scripts
-validation/case_study1/
+# validation/ inputs are committed; its run outputs are rebuilt by its scripts
 !validation/*.rds
+validation/case_study1/
+validation/simulation_benchmark_partial.rds

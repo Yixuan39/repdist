@@ -27,13 +27,10 @@ secs <- function(step) perf$seconds[perf$step == step]
 bins <- res$bins
 mmd <- res$permanova[res$permanova$distance == "MMD", ]
 bc <- res$permanova[res$permanova$distance == "Bray-Curtis", ]
-near <- function(a, b) abs(a - b) < 1e-9
-gated <- bins$setting == "similarity + coverage"
-same_floor <- bins[gated & near(bins$floor, res$floors[[1]]), ]
-chosen <- bins[gated & near(bins$floor, res$floors[[2]]), ]
-ungated_edges <- res$pairs$pairs[near(res$pairs$min_sim, res$floors[[1]])]
-removed <- 1 - same_floor$edges / ungated_edges
+gated <- bins[bins$setting == "similarity + coverage", ]
 ungated <- bins[bins$setting == "similarity only", ]
+ungated_edges <- res$pairs$pairs[abs(res$pairs$min_sim - 0.7) < 1e-9]
+removed <- 1 - gated$edges / ungated_edges
 big <- function(v) format(v, big.mark = ",")
 in_pick <- function(i) res$members$bin == res$picks$bin[i]
 n_m <- function(i) sum(in_pick(i))
@@ -48,18 +45,15 @@ n_ko <- function(i) sum(in_pick(i) & !is.na(res$members$KO))
   `r res$workers` workers.
 * **Beta diversity.** Diet explains R² = `r mmd$R2` under MMD against
   `r bc$R2` under Bray-Curtis (PERMANOVA, permutations within mouse).
-* **Coverage gate.** At the similarity-only floor (`r res$floors[[1]]`),
+* **Coverage gate.** At the default floor (predicted TM-score 0.7),
   requiring an alignment over half of both sequences removes
   `r round(100 * removed)`% of the edges and shrinks the largest connected
   component from `r if (nrow(ungated)) big(ungated$largest_component) else "?"`
-  to `r big(same_floor$largest_component)` proteins. The same label-free
-  floor rule then picks `r res$floors[[2]]`, the lowest floor gated, giving
-  `r format(chosen$bins, big.mark = ",")` bins.
+  to `r big(gated$largest_component)` proteins, giving
+  `r big(gated$bins)` bins.
 * **MCL.** `bin_proteins()` took `r secs("bin_proteins, coverage gate")` s
   at inflation 2 on the gated graph, whose largest component holds
-  `r format(chosen$largest_component, big.mark = ",")` proteins as one dense
-  matrix. At inflation 4 the `MCL` package had not converged after 35
-  minutes.
+  `r big(gated$largest_component)` proteins as one dense matrix.
 * **Function.** KOfamScan gives `r round(100 * res$kofam[["with a KO"]] /
   res$kofam[["proteins"]])`% of proteins a KO; the t-SNE map is coloured by
   their KEGG BRITE category.
@@ -67,8 +61,7 @@ n_ko <- function(i) sum(in_pick(i) & !is.na(res$members$KO))
   `r format(res$deseq[["bins_tested"]], big.mark = ",")` bins respond to diet
   (DESeq2 LRT, BH 0.05).
 * **Checks.** Both file readers return the same proteins, sequences and
-  embeddings at full size, and thresholding the gated matrix equals building
-  it at the higher floor (`r res$subset_equal`).
+  embeddings at full size.
 
 # Data
 
@@ -148,33 +141,19 @@ tab(data.frame(category = names(res$categories),
 
 # Similarity graph
 
-Pairs at each predicted TM-score floor; only those at 0.6 and above were
-aligned for the coverage gate.
+Pairs at each predicted TM-score floor, before any gate; only those at the
+default floor of 0.7 and above are aligned for the coverage gate.
 
 ```{r pairs}
 tab(res$pairs)
 ```
 
-```{r nn, out.width = "85%"}
-img("nn")
-```
-
-The floor rule from the project site: the lowest floor at which the largest
-connected component holds under half of the proteins. Dashed lines mark the
-floor each graph gets.
-
-```{r graph, out.width = "100%"}
-img("graph")
-```
+Bins at the package defaults (predicted TM-score 0.7, coverage 0.5,
+inflation 2), and at the same floor without the coverage gate.
 
 ```{r bins}
 tab(bins)
 ```
-
-`plot_mcl_profile()` is not shown. In the first full run, at inflations 2
-and 4 on this graph, the `MCL` package finished inflation 2 in about 3 minutes
-but was still iterating at inflation 4 after 35 minutes, short of its
-exact-equality convergence test, and the run was stopped.
 
 ```{r bin-sizes}
 tab(data.frame(bin_size = names(res$bin_sizes),
@@ -205,16 +184,16 @@ tab(res$picks)
 tab(res$members)
 ```
 
-`r res$picks$bin[1]` is sixteen GH92 family glycosyl hydrolases (the family of
-exo-α-mannosidases), higher on the yeast diet, whose cell walls are rich in
-mannan. `r res$picks$bin[3]` is SusD-like glycan-binding proteins, higher on
-egg. `r res$picks$bin[2]` is the caution: an S-adenosylmethionine synthase, a
-GH109 protein and four unannotated proteins share a structural bin, not a
-function.
+`r res$picks$bin[1]` is `r n_m(1)` GH92 family glycosyl hydrolases (the
+family of exo-α-mannosidases), higher on the yeast diet, whose cell walls are
+rich in mannan. The other two are the caution: `r res$picks$bin[2]` holds an
+S-adenosylmethionine synthase, a GH109 protein and four unannotated proteins,
+and `r res$picks$bin[3]` a trimeric autotransporter adhesin, a
+pyrrolidone-carboxylate peptidase and an ABC multidrug efflux protein. Each
+shares a structural bin, not a function.
 
 KOfamScan's per-family thresholds are stricter than the study's annotation:
-it assigns a KO to `r n_ko(1)` of the `r n_m(1)` GH92 proteins and to
-`r n_ko(3)` of the `r n_m(3)` members of `r res$picks$bin[3]`, so a bin
+it assigns a KO to `r n_ko(1)` of the `r n_m(1)` GH92 proteins, so the bin
 carries a function to members a profile search leaves unlabelled.
 
 ```{r bin, out.width = "70%"}

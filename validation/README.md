@@ -1,14 +1,20 @@
 # Simulation data and the EC3 benchmark (not part of the package)
 
-Experimental work on the `gh-pages` branch, outside the package. It is not
-rendered into the site, and it did not choose any MCL setting. Run everything
-from the branch root with the current `repdist` installed:
+Experimental work on the `gh-pages` branch, outside the package; it did not
+choose any MCL setting. Run everything from the branch root with the current
+`repdist` installed:
 
 * `prepare_microbial_ec_universe.R` builds `microbial_ec_universe.rds`
   (needs network access and the TM-Vec model).
 * `simulate_ec3.R` holds the design and count simulation.
-* `benchmark_simulation.R` writes `simulation_benchmark.rds`.
+* `benchmark_simulation.R` writes `simulation_benchmark.rds`, which
+  `benchmark_report.Rmd` renders.
 * `testthat::test_file("validation/test-simulation.R")` checks the design.
+* `case_study1.R` runs the full diet metaproteome and writes
+  `case_study1/` (not committed), which `case_study1_report.Rmd` renders.
+
+Render a report with `rmarkdown::render("validation/benchmark_report.Rmd")`;
+the home page links both HTML files.
 
 ## Microbial experimental-EC universe
 
@@ -86,8 +92,7 @@ sensitivity grid. This detail is kept outside the vignettes.
 The benchmark reference setting (edge floor 0.5, inflation 2) is an explicit
 analysis setting, not a package default or a recommendation. Sensitivity is
 scored against labels for validation only; never select the floor using EC
-agreement or downstream detection. Use label-free graph connectivity and
-isolation diagnostics when choosing settings for a new dataset.
+agreement or downstream detection.
 
 The 31-fold private-protein effect gives exactly fourfold group-mean EC3
 ground truth before independent sample size factors and count noise. It is

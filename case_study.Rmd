@@ -14,8 +14,7 @@ where there is no such truth, to check that it behaves sensibly at the size
 of a full catalog:
 
 1. **Beta diversity** with RBF-MMD and PERMANOVA.
-2. **MCL bins** on the TM-Vec similarity graph, with the edge floor read off
-   the graph diagnostics.
+2. **MCL bins** on the TM-Vec similarity graph at the package defaults.
 3. **Differential abundance** on the bins with DESeq2.
 4. **Functional reading** of the most responsive annotated bins.
 
@@ -62,23 +61,26 @@ md$diet <- factor(md$diet)
 md$dose <- factor(md$dose)
 md$subject <- factor(md$subject)
 
+# Annotations from Extended Data Table 6: join on Protein Identifier, fall
+# back to the species-code column, and keep a match only where the residue
+# count agrees.
 t6 <- read.delim(file.path(path, "annotated",
                            "ExtendedDataTable6AnnotatedMicrobialMetaproteomes.txt"),
                  skip = 2, quote = "\"", check.names = FALSE,
                  colClasses = "character", comment.char = "", fileEncoding = "latin1")
-tx <- as.data.frame(as(tax_table(psd), "matrix"))[keep, ]
+len <- Biostrings::width(refseq(psd)[keep])
+agrees <- function(r) !is.na(r) & suppressWarnings(as.integer(t6$AA[r])) == len
+r_id <- match(keep, t6[["Protein Identifier"]])
+r_code <- match(keep, t6[["Protein Identifier with Species Code"]])
+row <- ifelse(agrees(r_id), r_id, ifelse(agrees(r_code), r_code, NA))
+annotation <- t6[["Consensus annotation"]][row]
+annotation[!nzchar(trimws(annotation)) | tolower(annotation) == "unknown"] <- NA
 taxa <- data.frame(
-  protein = keep,
-  genus = tx$Genus,
-  species = tx$Species,
-  annotation = unname(setNames(t6[["Consensus annotation"]],
-                               t6[["Protein Identifier"]])[keep]),
-  length = Biostrings::width(refseq(psd)[keep]),
+  genus = as(tax_table(psd), "matrix")[keep, "Genus"],
+  annotation = annotation,
   row.names = keep, stringsAsFactors = FALSE)
-taxa$annotation[is.na(taxa$annotation) | !nzchar(trimws(taxa$annotation))] <- NA_character_
 
-d <- list(counts = counts, counts_raw = counts_raw, metadata = md, taxa = taxa,
-          sequences = setNames(as.character(refseq(psd)[keep]), keep))
+d <- list(counts = counts, counts_raw = counts_raw, metadata = md, taxa = taxa)
 
 c(samples = nrow(counts), proteins = ncol(counts),
   removed_over_3000aa = sum(too_long),
@@ -110,52 +112,35 @@ cached outside the render because model inference is not part of the statistical
 analysis.
 
 ```{r Z}
-cached <- readRDS(file.path(path, "embeddings_tmvec1_large.rds"))$Z
-stopifnot(all(keep %in% rownames(cached)))
-Z <- cached[keep, , drop = FALSE]
-dim(Z)
+cached <- readRDS(file.path(path, "embeddings_tmvec1_large.rds"))
+x <- refseq(psd)[keep]
+stopifnot(identical(as.character(x), cached$seq[keep]))
+S4Vectors::mcols(x)$embedding <- cached$Z[keep, ]
+rm(cached)
+x
 ```
 
-TM-Vec's head was trained to regress TM-score, so cosine similarity between two
-embeddings is a predicted TM-score. `known_models()` lists the other registered
+`x` is the `AAStringSet` every `repdist` function takes: the sequences, with
+one embedding row per protein in `mcols(x)$embedding`. TM-Vec's head was
+trained to regress TM-score, so cosine similarity between two embeddings is a
+predicted TM-score. `known_models()` lists the other registered
 representations.
 
 ```{r models}
 names(known_models())
 ```
 
-# The protein ground distance
-
-`repdist_matrix()` builds the condensed protein-by-protein cosine distance used
-by binning and QC. This is the expensive object in the full analysis.
-
-```{r ground}
-G_cos <- repdist_matrix(Z)
-```
-
-`bin_proteins()` reads this scale as predicted TM-score. `sample_repdist()`
-instead builds a Euclidean RBF internally so the kernel remains positive
-semi-definite. On unit-norm TM-Vec embeddings the two ground distances are
-monotone transforms of one another.
-
-```{r scales}
-c(median_predicted_TM = round(1 - median(G_cos), 3),
-  share_of_pairs_at_or_above_0.5 = round(mean(G_cos <= 0.5), 4))
-```
-
 # Step 1: beta diversity
 
 Bray-Curtis is the protein-identity baseline. MMD asks how far apart different
-proteins actually are. The sparse count matrix stays sparse throughout the MMD
-calculation. `sample_repdist_ot()` is not run here: it solves one exact
-transport problem per pair of samples, sized by the proteins whose abundance
-differs, which at `r ncol(d$counts)` proteins and `r nrow(d$counts)` samples is
-far heavier than MMD's blocked kernel.
+proteins actually are. `sample_mmd()` builds a Euclidean RBF kernel from the
+embeddings, so the kernel remains positive semi-definite; on unit-norm TM-Vec
+embeddings that distance is a monotone transform of predicted TM-score.
 
 ```{r distances}
 D <- list(
   `Bray-Curtis` = vegan::vegdist(as.matrix(d$counts), "bray"),
-  `MMD` = sample_repdist(d$counts, Z))
+  `MMD` = sample_mmd(d$counts, x))
 ```
 
 Both are abundance-weighted, so richness is checked before interpreting the
@@ -207,41 +192,27 @@ ggplot(ord, aes(Axis1, Axis2, colour = diet)) +
 
 # Step 2: MCL bins
 
-`bin_proteins()` joins every pair at or above an edge floor, `min_edge_sim`,
-and runs Markov clustering on the resulting graph; proteins with no edge stay
-singletons. The floor decides which pairs connect, not what a bin holds. The
-default floor of 0.5 is a fold-scale starting point, so first look at the
-graph it gives:
+`protein_similarity()` keeps a pair as an edge when its predicted TM-score
+is at least `min_sim` (0.7 by default) and its local alignment covers at
+least half of both sequences, so two proteins sharing only one domain are not
+joined. `bin_proteins()` runs Markov clustering on the resulting graph at
+inflation 2; proteins with no edge stay singletons. The floor decides which
+pairs connect, not what a bin holds: a bin can hold pairs below it, joined
+through shared neighbours.
 
-```{r qc-graph, fig.height = 6, fig.alt = "Retained edges, isolated proteins, connected components and largest component across edge floors"}
-gp <- plot_graph_profile(G_cos, min_edge_sim = seq(0.5, 0.9, by = 0.05))
-gp
-```
-
-At 0.5 almost every protein falls in one connected component, which MCL
-would have to split on flow alone. The rule fixed before running anything
-downstream: take the lowest floor on this grid at which the largest
-component no longer holds a majority of the proteins. It uses the graph only.
-
-```{r floor-choice}
-largest <- gp$data[gp$data$metric == "largest component (% of proteins)", ]
-edge_floor <- min(largest$min_edge_sim[largest$value < 50])
-edge_floor
-```
-
-```{r qc-mcl, fig.height = 6, fig.alt = "MCL bin count, singleton share, largest bin and median bin size across inflations"}
-plot_mcl_profile(G_cos, min_edge_sim = edge_floor, inflation = c(1.4, 2, 4), mark = 2)
+```{r ground}
+S <- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())
 ```
 
 ```{r bins}
-b <- bin_proteins(G_cos, min_edge_sim = edge_floor, inflation = 2)
+b <- bin_proteins(S, inflation = 2)
 b$graph
 ```
 
-The unrarefied counts sum to bin level with `bin_counts()`.
+The unrarefied counts sum to bin level with `bin_glom()`.
 
 ```{r bin-counts}
-bin_cnt <- bin_counts(d$counts_raw, b)
+bin_cnt <- bin_glom(d$counts_raw, b)
 c(proteins = ncol(d$counts_raw), bins = ncol(bin_cnt))
 ```
 
@@ -341,12 +312,12 @@ info <- do.call(rbind, lapply(seq_len(nrow(picks)), function(i) {
 knitr::kable(info, row.names = FALSE)
 ```
 
-An MCL bin makes no all-pairs promise. The within-bin similarities of the
-leading annotated bin, diverging at the edge floor, with the share of pairs
-above it:
+An MCL bin makes no all-pairs promise: members are joined through the
+graph, so a pair inside a bin need not be an edge. The within-bin predicted
+TM-scores of the leading annotated bin, with the graph's edges outlined:
 
-```{r bin-similarity, fig.height = 4.5, fig.alt = "Pairwise predicted TM-scores inside the leading annotated bin, diverging at the edge floor"}
-plot_bin_similarity(b, picks$bin[1], G_cos)
+```{r bin-similarity, fig.height = 4.5, fig.alt = "Pairwise predicted TM-scores inside the leading annotated bin, edges outlined"}
+plot_bin_similarity(b, picks$bin[1], S, x)
 ```
 
 A bin is a community in a similarity graph. Agreement among its members'
@@ -358,13 +329,13 @@ annotations is evidence about its function; membership alone is not.
 model uses the corresponding unrarefied counts and handles depth through size
 factors.
 
-**Memory.** `repdist_matrix()` remains quadratic because binning needs the
-condensed protein distance; `bin_proteins()` reads it in slices into a sparse
-graph, so its cost follows the retained edges. `sample_repdist()` accumulates
-1000-by-1000 kernel tiles directly into the sample Gram matrix, and sparse
-counts remain sparse.
+**Memory.** `protein_similarity()` and `sample_mmd()` hold dense
+protein-by-protein matrices, so memory grows with the square of the protein
+count; bin the identified subset of a catalog, never a whole search database.
+MCL's cost follows the largest connected component, which the `MCL` package
+holds as one dense matrix.
 
-**Bandwidth.** `sample_repdist()` returns its bandwidth as `attr(, "sigma")`;
+**Bandwidth.** `sample_mmd()` returns its bandwidth as `attr(, "sigma")`;
 pass it back when comparisons across studies need one fixed kernel.
 
 ```{r session}
