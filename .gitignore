@@ -1,20 +1,10 @@
 .DS_Store
 __pycache__/
 *.py[cod]
-.venv/
-.env
 
 data/
-results/
-cache/
-docs/
-raw/
-sources/
 *.html
-*.pt
-*.npy
-*.npz
-*.parquet
+!vignettes/repdist.html
 .Rproj.user/
 .Rhistory
 .Ruserdata
@@ -25,8 +15,6 @@ Rplots.pdf
 *.Rcheck/
 *.tar.gz
 inst/doc/
-wiki/
 *.Rproj
 .claude/settings.local.json
 repdist.BiocCheck/
-graphify-out/
