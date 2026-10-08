@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Reference</title>
+
+<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+<style type="text/css">
+/* for pandoc --citeproc since 2.11 */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">repdist</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Reference
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="reference.html">Overview</a>
+    </li>
+    <li>
+      <a href="reference.html#protein-representations">Protein representations</a>
+    </li>
+    <li>
+      <a href="reference.html#sample-level-distance-mmd">Sample-level distance: MMD</a>
+    </li>
+    <li>
+      <a href="reference.html#protein-similarity-graph-and-mcl-clustering">Protein similarity graph and MCL clustering</a>
+    </li>
+    <li>
+      <a href="reference.html#qc-and-visualization">QC and visualization</a>
+    </li>
+  </ul>
+</li>
+<li>
+  <a href="simulation.html">Simulation</a>
+</li>
+<li>
+  <a href="parameters.html">MCL parameters</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li>
+  <a href="index.html#installation">Install</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Yixuan39/repdist">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Reference</h1>
+
+</div>
+
+
+<p>This page explains what each <code>repdist</code> function computes,
+in the order of a typical analysis. Full argument lists are in the
+package help (<code>?sample_mmd</code>,
+<code>?protein_similarity</code>, …).</p>
+<table>
+<colgroup>
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Step</th>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Representations</td>
+<td><code>embed_proteins()</code>, <code>read_embeddings()</code></td>
+<td>sequences, or a TM-Vec database</td>
+<td><code>AAStringSet</code> with <code>mcols(x)$embedding</code></td>
+</tr>
+<tr class="even">
+<td>Sample distance</td>
+<td><code>sample_mmd()</code></td>
+<td>counts (samples × proteins), <code>x</code></td>
+<td><code>dist</code> between samples</td>
+</tr>
+<tr class="odd">
+<td>Similarity graph</td>
+<td><code>protein_similarity()</code></td>
+<td><code>x</code></td>
+<td>protein × protein similarity matrix</td>
+</tr>
+<tr class="even">
+<td>Protein bins</td>
+<td><code>bin_proteins()</code></td>
+<td>similarity matrix</td>
+<td>MCL bins</td>
+</tr>
+<tr class="odd">
+<td>Aggregation</td>
+<td><code>bin_glom()</code></td>
+<td>counts, bins</td>
+<td>counts (samples × bins)</td>
+</tr>
+<tr class="even">
+<td>QC</td>
+<td><code>plot_tsne()</code>, <code>plot_bin_similarity()</code></td>
+<td><code>x</code>, bins</td>
+<td>ggplot objects</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>library(repdist)
+library(ggplot2)</code></pre>
+<p>The executable examples use the three largest enzyme classes (EC3) of
+the <a href="simulation.html">simulation</a> universe: experimentally
+characterised Swiss-Prot enzymes whose embeddings were computed with
+<code>embed_proteins()</code>.</p>
+<pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
+classes &lt;- names(sort(table(u$annotation$ec3), decreasing = TRUE))[1:3]
+keep &lt;- u$annotation$ec3 %in% classes
+x &lt;- u$proteins[keep]
+ec3 &lt;- setNames(u$annotation$ec3[keep], u$annotation$protein[keep])
+table(ec3)
+#&gt; ec3
+#&gt; 1.1.1 2.1.1 2.3.1 
+#&gt;   267   204   196</code></pre>
+<div id="protein-representations" class="section level1">
+<h1>Protein representations</h1>
+<p>Every other function takes the same object: an
+<code>AAStringSet</code> of protein sequences, named by accession, with
+one embedding row per protein in <code>mcols(x)$embedding</code>. Rows
+are unit-normalised.</p>
+<pre class="r"><code>x
+#&gt; AAStringSet object of length 667:
+#&gt;       width seq                                             names               
+#&gt;   [1]   270 MDNIREGVRQKYAFAIANRGQG...DGEIKEFQGAMVSCFIRAAKPA A0A0D3MJQ5
+#&gt;   [2]   329 MTRTDFAQSAVASIFTGAIASH...ELAVPNSYAWVLEMRDREGPAS A0A0D4BS77
+#&gt;   [3]   570 MKLDDKRILIIGAGEVGTAVAE...DVGEVLAYHYKLTGQARRIKGL A0A0D4BSN8
+#&gt;   [4]   237 MHTDWETSESAEDYSRNTAAAQ...HLPPPPADPTPHPQFLLVRGTA A0A0D4BSP3
+#&gt;   [5]   302 MPINIPKDLPAKEILEQENIFV...ANLLFVNWLNYYVYQETPYEWE A0A0D8BWP6
+#&gt;   ...   ... ...
+#&gt; [663]   352 MYTSFHRIDLPRTIVVGGGVLD...ILGEKGLTREAAEALARKTGVI Q9YER2
+#&gt; [664]   342 MNAGHTETVRALRIGVAGCADI...AAVLRQAELVDAVRQAAHLVKI Q9ZA33
+#&gt; [665]   305 MPINIPDDLPAASILESEKIFV...SNWLNYYVYQQTPYDLLKIGRS R9T6W8
+#&gt; [666]   346 MHESVQNYYGKVLQNSSDLKTS...EGCGGGLPYDRQAAVTAATSCC U2ZU49
+#&gt; [667]   161 MNDTKNEVKIIAYEPQYKEAFK...HTPIGKAEYDRADVRMELIFNK W0SLW8
+dim(S4Vectors::mcols(x)$embedding)
+#&gt; [1] 667 512</code></pre>
+<p>There are two ways to get it.</p>
+<p><strong><code>embed_proteins()</code>: sequences to embeddings inside
+R.</strong> It accepts a named character vector, an
+<code>AAStringSet</code> or a FASTA path, and a <code>model</code> key
+from <code>known_models()</code>. Models run in a Python environment
+that <code>repdist</code> builds and pins itself through
+<code>basilisk</code>, so users do not install or configure Python.
+Weights are downloaded on first use and pinned to fixed revisions
+(HuggingFace commits, or a SHA-256-checked file). Every sequence is
+embedded whole; nothing is truncated or dropped.</p>
+<pre class="r"><code>x &lt;- embed_proteins(&quot;proteins.fasta&quot;) # model = &quot;tmvec&quot;
+x &lt;- embed_proteins(seqs, model = &quot;esm2-650m&quot;, device = &quot;cpu&quot;)</code></pre>
+<p><strong><code>read_embeddings()</code>: embeddings computed
+elsewhere.</strong> TM-Vec users can embed outside R with the
+<code>tmvec</code> command-line tool (<a
+href="https://github.com/valentynbez/tmvec"
+class="uri">https://github.com/valentynbez/tmvec</a>) and import its
+<code>build-db</code> database (<code>.npz</code>), giving the FASTA it
+was built from. An HDF5 file with one group per protein (datasets
+<code>seq</code> and <code>emb</code>) is also read; per-residue
+embeddings are averaged.</p>
+<pre class="r"><code>x &lt;- read_embeddings(&quot;db/proteins.npz&quot;, seqs = &quot;proteins.fasta&quot;)</code></pre>
+<p><strong><code>known_models()</code></strong> lists the registered
+models. The default, <code>tmvec</code>, is a TM-Vec head <span
+class="citation">(<a href="#ref-hamamsy2024tmvec">Hamamsy et al.
+2024</a>)</span> on the ProtT5-XL encoder <span class="citation">(<a
+href="#ref-elnaggar2022prottrans">Elnaggar et al. 2022</a>)</span>. Its
+head is trained so that the cosine similarity of two embeddings predicts
+the TM-score of the two structures <span class="citation">(<a
+href="#ref-zhang2004tmscore">Zhang and Skolnick 2004</a>)</span>; on
+this site, “predicted TM-score” means that cosine. The
+<code>esm2-*</code> models give general sequence representations without
+this calibration.</p>
+<pre class="r"><code>m &lt;- known_models()
+data.frame(
+    model = names(m),
+    backbone = vapply(m, `[[`, &quot;&quot;, &quot;backbone&quot;),
+    trained_to = vapply(m, function(s) s$training_max_length, 0),
+    row.names = NULL
+)</code></pre>
+<div class="kable-table">
+<table>
+<thead>
+<tr class="header">
+<th align="left">model</th>
+<th align="left">backbone</th>
+<th align="right">trained_to</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">tmvec</td>
+<td align="left">Rostlab/prot_t5_xl_uniref50</td>
+<td align="right">1000</td>
+</tr>
+<tr class="even">
+<td align="left">tmvec-300</td>
+<td align="left">Rostlab/prot_t5_xl_uniref50</td>
+<td align="right">300</td>
+</tr>
+<tr class="odd">
+<td align="left">esm2-8m</td>
+<td align="left">facebook/esm2_t6_8M_UR50D</td>
+<td align="right">1022</td>
+</tr>
+<tr class="even">
+<td align="left">esm2-150m</td>
+<td align="left">facebook/esm2_t30_150M_UR50D</td>
+<td align="right">1022</td>
+</tr>
+<tr class="odd">
+<td align="left">esm2-650m</td>
+<td align="left">facebook/esm2_t33_650M_UR50D</td>
+<td align="right">1022</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code>trained_to</code> is the longest sequence in the model’s
+training data. It is recorded for reference and not enforced.</p>
+</div>
+<div id="sample-level-distance-mmd" class="section level1">
+<h1>Sample-level distance: MMD</h1>
+<p><code>sample_mmd(counts, x)</code> treats sample <span
+class="math inline">\(P\)</span> as a weighted set of protein embeddings
+<span class="math inline">\(\{(z_i, p_i)\}\)</span>, where <span
+class="math inline">\(p_i = c_i / \sum_j c_j\)</span> is protein <span
+class="math inline">\(i\)</span>’s share of the sample’s counts. Two
+samples are compared by the maximum mean discrepancy <span
+class="citation">(<a href="#ref-gretton2012mmd">Gretton et al. 2012</a>;
+<a href="#ref-muandet2017kme">Muandet et al. 2017</a>)</span>:</p>
+<p><span class="math display">\[
+\mathrm{MMD}^2(P,Q) =
+\sum_{i,j} p_i p_j\, k(z_i, z_j)
+- 2 \sum_{i,j} p_i q_j\, k(z_i, z_j)
++ \sum_{i,j} q_i q_j\, k(z_i, z_j),
+\]</span></p>
+<p>with the Gaussian (RBF) kernel on Euclidean distance</p>
+<p><span class="math display">\[
+k(z_i, z_j) = \exp\!\left(-\frac{\lVert z_i - z_j
+\rVert^2}{2\sigma^2}\right).
+\]</span></p>
+<p>The sums run over all proteins observed in either sample, and the
+function returns <span class="math inline">\(\mathrm{MMD}(P,Q)\)</span>
+(the square root) as a <code>dist</code>. For unit-norm embeddings <span
+class="math inline">\(\lVert z_i - z_j \rVert^2 = 2(1 -
+s_{ij})\)</span>, where <span class="math inline">\(s_{ij}\)</span> is
+the cosine similarity, so <span class="math inline">\(k(z_i, z_j) =
+\exp(-(1 - s_{ij})/\sigma^2)\)</span>; with TM-Vec, <span
+class="math inline">\(s_{ij}\)</span> is the predicted TM-score.</p>
+<p><strong>Why a kernel distance.</strong> If <span
+class="math inline">\(k\)</span> were 1 for identical proteins and 0
+otherwise, the expression would reduce to the Euclidean distance between
+the two relative-abundance vectors, an identity-only comparison. With
+the RBF kernel, the cross term lets different accessions with close
+embeddings partly match, in proportion to their abundances. MMD compares
+the two weighted distributions through their kernel mean embeddings;
+unlike optimal-transport distances it solves no transport problem and is
+computed directly from the protein kernel matrix. The choice is
+methodological; it is not a claim that transport-based distances cannot
+be used.</p>
+<p>In the example, samples <code>s1</code> and <code>s2</code> share no
+accession but draw on the same enzyme class, while <code>s3</code> draws
+on another class:</p>
+<pre class="r"><code>pick &lt;- function(class, i) names(ec3)[ec3 == class][i]
+counts &lt;- matrix(0, 3, length(x),
+    dimnames = list(c(&quot;s1&quot;, &quot;s2&quot;, &quot;s3&quot;), names(x)))
+counts[&quot;s1&quot;, pick(classes[1], 1:10)] &lt;- 10
+counts[&quot;s2&quot;, pick(classes[1], 11:20)] &lt;- 10
+counts[&quot;s3&quot;, pick(classes[2], 1:10)] &lt;- 10
+
+D &lt;- sample_mmd(counts, x)
+D
+#&gt;           s1        s2
+#&gt; s2 0.2818163          
+#&gt; s3 0.4385876 0.4546992
+vegan::vegdist(counts, &quot;bray&quot;) # 1 for every pair: no shared accession
+#&gt;    s1 s2
+#&gt; s2  1   
+#&gt; s3  1  1</code></pre>
+<p><strong>Bandwidth.</strong> With <code>sigma = NULL</code> (default),
+<span class="math inline">\(\sigma\)</span> is the median pairwise
+Euclidean distance among the proteins observed in any sample (the median
+heuristic). It therefore changes when samples bring in new proteins. The
+value used is returned as <code>attr(D, "sigma")</code>; pass it back to
+hold the kernel fixed across analyses. For TM-Vec embeddings,
+<code>sigma = sqrt(1 - t)</code> places the kernel’s <span
+class="math inline">\(1/e\)</span> point at predicted TM-score <span
+class="math inline">\(t\)</span>.</p>
+<pre class="r"><code>attr(D, &quot;sigma&quot;)
+#&gt; [1] 1.058571
+D2 &lt;- sample_mmd(counts[1:2, ], x, sigma = attr(D, &quot;sigma&quot;))</code></pre>
+<p><code>weighted = FALSE</code> gives every detected protein equal
+weight (a presence/absence version). <code>sample_mmd()</code> holds the
+protein × protein kernel in memory, so memory grows with the square of
+the number of proteins.</p>
+</div>
+<div id="protein-similarity-graph-and-mcl-clustering"
+class="section level1">
+<h1>Protein similarity graph and MCL clustering</h1>
+<pre><code>protein embeddings
+        │  cosine similarity
+pairwise similarity s_ij
+        │  similarity and coverage thresholds
+weighted sparse graph W
+        │  Markov clustering
+protein bins ── bin_glom() ──► samples × bins counts</code></pre>
+<div id="protein-similarity" class="section level2">
+<h2><code>protein_similarity()</code></h2>
+<p><code>protein_similarity(x, min_sim = 0.7, min_coverage = 0.5)</code>
+returns the weighted adjacency matrix</p>
+<p><span class="math display">\[
+W_{ij} =
+\begin{cases}
+s_{ij}, &amp; s_{ij} \ge t_{\mathrm{sim}} \text{ and } \mathrm{cov}_{ij}
+\ge t_{\mathrm{cov}},\\
+0, &amp; \text{otherwise,}
+\end{cases}
+\]</span></p>
+<p>where <span class="math inline">\(s_{ij}\)</span> is the cosine
+similarity of the embeddings, <span
+class="math inline">\(t_{\mathrm{sim}}\)</span> = <code>min_sim</code>
+and <span class="math inline">\(t_{\mathrm{cov}}\)</span> =
+<code>min_coverage</code>. With TM-Vec this reads <span
+class="math inline">\(W_{ij} = \mathrm{TM}_{ij}\)</span> when the
+predicted TM-score <span class="math inline">\(\mathrm{TM}_{ij} \ge
+t_{\mathrm{TM}}\)</span> and the coverage passes.</p>
+<p>Coverage is computed only for pairs that pass <code>min_sim</code>:
+the two sequences are aligned locally (Smith-Waterman <span
+class="citation">(<a href="#ref-smith1981local">Smith and Waterman
+1981</a>)</span>; BLOSUM62, gap opening 11, extension 1), and <span
+class="math inline">\(\mathrm{cov}_{ij}\)</span> is the smaller of the
+two fractions of each sequence that the alignment spans. A pair that
+shares one domain but differs over the rest of two long proteins can
+still have a high predicted TM-score; the coverage threshold keeps such
+a pair from becoming an edge. Coverage is a hard gate: it removes edges
+but never rescales their weights. <code>min_coverage = 0</code> skips
+the alignments; <code>n_cores</code> runs them in parallel.</p>
+<p>The result is an ordinary symmetric matrix (1 on the diagonal, 0 for
+every non-edge), so it can be clustered by other graph algorithms as
+well; <code>bin_proteins()</code> is one choice, not a requirement.</p>
+<pre class="r"><code>S &lt;- protein_similarity(x)
+c(proteins = nrow(S), edges = sum(S[upper.tri(S)] &gt; 0))
+#&gt; proteins    edges 
+#&gt;      667     3058</code></pre>
+</div>
+<div id="bin-proteins" class="section level2">
+<h2><code>bin_proteins()</code></h2>
+<p><code>bin_proteins(S, inflation = 2)</code> partitions the graph by
+Markov clustering (MCL) <span class="citation">(<a
+href="#ref-vandongen2000mcl"><span class="nocase">van Dongen</span>
+2000</a>)</span>. MCL simulates random walks on the weighted graph,
+alternating expansion (matrix powers) with inflation (elementwise powers
+followed by renormalisation), so that flow concentrates within densely
+connected regions. Clustering proteins by MCL on a pairwise-similarity
+network goes back to TRIBE-MCL <span class="citation">(<a
+href="#ref-enright2002tribemcl">Enright et al. 2002</a>)</span> and
+OrthoMCL <span class="citation">(<a href="#ref-li2003orthomcl">Li et al.
+2003</a>)</span>. Here, each connected component is clustered
+separately, each protein’s self-loop takes the weight of its heaviest
+edge (as in the <code>mcl</code> program), and proteins without edges
+become singleton bins. Higher inflation gives more, smaller bins.</p>
+<pre class="r"><code>b &lt;- bin_proteins(S)
+b$graph
+#&gt;          proteins             edges          isolated        components 
+#&gt;               667              3058                87               165 
+#&gt; largest_component 
+#&gt;                70
+head(lengths(b$clusters))
+#&gt; bin1 bin2 bin3 bin4 bin5 bin6 
+#&gt;   48   25   23   22   19   19</code></pre>
+<p>The result lists the members of each bin (<code>clusters</code>),
+each protein’s bin (<code>membership</code>), a medoid per bin
+(<code>representatives</code>) and a summary of the graph
+(<code>graph</code>).</p>
+<p><strong>Thresholds define edges, not bins.</strong> If A–B and B–C
+are edges, MCL can put A, B and C in one bin even when A–C is below
+<code>min_sim</code>. A bin therefore does not guarantee that every pair
+of its members passes the thresholds. Three toy proteins with embeddings
+at 0°, 40° and 80° on a circle, so neighbours have cosine 0.77 and the
+two ends 0.17:</p>
+<pre class="r"><code>toy &lt;- Biostrings::AAStringSet(c(A = &quot;MKVLA&quot;, B = &quot;MKVLG&quot;, C = &quot;MKVLS&quot;))
+angle &lt;- c(0, 40, 80) * pi / 180
+S4Vectors::mcols(toy)$embedding &lt;- cbind(cos(angle), sin(angle))
+S_toy &lt;- protein_similarity(toy, min_coverage = 0)
+round(S_toy, 2) # A-C: cosine 0.17, below min_sim, so no edge
+#&gt;      A    B    C
+#&gt; A 1.00 0.77 0.00
+#&gt; B 0.77 1.00 0.77
+#&gt; C 0.00 0.77 1.00
+bin_proteins(S_toy)$clusters
+#&gt; $bin1
+#&gt; [1] &quot;A&quot; &quot;B&quot; &quot;C&quot;</code></pre>
+</div>
+<div id="bin-glom" class="section level2">
+<h2><code>bin_glom()</code></h2>
+<p><code>bin_glom(counts, bins)</code> sums the counts of each bin’s
+members:</p>
+<pre><code>counts (samples × proteins) ──► membership ──► counts (samples × bins)</code></pre>
+<p>Sample totals are unchanged and a sparse <code>Matrix</code> stays
+sparse. Give it raw counts when the next step is a count model such as
+DESeq2.</p>
+<pre class="r"><code>bin_glom(counts, b)[, 1:5]
+#&gt;    bin1 bin2 bin3 bin4 bin5
+#&gt; s1   10    0    0    0   20
+#&gt; s2   50    0    0    0   10
+#&gt; s3    0    0    0    0    0</code></pre>
+</div>
+</div>
+<div id="qc-and-visualization" class="section level1">
+<h1>QC and visualization</h1>
+<div id="plot-tsne" class="section level2">
+<h2><code>plot_tsne()</code></h2>
+<p><code>plot_tsne(x, color = NULL)</code> draws a two-dimensional t-SNE
+<span class="citation">(<a href="#ref-vandermaaten2008tsne"><span
+class="nocase">van der Maaten and Hinton</span> 2008</a>)</span> of the
+embeddings computed on cosine distance, <span class="math inline">\(1 -
+s_{ij}\)</span> (for TM-Vec, one minus the predicted TM-score).
+<code>color</code> takes labels named by protein; the 12 most frequent
+are coloured. t-SNE preserves local neighbourhoods, not distances
+between clusters or their sizes, and the layout depends on the random
+seed.</p>
+<pre class="r"><code>set.seed(1)
+plot_tsne(x, color = ec3)</code></pre>
+<p><img src="reference_files/figure-html/tsne-1.png" alt="" width="576" /></p>
+</div>
+<div id="plot-bin-similarity" class="section level2">
+<h2><code>plot_bin_similarity()</code></h2>
+<p><code>plot_bin_similarity(bins, bin, S, x)</code> shows every
+pairwise similarity among one bin’s members. Cell colour is the raw
+similarity from the embeddings, before any threshold; outlined cells are
+the edges of <code>S</code>, the pairs that passed both thresholds.
+Pairs without an outline are in the bin through shared neighbours, or
+passed <code>min_sim</code> but failed the coverage gate.</p>
+<pre class="r"><code>edge_share &lt;- vapply(b$clusters, function(m) {
+    E &lt;- S[m, m]
+    mean(E[upper.tri(E)] &gt; 0)
+}, numeric(1))
+sizes &lt;- lengths(b$clusters)
+shown &lt;- names(which.min(edge_share[sizes &gt;= 5 &amp; sizes &lt;= 15]))
+plot_bin_similarity(b, shown, S, x)</code></pre>
+<p><img src="reference_files/figure-html/bin-similarity-1.png" alt="" width="624" /></p>
+<p>The bin shown is the one between 5 and 15 members with the smallest
+share of pairs that are edges.</p>
+</div>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-elnaggar2022prottrans" class="csl-entry">
+Elnaggar, Ahmed, Michael Heinzinger, Christian Dallago, et al. 2022.
+<span>“<span>ProtTrans</span>: Toward Understanding the Language of Life
+Through Self-Supervised Learning.”</span> <em>IEEE Transactions on
+Pattern Analysis and Machine Intelligence</em> 44 (10): 7112–27. <a
+href="https://doi.org/10.1109/TPAMI.2021.3095381">https://doi.org/10.1109/TPAMI.2021.3095381</a>.
+</div>
+<div id="ref-enright2002tribemcl" class="csl-entry">
+Enright, Anton J., Stijn Van Dongen, and Christos A. Ouzounis. 2002.
+<span>“An Efficient Algorithm for Large-Scale Detection of Protein
+Families.”</span> <em>Nucleic Acids Research</em> 30 (7): 1575–84. <a
+href="https://doi.org/10.1093/nar/30.7.1575">https://doi.org/10.1093/nar/30.7.1575</a>.
+</div>
+<div id="ref-gretton2012mmd" class="csl-entry">
+Gretton, Arthur, Karsten M. Borgwardt, Malte J. Rasch, Bernhard
+Schölkopf, and Alexander Smola. 2012. <span>“A Kernel Two-Sample
+Test.”</span> <em>Journal of Machine Learning Research</em> 13: 723–73.
+</div>
+<div id="ref-hamamsy2024tmvec" class="csl-entry">
+Hamamsy, Tymor, James T. Morton, Robert Blackwell, et al. 2024.
+<span>“Protein Remote Homology Detection and Structural Alignment Using
+Deep Learning.”</span> <em>Nature Biotechnology</em> 42 (6): 975–85. <a
+href="https://doi.org/10.1038/s41587-023-01917-2">https://doi.org/10.1038/s41587-023-01917-2</a>.
+</div>
+<div id="ref-li2003orthomcl" class="csl-entry">
+Li, Li, Christian J. Stoeckert, and David S. Roos. 2003.
+<span>“<span>OrthoMCL</span>: Identification of Ortholog Groups for
+Eukaryotic Genomes.”</span> <em>Genome Research</em> 13 (9): 2178–89. <a
+href="https://doi.org/10.1101/gr.1224503">https://doi.org/10.1101/gr.1224503</a>.
+</div>
+<div id="ref-muandet2017kme" class="csl-entry">
+Muandet, Krikamol, Kenji Fukumizu, Bharath Sriperumbudur, and Bernhard
+Schölkopf. 2017. <span>“Kernel Mean Embedding of Distributions: A Review
+and Beyond.”</span> <em>Foundations and Trends in Machine Learning</em>
+10 (1–2): 1–141. <a
+href="https://doi.org/10.1561/2200000060">https://doi.org/10.1561/2200000060</a>.
+</div>
+<div id="ref-smith1981local" class="csl-entry">
+Smith, Temple F., and Michael S. Waterman. 1981. <span>“Identification
+of Common Molecular Subsequences.”</span> <em>Journal of Molecular
+Biology</em> 147 (1): 195–97. <a
+href="https://doi.org/10.1016/0022-2836(81)90087-5">https://doi.org/10.1016/0022-2836(81)90087-5</a>.
+</div>
+<div id="ref-vandermaaten2008tsne" class="csl-entry">
+<span class="nocase">van der Maaten, Laurens, and Geoffrey
+Hinton</span>. 2008. <span>“Visualizing Data Using <span
+class="nocase">t-SNE</span>.”</span> <em>Journal of Machine Learning
+Research</em> 9: 2579–605.
+</div>
+<div id="ref-vandongen2000mcl" class="csl-entry">
+<span class="nocase">van Dongen, Stijn</span>. 2000. <span>“Graph
+Clustering by Flow Simulation.”</span> PhD thesis, University of
+Utrecht.
+</div>
+<div id="ref-zhang2004tmscore" class="csl-entry">
+Zhang, Yang, and Jeffrey Skolnick. 2004. <span>“Scoring Function for
+Automated Assessment of Protein Structure Template Quality.”</span>
+<em>Proteins: Structure, Function, and Bioinformatics</em> 57 (4):
+702–10. <a
+href="https://doi.org/10.1002/prot.20264">https://doi.org/10.1002/prot.20264</a>.
+</div>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

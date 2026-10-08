@@ -1,0 +1,138 @@
+---
+title: "MCL parameters"
+subtitle: "How the graph thresholds and inflation shape the bins"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE, comment = "#>", fig.width = 8, fig.height = 3.6,
+    message = FALSE, warning = FALSE
+)
+```
+
+`protein_similarity()` and `bin_proteins()` have three parameters: the
+similarity threshold `min_sim`, the coverage threshold `min_coverage` and the
+MCL `inflation`. This page scores a grid of the three against known enzyme
+labels, using the [simulation](simulation.html) universe of experimentally
+characterised Swiss-Prot enzymes.
+
+```{r libs}
+library(repdist)
+library(ggplot2)
+```
+
+```{r data}
+u <- readRDS(file.path("curated", "simulation_universe.rds"))
+x <- u$proteins
+ec4 <- setNames(u$annotation$ec4, u$annotation$protein)
+ec3 <- setNames(u$annotation$ec3, u$annotation$protein)
+length(x)
+```
+
+# Grid
+
+```{r grid}
+grid <- expand.grid(min_sim = c(0.6, 0.7, 0.8, 0.9),
+    min_coverage = c(0, 0.5, 0.8), inflation = c(1.5, 2, 3, 4))
+nrow(grid)
+```
+
+The two thresholds act independently on each pair, so one similarity matrix
+per coverage threshold, computed at the lowest `min_sim`, gives every other
+`min_sim` by zeroing the pairs below it. The check below confirms this for
+the package defaults.
+
+```{r similarity}
+n_cores <- BiocParallel::multicoreWorkers()
+base <- lapply(c(`0` = 0, `0.5` = 0.5, `0.8` = 0.8), function(cv) {
+    protein_similarity(x, min_sim = 0.6, min_coverage = cv, n_cores = n_cores)
+})
+gate <- function(S, t) {
+    S[S < t] <- 0
+    diag(S) <- 1
+    S
+}
+stopifnot(isTRUE(all.equal(gate(base[["0.5"]], 0.7),
+    protein_similarity(x, min_sim = 0.7, min_coverage = 0.5,
+        n_cores = n_cores))))
+```
+
+# Scores
+
+Each setting is scored on protein pairs. **Precision** is the share of pairs
+placed in one bin that carry the same label; **recall** is the share of
+same-label pairs placed in one bin; F1 is their harmonic mean. Pair counts
+grow with the square of bin size, so large mixed bins weigh heavily on
+precision.
+
+```{r scores}
+pair_scores <- function(membership, labels) {
+    tab <- table(membership, labels[names(membership)])
+    same_bin_same_label <- sum(choose(tab, 2))
+    c(precision = same_bin_same_label / sum(choose(rowSums(tab), 2)),
+        recall = same_bin_same_label / sum(choose(colSums(tab), 2)))
+}
+results <- do.call(rbind, lapply(seq_len(nrow(grid)), function(k) {
+    g <- grid[k, ]
+    b <- bin_proteins(gate(base[[as.character(g$min_coverage)]], g$min_sim),
+        inflation = g$inflation)
+    sizes <- lengths(b$clusters)
+    s4 <- pair_scores(b$membership, ec4)
+    s3 <- pair_scores(b$membership, ec3)
+    data.frame(g, bins = length(sizes),
+        `singletons (%)` = 100 * sum(sizes == 1) / length(x),
+        `largest bin` = max(sizes),
+        `EC4 precision` = s4[["precision"]], `EC4 recall` = s4[["recall"]],
+        `EC4 F1` = 2 * prod(s4) / sum(s4),
+        `EC3 precision` = s3[["precision"]], `EC3 recall` = s3[["recall"]],
+        check.names = FALSE)
+}))
+```
+
+```{r f1-plot, fig.alt = "EC4 F1 against the similarity threshold, by coverage threshold and inflation"}
+ggplot(results, aes(min_sim, `EC4 F1`, colour = factor(inflation))) +
+    geom_line() +
+    geom_point(size = 1.5) +
+    facet_wrap(~min_coverage, labeller = label_both) +
+    labs(x = "min_sim (predicted TM-score)", y = "EC4 pairwise F1",
+        colour = "inflation") +
+    theme_bw()
+```
+
+```{r table}
+knitr::kable(results[order(results$min_coverage, results$min_sim,
+    results$inflation), ], digits = 3, row.names = FALSE)
+```
+
+# Reading
+
+```{r reading-values, include = FALSE}
+def <- results[results$min_sim == 0.7 & results$min_coverage == 0.5 &
+    results$inflation == 2, ]
+nocov <- results[results$min_sim == 0.7 & results$min_coverage == 0 &
+    results$inflation == 2, ]
+covered <- results[results$min_coverage > 0, ]
+```
+
+- **The coverage gate matters most.** Without it, low similarity thresholds
+  chain proteins that share a single domain into a few very large bins (the
+  largest holds `r nocov[["largest bin"]]` proteins at `min_sim` 0.7 and
+  inflation 2) and EC3 precision drops to
+  `r round(nocov[["EC3 precision"]], 2)`, against
+  `r round(def[["EC3 precision"]], 2)` with `min_coverage` 0.5.
+- **With the coverage gate, the scores change slowly.** Raising `min_sim` or
+  inflation trades recall for precision: across those settings EC4 F1 stays
+  between `r round(min(covered[["EC4 F1"]]), 2)` and
+  `r round(max(covered[["EC4 F1"]]), 2)`. The package defaults
+  (`min_sim` 0.7, `min_coverage` 0.5, inflation 2) give EC4 F1
+  `r round(def[["EC4 F1"]], 2)` with
+  `r round(def[["singletons (%)"]])`% singletons.
+- **Bins are structural, labels are functional.** EC3 precision is high but
+  EC4 precision is low at every setting: a bin often holds one structural
+  family whose members catalyse related but different reactions. No setting
+  turns structural bins into EC4 classes; the thresholds choose the
+  granularity of the structural grouping.
+
+```{r session}
+sessionInfo()
+```

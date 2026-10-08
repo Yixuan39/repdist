@@ -9,10 +9,9 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Yixuan Yang" />
 
 
-<title>Real-data validation: the mouse dietary-protein metaproteome</title>
+<title>Case study</title>
 
 <script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -63,6 +62,28 @@ if (window.hljs) {
 
 
 
+<style type="text/css">
+/* for pandoc --citeproc since 2.11 */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
 
 
 
@@ -321,29 +342,41 @@ div.tocify {
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-        <li>
-  <a href="simulation.html">Simulation</a>
-</li>
-<li>
-  <a href="case_study.html">Real-data validation</a>
-</li>
-<li>
-  <a href="index.html#installation">Install</a>
-</li>
-<li class="dropdown">
+        <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Reproducing
+    Reference
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="index.html#reproducing">Rebuilding the site</a>
+      <a href="reference.html">Overview</a>
     </li>
     <li>
-      <a href="data_curation.html">Data curation for the real-data validation</a>
+      <a href="reference.html#protein-representations">Protein representations</a>
+    </li>
+    <li>
+      <a href="reference.html#sample-level-distance-mmd">Sample-level distance: MMD</a>
+    </li>
+    <li>
+      <a href="reference.html#protein-similarity-graph-and-mcl-clustering">Protein similarity graph and MCL clustering</a>
+    </li>
+    <li>
+      <a href="reference.html#qc-and-visualization">QC and visualization</a>
     </li>
   </ul>
+</li>
+<li>
+  <a href="simulation.html">Simulation</a>
+</li>
+<li>
+  <a href="parameters.html">MCL parameters</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li>
+  <a href="index.html#installation">Install</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -362,650 +395,891 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Real-data validation: the mouse
-dietary-protein metaproteome</h1>
-<h4 class="author">Yixuan Yang</h4>
+<h1 class="title toc-ignore">Case study</h1>
+<h3 class="subtitle">Mouse gut metaproteome: 20% yeast vs 20% casein
+protein</h3>
 
 </div>
 
 
-<p>The <a href="simulation.html">simulation benchmark</a> tests the
-method against a known functional truth. This page runs the same
-workflow on a real metaproteome, where there is no such truth, to check
-that it behaves sensibly at the size of a full catalog:</p>
-<ol style="list-style-type: decimal">
-<li><strong>Beta diversity</strong> with RBF-MMD and PERMANOVA.</li>
-<li><strong>MCL bins</strong> on the TM-Vec similarity graph at the
-package defaults.</li>
-<li><strong>Differential abundance</strong> on the bins with
-DESeq2.</li>
-<li><strong>Functional reading</strong> of the most responsive annotated
-bins.</li>
-</ol>
+<p>This page runs the <code>repdist</code> workflow on a published
+metaproteome: beta diversity with MMD (<code>sample_mmd()</code>, the
+maximum mean discrepancy under a Gaussian RBF kernel on the protein
+embeddings), the representation space, MCL bins, and bin-level
+differential abundance.</p>
 <pre class="r"><code>library(repdist)
 library(ggplot2)
-library(phyloseq)</code></pre>
-<div id="the-full-dataset" class="section level1">
-<h1>The full dataset</h1>
-<p>The study is Blakeley-Ruiz <em>et al.</em>, <em>ISME J</em>
-<strong>19</strong>(1) wraf048: mouse faecal metaproteomes across six
-dietary protein sources, quantified by spectral counting.</p>
-<pre class="r"><code>path &lt;- file.path(&quot;data&quot;, &quot;test_study&quot;)
-MAX_AA &lt;- 3000L
-
-ps &lt;- readRDS(file.path(path, &quot;ps.rds&quot;))
-floor_depth &lt;- min(sample_sums(ps))
-
-set.seed(1)
-psd &lt;- rarefy_even_depth(ps, sample.size = floor_depth, rngseed = 1,
-                         replace = FALSE, verbose = FALSE)
-psd &lt;- prune_samples(sample_data(psd)$phase != &quot;baseline&quot;, psd)
-psd &lt;- prune_taxa(taxa_sums(psd) &gt; 0, psd)
-
-n_after_rarefaction &lt;- ntaxa(psd)
-protein_length &lt;- Biostrings::width(refseq(psd)[taxa_names(psd)])
-too_long &lt;- protein_length &gt; MAX_AA
-long_abundance &lt;- sum(taxa_sums(psd)[too_long]) / sum(taxa_sums(psd))
-psd &lt;- prune_taxa(!too_long, psd)
-
-keep &lt;- taxa_names(psd)
-psu &lt;- prune_samples(sample_data(ps)$phase != &quot;baseline&quot;, ps)
-psu &lt;- prune_taxa(taxa_names(psu) %in% keep, psu)
-
-counts &lt;- Matrix::Matrix(t(as(otu_table(psd), &quot;matrix&quot;)), sparse = TRUE)
-counts_raw &lt;- t(as(otu_table(psu), &quot;matrix&quot;))[rownames(counts), keep, drop = FALSE]
-
-md &lt;- data.frame(sample_data(psd))[rownames(counts), ]
-md$diet &lt;- factor(md$diet)
-md$dose &lt;- factor(md$dose)
-md$subject &lt;- factor(md$subject)
-
-# Annotations from Extended Data Table 6: join on Protein Identifier, fall
-# back to the species-code column, and keep a match only where the residue
-# count agrees.
-t6 &lt;- read.delim(file.path(path, &quot;annotated&quot;,
-                           &quot;ExtendedDataTable6AnnotatedMicrobialMetaproteomes.txt&quot;),
-                 skip = 2, quote = &quot;\&quot;&quot;, check.names = FALSE,
-                 colClasses = &quot;character&quot;, comment.char = &quot;&quot;, fileEncoding = &quot;latin1&quot;)
-len &lt;- Biostrings::width(refseq(psd)[keep])
-agrees &lt;- function(r) !is.na(r) &amp; suppressWarnings(as.integer(t6$AA[r])) == len
-r_id &lt;- match(keep, t6[[&quot;Protein Identifier&quot;]])
-r_code &lt;- match(keep, t6[[&quot;Protein Identifier with Species Code&quot;]])
-row &lt;- ifelse(agrees(r_id), r_id, ifelse(agrees(r_code), r_code, NA))
-annotation &lt;- t6[[&quot;Consensus annotation&quot;]][row]
-annotation[!nzchar(trimws(annotation)) | tolower(annotation) == &quot;unknown&quot;] &lt;- NA
-taxa &lt;- data.frame(
-  genus = as(tax_table(psd), &quot;matrix&quot;)[keep, &quot;Genus&quot;],
-  annotation = annotation,
-  row.names = keep, stringsAsFactors = FALSE)
-
-d &lt;- list(counts = counts, counts_raw = counts_raw, metadata = md, taxa = taxa)
-
-c(samples = nrow(counts), proteins = ncol(counts),
-  removed_over_3000aa = sum(too_long),
-  removed_abundance_pct = round(100 * long_abundance, 3))
-#&gt;               samples              proteins   removed_over_3000aa 
-#&gt;                99.000             19171.000                21.000 
-#&gt; removed_abundance_pct 
-#&gt;                 0.073
-table(md$diet)
+library(vegan)</code></pre>
+<div id="study-and-comparison" class="section level1">
+<h1>Study and comparison</h1>
+<p>Blakeley-Ruiz <em>et al.</em> <span class="citation">(<a
+href="#ref-blakeleyruiz2025diet">Blakeley-Ruiz et al. 2025</a>)</span>
+fed twelve mice (two cages of three per sex) a series of defined diets,
+one week each, and measured faecal metaproteomes by spectral counting
+(PRIDE PXD041586).</p>
+<p><strong>The input sequences are already sequence-reduced.</strong>
+The microbial protein catalog comes from metagenome-assembled genomes
+annotated with PROKKA; unbinned genes were added only if no binned gene
+matched them at 90% identity (CD-HIT-2D), and the host and diet
+reference proteomes were clustered at 95% identity. Every reported
+protein also has at least one protein-unique peptide. Near-identical
+proteins are therefore rare in the table (see <a
+href="#edge-identity">sequence identity of graph edges</a>): the
+relatedness that MMD and the bins add beyond protein identity is mostly
+remote homology. This is consistent with the modest difference between
+MMD and protein-level Bray-Curtis below.</p>
+<p>This page compares two diets of the same protein amount: <strong>20%
+yeast protein (Yeast) against 20% casein (Casein)</strong>, casein being
+the reference protein of the series. Only mice sampled on both diets are
+used (11 pairs), and diet is tested within mouse. The yeast diet came
+three weeks after the casein diet, so diet is confounded with feeding
+period in this serial design.</p>
+<pre class="r"><code>d &lt;- readRDS(file.path(&quot;curated&quot;, &quot;diet_yeast.rds&quot;))
+x &lt;- d$proteins # sequences with TM-Vec embeddings
+counts &lt;- d$counts # raw PSM counts, samples x proteins
+samples &lt;- d$samples
+ann &lt;- d$annotation
+d$provenance$contrast
+#&gt;  Casein   Yeast 
+#&gt; &quot;20CAS&quot; &quot;20YST&quot;
+table(samples$diet, samples$sex)
+#&gt;         
+#&gt;          female male
+#&gt;   Casein      6    5
+#&gt;   Yeast       6    5</code></pre>
+<p>The curated object was built by <code>data-raw/diet_yeast.R</code>
+from the paper’s supplementary Data Set 1 (PSM counts and sequences) and
+Data Set 6 (annotation): every microbial protein with at least one PSM
+in these 22 samples, its species group and GTDB lineage, the study’s
+curated function, KEGG orthology (KO) assignments and CAZy families, and
+a TM-Vec embedding computed with <code>embed_proteins()</code>.</p>
+<p><strong>Protein length.</strong> Proteins longer than
+<code>MAX_AA</code> = 1500 residues were removed before embedding: 162
+of 11205 proteins, carrying 1.9% of the PSMs. This is an analysis
+choice, not a package limit: <code>embed_proteins()</code> embeds
+sequences of any length, but the TM-Vec head was trained on chains of up
+to 1000 residues, so predicted TM-scores for much longer chains are
+extrapolations.</p>
+<pre class="r"><code>c(samples = nrow(counts), proteins = ncol(counts))
+#&gt;  samples proteins 
+#&gt;       22    11043</code></pre>
+</div>
+<div id="beta-diversity" class="section level1">
+<h1>Beta diversity</h1>
+<p>Sequencing depth differs by diet (yeast samples have about twice the
+PSMs of casein samples), and depth changes which proteins are observed.
+Both distances are therefore computed on counts rarefied to the smallest
+sample.</p>
+<pre class="r"><code>tapply(rowSums(counts), samples$diet, range)
+#&gt; $Casein
+#&gt; [1]  6580 18758
 #&gt; 
-#&gt; Casein    Egg    Pea   Rice    Soy  Yeast 
-#&gt;     28     10     11     10     29     11</code></pre>
-<p>Rarefaction provides the abundance filter: proteins absent after
-subsampling are removed. It retained 19192 proteins; the 3,000aa ceiling
-then removed 21 more, representing only 0.073% of rarefied abundance.
-The count matrix is sparse; <code>counts_raw</code> contains unrarefied
-counts for exactly the same proteins and samples.</p>
-<p><strong>The ceiling is a choice made here, not a limit
-<code>repdist</code> imposes.</strong> <code>embed_proteins()</code>
-embeds every sequence whole – it never truncates and never silently
-drops – and no function in the package takes a maximum length. The
-reason to cut at 3,000 residues is TM-Vec: its head was trained on
-structure pairs through 1,000 residues, so a predicted TM-score for a
-chain many times longer is extrapolation well outside what the model
-saw. At 0.073% of abundance the cut costs essentially nothing here,
-which is what makes it worth taking. On a catalog where long proteins
-carry real signal, raise it or drop it.</p>
-</div>
-<div id="embedding" class="section level1">
-<h1>Embedding</h1>
-<p><code>embed_proteins()</code> embeds every sequence whole. The full
-TM-Vec embeddings are cached outside the render because model inference
-is not part of the statistical analysis.</p>
-<pre class="r"><code>cached &lt;- readRDS(file.path(path, &quot;embeddings_tmvec1_large.rds&quot;))
-x &lt;- refseq(psd)[keep]
-stopifnot(identical(as.character(x), cached$seq[keep]))
-S4Vectors::mcols(x)$embedding &lt;- cached$Z[keep, ]
-rm(cached)
-x
-#&gt; AAStringSet object of length 19171:
-#&gt;         width seq                                           names               
-#&gt;     [1]   622 MSKIIGIDLGTTNSCVAVMEG...MGAGAQDAPEDDVVDADFKEV AB100-1_Cage2_bin...
-#&gt;     [2]   343 MSFSYLKQLPSPDAIKEQYPL...DPCLGWEASEQLIYDIAEKNI AB100-1_Cage2_bin...
-#&gt;     [3]   181 MVQKLKRLKRELAHSGAIVNM...EIQDAKTVAAVMAYANKRKQE AB100-1_Cage2_bin...
-#&gt;     [4]   439 MIKVVKFGGSSLANAAQFAKA...ANHDFEAAIKAIYDIFVTTQL AB100-1_Cage2_bin...
-#&gt;     [5]   154 MENEVLVSEKNTKQYIVVKIG...HGDELISLFDIHAVVDESENI AB100-1_Cage2_bin...
-#&gt;     ...   ... ...
-#&gt; [19167]   231 MINYSHEVEKMCVVAKGPKHG...ANLGQYGRYDEAVKKIDPREE Unbin_Cage4_ELBOC...
-#&gt; [19168]   211 MKKAILATKVGMTQIFNEQGV...GAVPGPKKSLVTLKETVKVSR Unbin_Cage4_ELBOC...
-#&gt; [19169]   312 MKILPARFFQLTPNICRVAYP...PSSIPYGVIYPPPKAFCLILK Unbin_Cage4_ELBOC...
-#&gt; [19170]    59 MVTTAMGLAISEPMSLLNTMV...VRPAVRIASRFSIPPSRSWFI Unbin_Cage4_ELBOC...
-#&gt; [19171]   241 MSGTTVVMTGSKRVTEAGNGG...IPVEYVASFIVPAAWDARTDK Unbin_Cage4_ELBOC...</code></pre>
-<p><code>x</code> is the <code>AAStringSet</code> every
-<code>repdist</code> function takes: the sequences, with one embedding
-row per protein in <code>mcols(x)$embedding</code>. TM-Vec’s head was
-trained to regress TM-score, so cosine similarity between two embeddings
-is a predicted TM-score. <code>known_models()</code> lists the other
-registered representations.</p>
-<pre class="r"><code>names(known_models())
-#&gt; [1] &quot;tmvec&quot;     &quot;tmvec-300&quot; &quot;esm2-8m&quot;   &quot;esm2-150m&quot; &quot;esm2-650m&quot;</code></pre>
-</div>
-<div id="step-1-beta-diversity" class="section level1">
-<h1>Step 1: beta diversity</h1>
-<p>Bray-Curtis is the protein-identity baseline. MMD asks how far apart
-different proteins actually are. <code>sample_mmd()</code> builds a
-Euclidean RBF kernel from the embeddings, so the kernel remains positive
-semi-definite; on unit-norm TM-Vec embeddings that distance is a
-monotone transform of predicted TM-score.</p>
-<pre class="r"><code>D &lt;- list(
-  `Bray-Curtis` = vegan::vegdist(as.matrix(d$counts), &quot;bray&quot;),
-  `MMD` = sample_mmd(d$counts, x))</code></pre>
-<p>Both are abundance-weighted, so richness is checked before
-interpreting the diet effect.</p>
-<pre class="r"><code>rich &lt;- vegan::specnumber(as.matrix(d$counts))
-round(vapply(D, function(x) cor(rich, rowMeans(as.matrix(x))), numeric(1)), 2)
-#&gt; Bray-Curtis         MMD 
-#&gt;       -0.37       -0.54</code></pre>
-<div id="permanova" class="section level2">
-<h2>PERMANOVA</h2>
-<p>Amount of protein, sex and age remain as covariates and diet enters
-last. Permutations are blocked within mouse.</p>
-<pre class="r"><code>perm &lt;- permute::how(blocks = md$subject, nperm = 999)
-
-res &lt;- do.call(rbind, lapply(names(D), function(n) {
-  set.seed(1)
-  a &lt;- vegan::adonis2(D[[n]] ~ dose + sex + age_week + diet, data = md,
-                      by = &quot;terms&quot;, permutations = perm)
-  data.frame(distance = n, R2 = round(a[&quot;diet&quot;, &quot;R2&quot;], 3),
-             F = round(a[&quot;diet&quot;, &quot;F&quot;], 2), p = a[&quot;diet&quot;, &quot;Pr(&gt;F)&quot;])
-}))
-knitr::kable(res, row.names = FALSE)</code></pre>
+#&gt; $Yeast
+#&gt; [1] 19715 30594
+set.seed(1)
+rarefied &lt;- rrarefy(counts, min(rowSums(counts)))
+D &lt;- list(
+    `Bray-Curtis (protein)` = vegdist(rarefied, &quot;bray&quot;),
+    MMD = sample_mmd(rarefied, x)
+)
+attr(D$MMD, &quot;sigma&quot;)
+#&gt; [1] 1.145504</code></pre>
+<p>PERMANOVA <span class="citation">(<a
+href="#ref-anderson2001permanova">Anderson 2001</a>)</span> and PERMDISP
+<span class="citation">(<a href="#ref-anderson2006permdisp">Anderson
+2006</a>)</span> use 999 permutations restricted to within mouse.</p>
+<pre class="r"><code>perm &lt;- permute::how(blocks = samples$subject, nperm = 999)
+tests &lt;- t(vapply(D, function(Dk) {
+    set.seed(1)
+    a &lt;- adonis2(Dk ~ diet, data = samples, permutations = perm)
+    bd &lt;- betadisper(Dk, samples$diet)
+    set.seed(1)
+    pd &lt;- permutest(bd, permutations = perm)
+    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(&gt;F)`[1],
+        dispersion_Casein = mean(bd$distances[samples$diet == &quot;Casein&quot;]),
+        dispersion_Yeast = mean(bd$distances[samples$diet == &quot;Yeast&quot;]),
+        PERMDISP_p = pd$tab[1, &quot;Pr(&gt;F)&quot;])
+}, numeric(6)))
+knitr::kable(tests, digits = 3)</code></pre>
 <table>
+<colgroup>
+<col width="25%" />
+<col width="6%" />
+<col width="8%" />
+<col width="6%" />
+<col width="20%" />
+<col width="19%" />
+<col width="12%" />
+</colgroup>
 <thead>
 <tr class="header">
-<th align="left">distance</th>
+<th align="left"></th>
 <th align="right">R2</th>
 <th align="right">F</th>
 <th align="right">p</th>
+<th align="right">dispersion_Casein</th>
+<th align="right">dispersion_Yeast</th>
+<th align="right">PERMDISP_p</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">Bray-Curtis</td>
-<td align="right">0.253</td>
-<td align="right">8.65</td>
+<td align="left">Bray-Curtis (protein)</td>
+<td align="right">0.434</td>
+<td align="right">15.346</td>
+<td align="right">0.001</td>
+<td align="right">0.436</td>
+<td align="right">0.335</td>
 <td align="right">0.001</td>
 </tr>
 <tr class="even">
 <td align="left">MMD</td>
-<td align="right">0.316</td>
-<td align="right">11.93</td>
+<td align="right">0.408</td>
+<td align="right">13.765</td>
 <td align="right">0.001</td>
+<td align="right">0.032</td>
+<td align="right">0.040</td>
+<td align="right">0.005</td>
 </tr>
 </tbody>
 </table>
-</div>
-<div id="ordination" class="section level2">
-<h2>Ordination</h2>
 <pre class="r"><code>ord &lt;- do.call(rbind, lapply(names(D), function(n) {
-  e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
-  rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0])
-  data.frame(
-    Axis1 = e$points[, 1], Axis2 = e$points[, 2],
-    diet = md[rownames(e$points), &quot;diet&quot;],
-    panel = sprintf(&quot;%s  (PCo1 %.1f%%, PCo2 %.1f%%)&quot;, n, rel[1], rel[2]))
+    e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
+    rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0])
+    data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
+        diet = samples$diet, subject = samples$subject,
+        panel = sprintf(&quot;%s\nPCo1 %.0f%%, PCo2 %.0f%%&quot;, n, rel[1], rel[2]))
 }))
-
-ggplot(ord, aes(Axis1, Axis2, colour = diet)) +
-  geom_point(size = 1.6, alpha = 0.85) +
-  stat_ellipse(type = &quot;t&quot;, linewidth = 0.3) +
-  facet_wrap(~ panel, scales = &quot;free&quot;) +
-  labs(x = &quot;PCo1&quot;, y = &quot;PCo2&quot;, colour = &quot;diet&quot;) +
-  theme_bw() +
-  theme(legend.position = &quot;bottom&quot;)</code></pre>
-<p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under Bray-Curtis and RBF-MMD, coloured by dietary protein source" width="624" /></p>
+ord$panel &lt;- factor(ord$panel, unique(ord$panel))
+ggplot(ord, aes(PCo1, PCo2)) +
+    geom_line(aes(group = subject), colour = &quot;grey75&quot;) +
+    geom_point(aes(colour = diet), size = 2) +
+    facet_wrap(~panel, scales = &quot;free&quot;) +
+    labs(colour = NULL) +
+    theme_bw() +
+    theme(legend.position = &quot;bottom&quot;)</code></pre>
+<p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under protein-level Bray-Curtis and MMD; lines join the two samples of each mouse" width="768" /></p>
+<p>Each grey line joins the casein and yeast samples of one mouse.</p>
+<p>Both distances separate the diets with similar effect sizes, and for
+both PERMDISP also detects unequal spread, in opposite directions:
+casein samples are more dispersed under Bray-Curtis, yeast samples under
+MMD. PERMANOVA with equal group sizes is fairly robust to unequal
+dispersion, and the paired samples are displaced along the first axis in
+both ordinations, so the separation is mainly a shift in location, with
+a difference in spread on top. Under Bray-Curtis the second axis
+separates the two mouse groups, which came from different vendor
+rooms.</p>
 </div>
+<div id="representation-space" class="section level1">
+<h1>Representation space</h1>
+<p><code>plot_tsne()</code> maps all proteins by cosine distance (one
+minus the predicted TM-score), coloured by the study’s manually curated
+broad function; proteins without one are grey. The map shows
+neighbourhoods in representation space; it is not evidence of function,
+and t-SNE does not preserve distances between groups.</p>
+<pre class="r"><code>set.seed(1)
+plot_tsne(x, color = setNames(ann$broad_function, ann$protein))</code></pre>
+<p><img src="case_study_files/figure-html/tsne-function-1.png" alt="t-SNE of protein embeddings coloured by broad function" width="720" /></p>
+<p>The study assigned a KO to 79% of the proteins. Proteins without a KO
+have fewer close relatives in the catalog: the quartiles of each
+protein’s nearest-neighbour predicted TM-score, by KO status:</p>
+<pre class="r"><code>ko_status &lt;- ifelse(is.na(ann$ko), &quot;no KO&quot;, &quot;KO assigned&quot;)
+Z &lt;- S4Vectors::mcols(x)$embedding
+Z &lt;- Z / sqrt(rowSums(Z^2))
+sim &lt;- tcrossprod(Z)
+diag(sim) &lt;- NA
+nearest &lt;- apply(sim, 1, max, na.rm = TRUE)
+rm(sim)
+tapply(nearest, ko_status, quantile, probs = c(0.25, 0.5, 0.75))
+#&gt; $`KO assigned`
+#&gt;       25%       50%       75% 
+#&gt; 0.9051614 0.9738381 0.9949341 
+#&gt; 
+#&gt; $`no KO`
+#&gt;       25%       50%       75% 
+#&gt; 0.7800647 0.8554373 0.9247885</code></pre>
 </div>
-<div id="step-2-mcl-bins" class="section level1">
-<h1>Step 2: MCL bins</h1>
-<p><code>protein_similarity()</code> keeps a pair as an edge when its
-predicted TM-score is at least <code>min_sim</code> (0.7 by default) and
-its local alignment covers at least half of both sequences, so two
-proteins sharing only one domain are not joined.
-<code>bin_proteins()</code> runs Markov clustering on the resulting
-graph at inflation 2; proteins with no edge stay singletons. The floor
-decides which pairs connect, not what a bin holds: a bin can hold pairs
-below it, joined through shared neighbours.</p>
-<pre class="r"><code>S &lt;- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())</code></pre>
-<pre class="r"><code>b &lt;- bin_proteins(S, inflation = 2)
+<div id="protein-bins" class="section level1">
+<h1>Protein bins</h1>
+<p>The similarity graph and MCL bins use the package defaults: an edge
+needs a predicted TM-score of at least 0.7 and a local alignment
+covering at least half of both sequences; MCL inflation is 2.</p>
+<pre class="r"><code>S &lt;- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())
+b &lt;- bin_proteins(S)
 b$graph
 #&gt;          proteins             edges          isolated        components 
-#&gt;             19171            234289              2537              3762 
+#&gt;             11043             85928              1828              2737 
 #&gt; largest_component 
-#&gt;              3057</code></pre>
-<p>The unrarefied counts sum to bin level with
-<code>bin_glom()</code>.</p>
-<pre class="r"><code>bin_cnt &lt;- bin_glom(d$counts_raw, b)
-c(proteins = ncol(d$counts_raw), bins = ncol(bin_cnt))
-#&gt; proteins     bins 
-#&gt;    19171     4554</code></pre>
-<pre class="r"><code>sizes &lt;- lengths(b$clusters)
-table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
-          labels = c(&quot;1&quot;, &quot;2&quot;, &quot;3-5&quot;, &quot;6-10&quot;, &quot;&gt;10&quot;)))
+#&gt;              1292
+sizes &lt;- lengths(b$clusters)
+c(proteins = length(x), bins = length(sizes),
+    singleton_bins = sum(sizes == 1),
+    singleton_fraction = round(sum(sizes == 1) / length(x), 3))
+#&gt;           proteins               bins     singleton_bins singleton_fraction 
+#&gt;          11043.000           3149.000           1839.000              0.167
+table(cut(sizes, c(0, 1, 2, 5, 10, 50, Inf),
+    labels = c(&quot;1&quot;, &quot;2&quot;, &quot;3-5&quot;, &quot;6-10&quot;, &quot;11-50&quot;, &quot;&gt;50&quot;)))
 #&gt; 
-#&gt;    1    2  3-5 6-10  &gt;10 
-#&gt; 2567  646  670  314  357</code></pre>
-<p>2567 proteins remain singleton bins. The other 1987 bins are
-communities of proteins connected above the floor, reducing the number
-of tested units by a factor of 4.2.</p>
+#&gt;     1     2   3-5  6-10 11-50   &gt;50 
+#&gt;  1839   453   430   221   190    16</code></pre>
+<p>The 11043 proteins form 2737 connected components, the largest with
+1292 proteins; MCL splits the components into 3149 bins, 1839 of them
+singletons.</p>
+<div id="edge-identity" class="section level2">
+<h2>Sequence identity of graph edges</h2>
+<p>A random sample of 5,000 graph edges, aligned as in
+<code>protein_similarity()</code> (local, BLOSUM62), by percent
+identity:</p>
+<pre class="r"><code>set.seed(1)
+ij &lt;- which(upper.tri(S) &amp; S &gt; 0, arr.ind = TRUE)
+ij &lt;- ij[sample(nrow(ij), 5000), ]
+seqs &lt;- x
+S4Vectors::mcols(seqs) &lt;- NULL
+aln &lt;- pwalign::pairwiseAlignment(seqs[ij[, 1]], seqs[ij[, 2]],
+    substitutionMatrix = &quot;BLOSUM62&quot;, type = &quot;local&quot;,
+    gapOpening = 11, gapExtension = 1)
+identity &lt;- pwalign::pid(aln, type = &quot;PID1&quot;)
+round(prop.table(table(cut(identity, c(0, 30, 40, 50, 70, 90, 100.01),
+    right = FALSE, labels = c(&quot;&lt;30%&quot;, &quot;30-40%&quot;, &quot;40-50%&quot;, &quot;50-70%&quot;,
+        &quot;70-90%&quot;, &quot;&gt;=90%&quot;)))), 3)
+#&gt; 
+#&gt;   &lt;30% 30-40% 40-50% 50-70% 70-90%  &gt;=90% 
+#&gt;  0.355  0.166  0.131  0.219  0.121  0.008</code></pre>
+<p>Most edges join proteins with similar predicted structure but low
+sequence identity (median 38%): remote homologs, which sequence identity
+alone would not group.</p>
 </div>
-<div id="step-3-differential-abundance-with-deseq2"
-class="section level1">
-<h1>Step 3: differential abundance with DESeq2</h1>
-<p>DESeq2 fits a negative-binomial model per bin on unrarefied counts.
-The paired design blocks on subject, and diet is tested by likelihood
-ratio against the model without diet.</p>
-<pre class="r"><code>dds &lt;- DESeq2::DESeqDataSetFromMatrix(t(bin_cnt), md,
-                                      design = ~ subject + diet)
-dds &lt;- DESeq2::DESeq(dds, test = &quot;LRT&quot;, reduced = ~ subject,
-                     sfType = &quot;poscounts&quot;, quiet = TRUE)
-res_lrt &lt;- DESeq2::results(dds)
-
-c(bins_tested = nrow(res_lrt),
-  diet_significant = sum(res_lrt$padj &lt;= 0.05, na.rm = TRUE))
-#&gt;      bins_tested diet_significant 
-#&gt;             4554              657</code></pre>
-<p>Each significant bin is assigned its largest shrunken diet-vs-Casein
-fold change for ranking and display.</p>
-<pre class="r"><code>lev &lt;- setdiff(levels(md$diet), &quot;Casein&quot;)
-ddsw &lt;- DESeq2::nbinomWaldTest(dds, quiet = TRUE)
-shrunk &lt;- lapply(lev, function(l)
-  DESeq2::lfcShrink(ddsw, coef = paste0(&quot;diet_&quot;, l, &quot;_vs_Casein&quot;),
-                    type = &quot;normal&quot;, quiet = TRUE))
-names(shrunk) &lt;- lev
-fc &lt;- vapply(shrunk, function(o) o$log2FoldChange, numeric(nrow(res_lrt)))
-rownames(fc) &lt;- rownames(res_lrt)
-
-sig &lt;- rownames(res_lrt)[!is.na(res_lrt$padj) &amp; res_lrt$padj &lt;= 0.05]
-top &lt;- data.frame(
-  bin = sig,
-  members = sizes[sig],
-  padj = formatC(res_lrt[sig, &quot;padj&quot;], digits = 2, format = &quot;e&quot;),
-  diet = lev[apply(abs(fc[sig, , drop = FALSE]), 1, which.max)],
-  log2FC = round(fc[cbind(sig, lev[apply(abs(fc[sig, , drop = FALSE]),
-                                        1, which.max)])], 2))
-top &lt;- top[order(-abs(top$log2FC)), ]
-knitr::kable(head(top, 8), row.names = FALSE)</code></pre>
-<table>
-<thead>
-<tr class="header">
-<th align="left">bin</th>
-<th align="right">members</th>
-<th align="left">padj</th>
-<th align="left">diet</th>
-<th align="right">log2FC</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td align="left">bin243</td>
-<td align="right">16</td>
-<td align="left">3.64e-117</td>
-<td align="left">Yeast</td>
-<td align="right">9.12</td>
-</tr>
-<tr class="even">
-<td align="left">bin1878</td>
-<td align="right">2</td>
-<td align="left">1.35e-15</td>
-<td align="left">Yeast</td>
-<td align="right">-7.44</td>
-</tr>
-<tr class="odd">
-<td align="left">bin598</td>
-<td align="right">6</td>
-<td align="left">4.43e-14</td>
-<td align="left">Yeast</td>
-<td align="right">7.31</td>
-</tr>
-<tr class="even">
-<td align="left">bin527</td>
-<td align="right">7</td>
-<td align="left">1.41e-19</td>
-<td align="left">Yeast</td>
-<td align="right">-7.20</td>
-</tr>
-<tr class="odd">
-<td align="left">bin794</td>
-<td align="right">5</td>
-<td align="left">2.29e-27</td>
-<td align="left">Yeast</td>
-<td align="right">7.12</td>
-</tr>
-<tr class="even">
-<td align="left">bin331</td>
-<td align="right">11</td>
-<td align="left">2.45e-20</td>
-<td align="left">Yeast</td>
-<td align="right">-7.05</td>
-</tr>
-<tr class="odd">
-<td align="left">bin1238</td>
-<td align="right">3</td>
-<td align="left">9.69e-66</td>
-<td align="left">Yeast</td>
-<td align="right">6.95</td>
-</tr>
-<tr class="even">
-<td align="left">bin356</td>
-<td align="right">11</td>
-<td align="left">1.31e-39</td>
-<td align="left">Egg</td>
-<td align="right">6.88</td>
-</tr>
-</tbody>
-</table>
-<pre class="r"><code>volc &lt;- do.call(rbind, lapply(lev, function(l) {
-  o &lt;- shrunk[[l]]
-  data.frame(bin = rownames(o), diet = l, log2FoldChange = o$log2FoldChange,
-             pvalue = o$pvalue, reject = !is.na(o$padj) &amp; o$padj &lt;= 0.05)
-}))
-
-ggplot(volc, aes(log2FoldChange, -log10(pvalue), color = reject)) +
-  geom_point(alpha = 0.6, size = 1) +
-  facet_wrap(~ diet, nrow = 1) +
-  scale_color_manual(values = c(`FALSE` = &quot;grey70&quot;, `TRUE` = &quot;firebrick&quot;),
-                     guide = &quot;none&quot;) +
-  labs(x = &quot;log2 fold change vs Casein&quot;, y = expression(-log[10](p))) +
-  theme_bw()</code></pre>
-<p><img src="case_study_files/figure-html/volcano-1.png" alt="Diet-vs-Casein volcano plots for structural bins" width="864" /></p>
 </div>
-<div id="step-4-responsive-bins-read-functionally"
-class="section level1">
-<h1>Step 4: responsive bins, read functionally</h1>
-<p>Select the three most responsive multi-member bins with at least two
-annotated proteins.</p>
-<pre class="r"><code>n_ann &lt;- vapply(b$clusters[top$bin],
-                function(m) sum(!is.na(d$taxa[m, &quot;annotation&quot;])), integer(1))
-picks &lt;- head(top[top$members &gt; 1 &amp; n_ann &gt;= 2, ], 3)
-knitr::kable(picks, row.names = FALSE)</code></pre>
+<div id="differential-abundance" class="section level1">
+<h1>Differential abundance</h1>
+<p>Raw (unrarefied) protein counts are summed to bins with
+<code>bin_glom()</code> and tested with DESeq2 <span
+class="citation">(<a href="#ref-love2014deseq2">Love et al.
+2014</a>)</span>. The design <code>~ subject + diet</code> pairs the two
+samples of each mouse; size factors use the <code>poscounts</code>
+estimator because no bin is observed in every sample. Fold changes are
+Yeast relative to Casein, shrunk with the <code>normal</code> prior for
+display; p-values are from the Wald test.</p>
+<pre class="r"><code>binned &lt;- bin_glom(counts, b)
+dds &lt;- DESeq2::DESeqDataSetFromMatrix(round(t(binned)), samples,
+    design = ~ subject + diet)
+dds &lt;- DESeq2::DESeq(dds, sfType = &quot;poscounts&quot;, quiet = TRUE)
+res &lt;- DESeq2::results(dds, name = &quot;diet_Yeast_vs_Casein&quot;, alpha = 0.05)
+lfc &lt;- DESeq2::lfcShrink(dds, coef = &quot;diet_Yeast_vs_Casein&quot;, type = &quot;normal&quot;,
+    res = res, quiet = TRUE)
+DESeq2::summary(res)
+#&gt; 
+#&gt; out of 3149 with nonzero total read count
+#&gt; adjusted p-value &lt; 0.05
+#&gt; LFC &gt; 0 (up)       : 283, 9%
+#&gt; LFC &lt; 0 (down)     : 118, 3.7%
+#&gt; outliers [1]       : 0, 0%
+#&gt; low counts [2]     : 2381, 76%
+#&gt; (mean count &lt; 1)
+#&gt; [1] see &#39;cooksCutoff&#39; argument of ?results
+#&gt; [2] see &#39;independentFiltering&#39; argument of ?results</code></pre>
+<pre class="r"><code>volcano &lt;- data.frame(log2FC = lfc$log2FoldChange, p = res$pvalue,
+    significant = !is.na(res$padj) &amp; res$padj &lt; 0.05)
+ggplot(volcano[!is.na(volcano$p), ], aes(log2FC, -log10(p),
+    colour = significant)) +
+    geom_point(size = 1, alpha = 0.6) +
+    scale_colour_manual(values = c(`TRUE` = &quot;firebrick&quot;, `FALSE` = &quot;grey60&quot;),
+        labels = c(`TRUE` = &quot;padj &lt; 0.05&quot;, `FALSE` = &quot;not significant&quot;)) +
+    labs(x = &quot;log2 fold change, Yeast vs Casein (shrunk)&quot;,
+        y = expression(-log[10](p)), colour = NULL) +
+    theme_bw()</code></pre>
+<p><img src="case_study_files/figure-html/volcano-1.png" alt="Volcano plot of bin-level differential abundance, Yeast vs Casein" width="576" /></p>
+<p>Each bin’s annotation summarises its members. A label shared by every
+annotated member is shown with its count (<code>3/4</code> means three
+of four members carry it, the fourth is unannotated); bins whose
+annotated members disagree are marked <code>mixed</code> with the number
+of distinct labels and the most frequent one.</p>
+<pre class="r"><code>summarise_labels &lt;- function(v) {
+    n &lt;- length(v)
+    v &lt;- v[!is.na(v)]
+    if (!length(v)) return(&quot;-&quot;)
+    tab &lt;- sort(table(v), decreasing = TRUE)
+    top &lt;- sprintf(&quot;%s (%d/%d)&quot;, strtrim(names(tab)[1], 40), tab[[1]], n)
+    if (length(tab) == 1L) top else
+        sprintf(&quot;mixed, %d: %s&quot;, length(tab), top)
+}
+bin_table &lt;- function(bins) {
+    data.frame(
+        bin = bins,
+        proteins = sizes[bins],
+        taxon = vapply(b$clusters[bins],
+            function(m) summarise_labels(ann[m, &quot;taxon&quot;]), &quot;&quot;),
+        `function` = vapply(b$clusters[bins],
+            function(m) summarise_labels(ann[m, &quot;consensus_annotation&quot;]), &quot;&quot;),
+        KO = vapply(b$clusters[bins],
+            function(m) summarise_labels(ann[m, &quot;ko&quot;]), &quot;&quot;),
+        log2FC = round(lfc[bins, &quot;log2FoldChange&quot;], 2),
+        p = formatC(res[bins, &quot;pvalue&quot;], format = &quot;e&quot;, digits = 1),
+        padj = formatC(res[bins, &quot;padj&quot;], format = &quot;e&quot;, digits = 1),
+        check.names = FALSE, row.names = NULL
+    )
+}
+sig &lt;- rownames(res)[!is.na(res$padj) &amp; res$padj &lt; 0.05]
+sig &lt;- sig[order(res[sig, &quot;padj&quot;])]
+up_yeast &lt;- head(sig[lfc[sig, &quot;log2FoldChange&quot;] &gt; 0], 10)
+up_casein &lt;- head(sig[lfc[sig, &quot;log2FoldChange&quot;] &lt; 0], 10)</code></pre>
+<p>The ten most significant bins higher on the yeast diet:</p>
+<pre class="r"><code>knitr::kable(bin_table(up_yeast))</code></pre>
 <table>
-<thead>
-<tr class="header">
-<th align="left">bin</th>
-<th align="right">members</th>
-<th align="left">padj</th>
-<th align="left">diet</th>
-<th align="right">log2FC</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td align="left">bin243</td>
-<td align="right">16</td>
-<td align="left">3.64e-117</td>
-<td align="left">Yeast</td>
-<td align="right">9.12</td>
-</tr>
-<tr class="even">
-<td align="left">bin598</td>
-<td align="right">6</td>
-<td align="left">4.43e-14</td>
-<td align="left">Yeast</td>
-<td align="right">7.31</td>
-</tr>
-<tr class="odd">
-<td align="left">bin1238</td>
-<td align="right">3</td>
-<td align="left">9.69e-66</td>
-<td align="left">Yeast</td>
-<td align="right">6.95</td>
-</tr>
-</tbody>
-</table>
-<pre class="r"><code>info &lt;- do.call(rbind, lapply(seq_len(nrow(picks)), function(i) {
-  m &lt;- b$clusters[[picks$bin[i]]]
-  data.frame(
-    bin = picks$bin[i],
-    genus = d$taxa[m, &quot;genus&quot;],
-    annotation = substr(d$taxa[m, &quot;annotation&quot;], 1, 52),
-    mean_Casein = round(colMeans(d$counts_raw[md$diet == &quot;Casein&quot;, m,
-                                               drop = FALSE]), 1),
-    mean_top = round(colMeans(d$counts_raw[md$diet == picks$diet[i], m,
-                                           drop = FALSE]), 1))
-}))
-knitr::kable(info, row.names = FALSE)</code></pre>
-<table style="width:100%;">
 <colgroup>
-<col width="8%" />
-<col width="16%" />
-<col width="54%" />
-<col width="12%" />
-<col width="9%" />
+<col width="4%" />
+<col width="5%" />
+<col width="28%" />
+<col width="34%" />
+<col width="13%" />
+<col width="4%" />
+<col width="4%" />
+<col width="4%" />
 </colgroup>
 <thead>
 <tr class="header">
 <th align="left">bin</th>
-<th align="left">genus</th>
-<th align="left">annotation</th>
-<th align="right">mean_Casein</th>
-<th align="right">mean_top</th>
+<th align="right">proteins</th>
+<th align="left">taxon</th>
+<th align="left">function</th>
+<th align="left">KO</th>
+<th align="right">log2FC</th>
+<th align="left">p</th>
+<th align="left">padj</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">bin243</td>
-<td align="left">Paramuribaculum</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
+<td align="left">bin182</td>
+<td align="right">12</td>
+<td align="left">mixed, 2: Bacteroides thetaiotaomicron (11/12)</td>
+<td align="left">GH92 family glycosyl hydrolase (12/12)</td>
+<td align="left">-</td>
+<td align="right">9.81</td>
+<td align="left">7.9e-52</td>
+<td align="left">6.0e-49</td>
 </tr>
 <tr class="even">
-<td align="left">bin243</td>
-<td align="left">UBA7173</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">1.9</td>
+<td align="left">bin414</td>
+<td align="right">6</td>
+<td align="left">mixed, 4: Alistipes sp002428825 (1/6)</td>
+<td align="left">mixed, 2: Component of the SKI complex involved in
+(1/6)</td>
+<td align="left">mixed, 5: K02656 (2/6)</td>
+<td align="right">5.01</td>
+<td align="left">8.2e-37</td>
+<td align="left">3.1e-34</td>
 </tr>
 <tr class="odd">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">1.0</td>
+<td align="left">bin847</td>
+<td align="right">3</td>
+<td align="left">Bacteroides thetaiotaomicron (3/3)</td>
+<td align="left">mixed, 3: Multidrug efflux ATP-binding/permease pr
+(1/3)</td>
+<td align="left">-</td>
+<td align="right">7.79</td>
+<td align="left">6.3e-32</td>
+<td align="left">1.2e-29</td>
 </tr>
 <tr class="even">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">30.7</td>
+<td align="left">bin854</td>
+<td align="right">3</td>
+<td align="left">Bacteroides thetaiotaomicron (3/3)</td>
+<td align="left">-</td>
+<td align="left">K12035 (2/3)</td>
+<td align="right">7.88</td>
+<td align="left">5.0e-31</td>
+<td align="left">7.7e-29</td>
 </tr>
 <tr class="odd">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">20.0</td>
+<td align="left">bin2474</td>
+<td align="right">1</td>
+<td align="left">Bacteroides thetaiotaomicron (1/1)</td>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="right">7.85</td>
+<td align="left">8.0e-31</td>
+<td align="left">1.0e-28</td>
 </tr>
 <tr class="even">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">16.5</td>
+<td align="left">bin2537</td>
+<td align="right">1</td>
+<td align="left">Bacteroides thetaiotaomicron (1/1)</td>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="right">7.77</td>
+<td align="left">1.2e-29</td>
+<td align="left">1.4e-27</td>
 </tr>
 <tr class="odd">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">1.9</td>
+<td align="left">bin588</td>
+<td align="right">4</td>
+<td align="left">mixed, 3: Bacteroides thetaiotaomicron (2/4)</td>
+<td align="left">WD40-type repeat domain (1/4)</td>
+<td align="left">K18235 (1/4)</td>
+<td align="right">5.38</td>
+<td align="left">6.7e-29</td>
+<td align="left">6.4e-27</td>
 </tr>
 <tr class="even">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">0.3</td>
+<td align="left">bin2521</td>
+<td align="right">1</td>
+<td align="left">Bacteroides thetaiotaomicron (1/1)</td>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="right">5.13</td>
+<td align="left">4.7e-28</td>
+<td align="left">3.6e-26</td>
 </tr>
 <tr class="odd">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">0.6</td>
+<td align="left">bin2502</td>
+<td align="right">1</td>
+<td align="left">Bacteroides thetaiotaomicron (1/1)</td>
+<td align="left">glucosylceramidase 1 (1/1)</td>
+<td align="left">K01201 (1/1)</td>
+<td align="right">7.32</td>
+<td align="left">7.9e-26</td>
+<td align="left">5.5e-24</td>
 </tr>
 <tr class="even">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">8.5</td>
-</tr>
-<tr class="even">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">77.5</td>
-</tr>
-<tr class="odd">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">186.3</td>
-</tr>
-<tr class="even">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">Glycosil hydrolase GH92</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="odd">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin243</td>
-<td align="left">NA</td>
-<td align="left">GH92 family glycosyl hydrolase</td>
-<td align="right">0.0</td>
-<td align="right">2.5</td>
-</tr>
-<tr class="odd">
-<td align="left">bin598</td>
-<td align="left">1XD42-69</td>
-<td align="left">S-adenosylmethionine synthase</td>
-<td align="right">0.1</td>
-<td align="right">116.4</td>
-</tr>
-<tr class="even">
-<td align="left">bin598</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="right">0.0</td>
-<td align="right">0.4</td>
-</tr>
-<tr class="odd">
-<td align="left">bin598</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin598</td>
-<td align="left">NA</td>
-<td align="left">Glycosyl hydrolase family 109 protein 1</td>
-<td align="right">0.0</td>
-<td align="right">0.5</td>
-</tr>
-<tr class="odd">
-<td align="left">bin598</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="right">0.0</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">bin598</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="right">0.0</td>
-<td align="right">27.6</td>
-</tr>
-<tr class="odd">
-<td align="left">bin1238</td>
-<td align="left">NA</td>
-<td align="left">Trimeric autotransporter adhesin AtaA</td>
-<td align="right">0.0</td>
-<td align="right">0.5</td>
-</tr>
-<tr class="even">
-<td align="left">bin1238</td>
-<td align="left">NA</td>
-<td align="left">Pyrrolidone-carboxylate peptidase</td>
-<td align="right">0.4</td>
-<td align="right">117.9</td>
-</tr>
-<tr class="odd">
-<td align="left">bin1238</td>
-<td align="left">NA</td>
-<td align="left">Multidrug efflux ATP-binding/permease protein
-Rv0194</td>
-<td align="right">0.0</td>
-<td align="right">0.9</td>
+<td align="left">bin202</td>
+<td align="right">11</td>
+<td align="left">mixed, 11: Acutalibacter sp. AB50-1 (1/11)</td>
+<td align="left">Galactokinase (11/11)</td>
+<td align="left">K00849 (11/11)</td>
+<td align="right">5.83</td>
+<td align="left">1.1e-25</td>
+<td align="left">7.2e-24</td>
 </tr>
 </tbody>
 </table>
-<p>An MCL bin makes no all-pairs promise: members are joined through the
-graph, so a pair inside a bin need not be an edge. The within-bin
-predicted TM-scores of the leading annotated bin, with the graph’s edges
-outlined:</p>
-<pre class="r"><code>plot_bin_similarity(b, picks$bin[1], S, x)</code></pre>
-<p><img src="case_study_files/figure-html/bin-similarity-1.png" alt="Pairwise predicted TM-scores inside the leading annotated bin, edges outlined" width="672" /></p>
-<p>A bin is a community in a similarity graph. Agreement among its
-members’ annotations is evidence about its function; membership alone is
-not.</p>
+<p>The most significant yeast-enriched bin, bin182, holds 12 proteins
+that the study annotated as GH92 family glycosyl hydrolases
+(α-mannosidases), almost all from <em>B. thetaiotaomicron</em>. The
+source study reported these enzymes increasing on the yeast diet and
+linked them to the mannan of yeast cell-wall glycoproteins <span
+class="citation">(<a href="#ref-blakeleyruiz2025diet">Blakeley-Ruiz et
+al. 2025</a>)</span>. None of the bin’s members has a KO, so a KO-level
+summary would not have grouped them.</p>
+<p>The ten most significant bins higher on the casein diet:</p>
+<pre class="r"><code>knitr::kable(bin_table(up_casein))</code></pre>
+<table>
+<colgroup>
+<col width="4%" />
+<col width="5%" />
+<col width="29%" />
+<col width="33%" />
+<col width="15%" />
+<col width="3%" />
+<col width="4%" />
+<col width="4%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">bin</th>
+<th align="right">proteins</th>
+<th align="left">taxon</th>
+<th align="left">function</th>
+<th align="left">KO</th>
+<th align="right">log2FC</th>
+<th align="left">p</th>
+<th align="left">padj</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">bin1196</td>
+<td align="right">2</td>
+<td align="left">Romboutsia ilealis (2/2)</td>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="right">-8.28</td>
+<td align="left">4.9e-33</td>
+<td align="left">1.2e-30</td>
+</tr>
+<tr class="even">
+<td align="left">bin16</td>
+<td align="right">51</td>
+<td align="left">mixed, 22: Acetatifactor sp. AB79-3 (6/51)</td>
+<td align="left">mixed, 4: Carbohydrate ABC transporter substrate-b
+(32/51)</td>
+<td align="left">mixed, 3: K17318 (46/51)</td>
+<td align="right">-5.53</td>
+<td align="left">1.8e-28</td>
+<td align="left">1.5e-26</td>
+</tr>
+<tr class="odd">
+<td align="left">bin209</td>
+<td align="right">10</td>
+<td align="left">mixed, 5: Acetatifactor sp. AB82-1 (2/10)</td>
+<td align="left">-</td>
+<td align="left">K19630 (1/10)</td>
+<td align="right">-7.37</td>
+<td align="left">4.3e-23</td>
+<td align="left">1.6e-21</td>
+</tr>
+<tr class="even">
+<td align="left">bin2</td>
+<td align="right">124</td>
+<td align="left">mixed, 57: Bifidobacterium globosum (4/124)</td>
+<td align="left">mixed, 9: Diacetylchitobiose binding protein NgcE
+(17/124)</td>
+<td align="left">mixed, 12: K02027 (63/124)</td>
+<td align="right">-3.18</td>
+<td align="left">2.7e-22</td>
+<td align="left">9.3e-21</td>
+</tr>
+<tr class="odd">
+<td align="left">bin2457</td>
+<td align="right">1</td>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="right">-7.02</td>
+<td align="left">3.8e-21</td>
+<td align="left">1.2e-19</td>
+</tr>
+<tr class="even">
+<td align="left">bin121</td>
+<td align="right">16</td>
+<td align="left">mixed, 10: Oscillospiraceae bacterium AB54-2
+(3/16)</td>
+<td align="left">-</td>
+<td align="left">K15580 (16/16)</td>
+<td align="right">-5.88</td>
+<td align="left">6.5e-20</td>
+<td align="left">1.7e-18</td>
+</tr>
+<tr class="odd">
+<td align="left">bin135</td>
+<td align="right">15</td>
+<td align="left">mixed, 10: 14-2 sp. AB103-0 (1/15)</td>
+<td align="left">Formate acetyltransferase (14/15)</td>
+<td align="left">mixed, 2: K00656 (14/15)</td>
+<td align="right">-4.12</td>
+<td align="left">6.5e-20</td>
+<td align="left">1.7e-18</td>
+</tr>
+<tr class="even">
+<td align="left">bin315</td>
+<td align="right">7</td>
+<td align="left">mixed, 6: Acetatifactor sp003612485 (2/7)</td>
+<td align="left">-</td>
+<td align="left">K02027 (7/7)</td>
+<td align="right">-7.31</td>
+<td align="left">2.1e-19</td>
+<td align="left">5.1e-18</td>
+</tr>
+<tr class="odd">
+<td align="left">bin154</td>
+<td align="right">13</td>
+<td align="left">mixed, 7: Staphylococcus nepalensis (3/13)</td>
+<td align="left">mixed, 2: Acetylornithine aminotransferase (9/13)</td>
+<td align="left">mixed, 3: K00821 (9/13)</td>
+<td align="right">-3.28</td>
+<td align="left">8.6e-19</td>
+<td align="left">1.9e-17</td>
+</tr>
+<tr class="even">
+<td align="left">bin366</td>
+<td align="right">6</td>
+<td align="left">mixed, 4: Romboutsia ilealis (2/6)</td>
+<td align="left">mixed, 2: SASP are bound to spore DNA; protect the
+(2/6)</td>
+<td align="left">mixed, 3: K06419 (2/6)</td>
+<td align="right">-5.84</td>
+<td align="left">1.7e-16</td>
+<td align="left">2.9e-15</td>
+</tr>
+</tbody>
+</table>
+<p>Several casein-enriched bins are large and mixed across taxa, for
+example substrate-binding proteins of carbohydrate ABC transporters:
+they summarise a structural family shared by many organisms rather than
+one organism’s protein.</p>
 </div>
-<div id="practical-notes" class="section level1">
-<h1>Practical notes</h1>
-<p><strong>Rarefy first</strong> for whole-community distances. The
-differential-abundance model uses the corresponding unrarefied counts
-and handles depth through size factors.</p>
-<p><strong>Memory.</strong> <code>protein_similarity()</code> and
-<code>sample_mmd()</code> hold dense protein-by-protein matrices, so
-memory grows with the square of the protein count; bin the identified
-subset of a catalog, never a whole search database. MCL’s cost follows
-the largest connected component, which the <code>MCL</code> package
-holds as one dense matrix.</p>
-<p><strong>Bandwidth.</strong> <code>sample_mmd()</code> returns its
-bandwidth as <code>attr(, "sigma")</code>; pass it back when comparisons
-across studies need one fixed kernel.</p>
+<div id="inside-a-bin" class="section level1">
+<h1>Inside a bin</h1>
+<p><code>plot_bin_similarity()</code> shows all pairwise predicted
+TM-scores within one bin. A black outline marks a pair that
+<strong>is</strong> an edge of the graph: it passed both thresholds
+(predicted TM-score ≥ 0.7, coverage ≥ 0.5) and keeps its similarity as
+the edge weight. A cell without an outline is not an edge (weight 0 in
+<code>S</code>). MCL clusters along the outlined edges. Shown are the
+most significant bin with 4 to 30 members in each direction, with a
+count of their member pairs: edges, pairs below the similarity
+threshold, and pairs above it that failed the coverage gate.</p>
+<pre class="r"><code>pick &lt;- function(bins) bins[sizes[bins] &gt;= 4 &amp; sizes[bins] &lt;= 30][1]
+shown &lt;- c(Yeast = pick(sig[lfc[sig, &quot;log2FoldChange&quot;] &gt; 0]),
+    Casein = pick(sig[lfc[sig, &quot;log2FoldChange&quot;] &lt; 0]))
+pair_types &lt;- function(bin) {
+    m &lt;- b$clusters[[bin]]
+    R &lt;- tcrossprod(Z[m, ])
+    E &lt;- S[m, m] &gt; 0
+    up &lt;- upper.tri(E)
+    c(pairs = sum(up), edges = sum(E[up]), below_0.7 = sum(R[up] &lt; 0.7),
+        failed_coverage = sum(R[up] &gt;= 0.7 &amp; !E[up]))
+}
+data.frame(bin = shown, t(vapply(shown, pair_types, numeric(4))))</code></pre>
+<div class="kable-table">
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">bin</th>
+<th align="right">pairs</th>
+<th align="right">edges</th>
+<th align="right">below_0.7</th>
+<th align="right">failed_coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Yeast</td>
+<td align="left">bin182</td>
+<td align="right">66</td>
+<td align="right">66</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+<tr class="even">
+<td align="left">Casein</td>
+<td align="left">bin209</td>
+<td align="right">45</td>
+<td align="right">38</td>
+<td align="right">2</td>
+<td align="right">5</td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre class="r"><code>plot_bin_similarity(b, shown[[&quot;Yeast&quot;]], S, x)</code></pre>
+<p><img src="case_study_files/figure-html/bin-yeast-1.png" alt="Pairwise predicted TM-scores in the selected yeast-enriched bin; edges outlined" width="672" /></p>
+<pre class="r"><code>m &lt;- b$clusters[[shown[[&quot;Yeast&quot;]]]]
+knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot;ko&quot;, &quot;cazy&quot;)],
+    row.names = TRUE)</code></pre>
+<table style="width:100%;">
+<colgroup>
+<col width="25%" />
+<col width="26%" />
+<col width="27%" />
+<col width="2%" />
+<col width="18%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">taxon</th>
+<th align="left">consensus_annotation</th>
+<th align="left">ko</th>
+<th align="left">cazy</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">AB21-1_Cage1_bin.62_00494</td>
+<td align="left">UBA7173 sp. AB21-1</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH94;GH92</td>
+</tr>
+<tr class="even">
+<td align="left">BT_AB5-1_Cage1_bin.90_00027</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">3.2.1.-;GH92</td>
+</tr>
+<tr class="odd">
+<td align="left">BT_AB5-1_Cage1_bin.90_00125</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH94;3.2.1.113;GH92</td>
+</tr>
+<tr class="even">
+<td align="left">BT_AB5-1_Cage1_bin.90_00126</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH92</td>
+</tr>
+<tr class="odd">
+<td align="left">BT_AB5-1_Cage1_bin.90_00128</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH92</td>
+</tr>
+<tr class="even">
+<td align="left">BT_AB5-1_Cage1_bin.90_00157</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH94;3.2.1.113;GH92</td>
+</tr>
+<tr class="odd">
+<td align="left">BT_AB5-1_Cage1_bin.90_00158</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH92</td>
+</tr>
+<tr class="even">
+<td align="left">BT_AB5-1_Cage1_bin.90_00161</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH92</td>
+</tr>
+<tr class="odd">
+<td align="left">BT_AB5-1_Cage1_bin.90_00877</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH94;GH92</td>
+</tr>
+<tr class="even">
+<td align="left">BT_AB5-1_Cage1_bin.90_01166</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH92</td>
+</tr>
+<tr class="odd">
+<td align="left">BT_AB5-1_Cage1_bin.90_01179</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH94;GH92</td>
+</tr>
+<tr class="even">
+<td align="left">BT_amb_Cage1_bin.90_00456</td>
+<td align="left">Bacteroides thetaiotaomicron</td>
+<td align="left">GH92 family glycosyl hydrolase</td>
+<td align="left">NA</td>
+<td align="left">GH92</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>plot_bin_similarity(b, shown[[&quot;Casein&quot;]], S, x)</code></pre>
+<p><img src="case_study_files/figure-html/bin-casein-1.png" alt="Pairwise predicted TM-scores in the selected casein-enriched bin; edges outlined" width="672" /></p>
+<pre class="r"><code>m &lt;- b$clusters[[shown[[&quot;Casein&quot;]]]]
+knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot;ko&quot;, &quot;cazy&quot;)],
+    row.names = TRUE)</code></pre>
+<table>
+<colgroup>
+<col width="36%" />
+<col width="27%" />
+<col width="23%" />
+<col width="7%" />
+<col width="5%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">taxon</th>
+<th align="left">consensus_annotation</th>
+<th align="left">ko</th>
+<th align="left">cazy</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">AB77-2_co.bin.209_02535</td>
+<td align="left">Acetatifactor sp. AB77-2</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">AB79-1_Cage2_bin.14_02606</td>
+<td align="left">Acetatifactor sp. AB79-1</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">AB79-2_co.bin.247_00988</td>
+<td align="left">Acetatifactor sp. AB79-2</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">AB82-1_Cage1_bin.42_02248</td>
+<td align="left">Acetatifactor sp. AB82-1</td>
+<td align="left">NA</td>
+<td align="left">K19630</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">AB82-1_Cage1_bin.42_04733</td>
+<td align="left">Acetatifactor sp. AB82-1</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">AB94-1_Cage1_bin.112_03055</td>
+<td align="left">Kineothrix sp. AB94-1</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">lowQ_bin.83_Cage2_PPEKKICB_00250</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">Unbin_Cage1_FEAPCNDJ_106437</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">Unbin_Cage2_HKMOJPLM_36262</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">Unbin_Cage2_HKMOJPLM_87315</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+</tbody>
+</table>
+<p>In the GH92 bin every pair of members is an edge. In bin209, mostly
+unannotated proteins from several <em>Acetatifactor</em> species groups
+and unbinned contigs, some members are joined only through shared
+neighbours (pairs below 0.7) and some similar pairs are not edges
+because their alignment covers less than half of one sequence. MCL keeps
+both kinds of pair in one bin; the thresholds act on edges, not on every
+pair.</p>
+</div>
+<div id="notes" class="section level1">
+<h1>Notes</h1>
+<ul>
+<li>Diet is confounded with feeding period (weeks 2 and 5) in this
+serial design, so the differences cannot be attributed to diet
+alone.</li>
+<li>Beta diversity uses rarefied counts; differential abundance uses raw
+counts with DESeq2 size factors.</li>
+<li>A bin is a similarity-network cluster. Agreement among its members’
+annotations is evidence about its function; bins can span species and,
+when large, related functions.</li>
+<li>KO assignments are the study’s own (Mantis, else MicrobeAnnotator).
+A missing KO does not mean an unknown function, as the GH92 bin
+shows.</li>
+</ul>
 <pre class="r"><code>sessionInfo()
 #&gt; R version 4.5.2 (2025-10-31)
 #&gt; Platform: aarch64-apple-darwin20
@@ -1025,53 +1299,75 @@ across studies need one fixed kernel.</p>
 #&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
 #&gt; 
 #&gt; other attached packages:
-#&gt; [1] phyloseq_1.54.2 ggplot2_4.0.3   repdist_0.99.0 
+#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
 #&gt; 
 #&gt; loaded via a namespace (and not attached):
-#&gt;  [1] ade4_1.7-24                 tidyselect_1.2.1           
-#&gt;  [3] viridisLite_0.4.3           dplyr_1.2.1                
-#&gt;  [5] farver_2.1.2                Biostrings_2.78.0          
-#&gt;  [7] S7_0.2.2                    fastmap_1.2.0              
-#&gt;  [9] digest_0.6.39               lifecycle_1.0.5            
-#&gt; [11] cluster_2.1.8.2             survival_3.8-6             
-#&gt; [13] magrittr_2.0.5              compiler_4.5.2             
-#&gt; [15] rlang_1.3.0                 sass_0.4.10                
-#&gt; [17] tools_4.5.2                 igraph_2.3.1               
-#&gt; [19] yaml_2.3.12                 data.table_1.18.4          
-#&gt; [21] knitr_1.51                  S4Arrays_1.10.1            
-#&gt; [23] labeling_0.4.3              DelayedArray_0.36.1        
-#&gt; [25] plyr_1.8.9                  RColorBrewer_1.1-3         
-#&gt; [27] abind_1.4-8                 BiocParallel_1.44.0        
-#&gt; [29] expm_1.0-0                  withr_3.0.3                
-#&gt; [31] BiocGenerics_0.56.0         grid_4.5.2                 
-#&gt; [33] stats4_4.5.2                multtest_2.66.0            
-#&gt; [35] biomformat_1.38.3           Rhdf5lib_1.32.0            
-#&gt; [37] scales_1.4.0                iterators_1.0.14           
-#&gt; [39] MASS_7.3-65                 SummarizedExperiment_1.40.0
-#&gt; [41] cli_3.6.6                   rmarkdown_2.31             
-#&gt; [43] vegan_2.7-5                 crayon_1.5.3               
-#&gt; [45] generics_0.1.4              otel_0.2.0                 
-#&gt; [47] reshape2_1.4.5              ape_5.8-1                  
-#&gt; [49] cachem_1.1.0                rhdf5_2.54.1               
-#&gt; [51] stringr_1.6.0               splines_4.5.2              
-#&gt; [53] parallel_4.5.2              XVector_0.50.0             
-#&gt; [55] matrixStats_1.5.0           vctrs_0.7.3                
-#&gt; [57] Matrix_1.7-5                jsonlite_2.0.0             
-#&gt; [59] IRanges_2.44.0              S4Vectors_0.48.1           
-#&gt; [61] locfit_1.5-9.12             foreach_1.5.2              
-#&gt; [63] jquerylib_0.1.4             glue_1.8.1                 
-#&gt; [65] codetools_0.2-20            MCL_1.0                    
-#&gt; [67] stringi_1.8.9               gtable_0.3.6               
-#&gt; [69] GenomicRanges_1.62.1        tibble_3.3.1               
-#&gt; [71] pillar_1.11.1               htmltools_0.5.9            
-#&gt; [73] Seqinfo_1.0.0               rhdf5filters_1.22.0        
-#&gt; [75] R6_2.6.1                    evaluate_1.0.5             
-#&gt; [77] lattice_0.22-9              Biobase_2.70.0             
-#&gt; [79] bslib_0.11.0                Rcpp_1.1.2                 
-#&gt; [81] SparseArray_1.10.10         nlme_3.1-169               
-#&gt; [83] permute_0.9-10              mgcv_1.9-4                 
-#&gt; [85] DESeq2_1.50.2               xfun_0.58                  
-#&gt; [87] MatrixGenerics_1.22.0       pkgconfig_2.0.3</code></pre>
+#&gt;  [1] SummarizedExperiment_1.40.0 gtable_0.3.6               
+#&gt;  [3] xfun_0.58                   bslib_0.11.0               
+#&gt;  [5] Biobase_2.70.0              lattice_0.22-9             
+#&gt;  [7] vctrs_0.7.3                 tools_4.5.2                
+#&gt;  [9] generics_0.1.4              stats4_4.5.2               
+#&gt; [11] parallel_4.5.2              tibble_3.3.1               
+#&gt; [13] cluster_2.1.8.2             pkgconfig_2.0.3            
+#&gt; [15] Matrix_1.7-5                RColorBrewer_1.1-3         
+#&gt; [17] S7_0.2.2                    S4Vectors_0.48.1           
+#&gt; [19] lifecycle_1.0.5             compiler_4.5.2             
+#&gt; [21] farver_2.1.2                Biostrings_2.78.0          
+#&gt; [23] DESeq2_1.50.2               Seqinfo_1.0.0              
+#&gt; [25] codetools_0.2-20            htmltools_0.5.9            
+#&gt; [27] sass_0.4.10                 yaml_2.3.12                
+#&gt; [29] pillar_1.11.1               crayon_1.5.3               
+#&gt; [31] jquerylib_0.1.4             MASS_7.3-65                
+#&gt; [33] BiocParallel_1.44.0         cachem_1.1.0               
+#&gt; [35] DelayedArray_0.36.1         abind_1.4-8                
+#&gt; [37] MCL_1.0                     nlme_3.1-169               
+#&gt; [39] locfit_1.5-9.12             tidyselect_1.2.1           
+#&gt; [41] digest_0.6.39               Rtsne_0.17                 
+#&gt; [43] dplyr_1.2.1                 labeling_0.4.3             
+#&gt; [45] splines_4.5.2               fastmap_1.2.0              
+#&gt; [47] grid_4.5.2                  SparseArray_1.10.10        
+#&gt; [49] expm_1.0-0                  cli_3.6.6                  
+#&gt; [51] magrittr_2.0.5              S4Arrays_1.10.1            
+#&gt; [53] withr_3.0.3                 scales_1.4.0               
+#&gt; [55] rmarkdown_2.31              pwalign_1.6.0              
+#&gt; [57] XVector_0.50.0              matrixStats_1.5.0          
+#&gt; [59] otel_0.2.0                  evaluate_1.0.5             
+#&gt; [61] knitr_1.51                  GenomicRanges_1.62.1       
+#&gt; [63] IRanges_2.44.0              viridisLite_0.4.3          
+#&gt; [65] mgcv_1.9-4                  rlang_1.3.0                
+#&gt; [67] Rcpp_1.1.2                  glue_1.8.1                 
+#&gt; [69] BiocGenerics_0.56.0         jsonlite_2.0.0             
+#&gt; [71] R6_2.6.1                    MatrixGenerics_1.22.0</code></pre>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-anderson2001permanova" class="csl-entry">
+Anderson, Marti J. 2001. <span>“A New Method for Non-Parametric
+Multivariate Analysis of Variance.”</span> <em>Austral Ecology</em> 26
+(1): 32–46. <a
+href="https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x">https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x</a>.
+</div>
+<div id="ref-anderson2006permdisp" class="csl-entry">
+Anderson, Marti J. 2006. <span>“Distance-Based Tests for Homogeneity of
+Multivariate Dispersions.”</span> <em>Biometrics</em> 62 (1): 245–53. <a
+href="https://doi.org/10.1111/j.1541-0420.2005.00440.x">https://doi.org/10.1111/j.1541-0420.2005.00440.x</a>.
+</div>
+<div id="ref-blakeleyruiz2025diet" class="csl-entry">
+Blakeley-Ruiz, J. Alfredo, Alexandria Bartlett, Arthur S. McMillan, et
+al. 2025. <span>“Dietary Protein Source Alters Gut Microbiota
+Composition and Function.”</span> <em>The ISME Journal</em> 19 (1):
+wraf048. <a
+href="https://doi.org/10.1093/ismejo/wraf048">https://doi.org/10.1093/ismejo/wraf048</a>.
+</div>
+<div id="ref-love2014deseq2" class="csl-entry">
+Love, Michael I., Wolfgang Huber, and Simon Anders. 2014.
+<span>“Moderated Estimation of Fold Change and Dispersion for <span
+class="nocase">RNA-seq</span> Data with <span>DESeq2</span>.”</span>
+<em>Genome Biology</em> 15 (12): 550. <a
+href="https://doi.org/10.1186/s13059-014-0550-8">https://doi.org/10.1186/s13059-014-0550-8</a>.
+</div>
+</div>
 </div>
 
 

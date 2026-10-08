@@ -1,21 +1,29 @@
 name: "repdist"
 output_dir: "."
-exclude: ["README.md", "data"]
+exclude: ["README.md", "data", "data-raw", "curated", "references.bib"]
 navbar:
   title: "repdist"
   left:
+    - text: "Reference"
+      menu:
+        - text: "Overview"
+          href: reference.html
+        - text: "Protein representations"
+          href: reference.html#protein-representations
+        - text: "Sample-level distance: MMD"
+          href: reference.html#sample-level-distance-mmd
+        - text: "Protein similarity graph and MCL clustering"
+          href: reference.html#protein-similarity-graph-and-mcl-clustering
+        - text: "QC and visualization"
+          href: reference.html#qc-and-visualization
     - text: "Simulation"
       href: simulation.html
-    - text: "Real-data validation"
+    - text: "MCL parameters"
+      href: parameters.html
+    - text: "Case study"
       href: case_study.html
     - text: "Install"
       href: index.html#installation
-    - text: "Reproducing"
-      menu:
-        - text: "Rebuilding the site"
-          href: index.html#reproducing
-        - text: "Data curation for the real-data validation"
-          href: data_curation.html
   right:
     - icon: fa-github fa-lg
       href: https://github.com/Yixuan39/repdist

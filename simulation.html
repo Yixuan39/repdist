@@ -9,10 +9,9 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Yixuan Yang" />
 
 
-<title>Simulation: shared function without shared accessions</title>
+<title>Simulation</title>
 
 <script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -63,6 +62,28 @@ if (window.hljs) {
 
 
 
+<style type="text/css">
+/* for pandoc --citeproc since 2.11 */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
 
 
 
@@ -321,29 +342,41 @@ div.tocify {
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-        <li>
-  <a href="simulation.html">Simulation</a>
-</li>
-<li>
-  <a href="case_study.html">Real-data validation</a>
-</li>
-<li>
-  <a href="index.html#installation">Install</a>
-</li>
-<li class="dropdown">
+        <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Reproducing
+    Reference
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="index.html#reproducing">Rebuilding the site</a>
+      <a href="reference.html">Overview</a>
     </li>
     <li>
-      <a href="data_curation.html">Data curation for the real-data validation</a>
+      <a href="reference.html#protein-representations">Protein representations</a>
+    </li>
+    <li>
+      <a href="reference.html#sample-level-distance-mmd">Sample-level distance: MMD</a>
+    </li>
+    <li>
+      <a href="reference.html#protein-similarity-graph-and-mcl-clustering">Protein similarity graph and MCL clustering</a>
+    </li>
+    <li>
+      <a href="reference.html#qc-and-visualization">QC and visualization</a>
     </li>
   </ul>
+</li>
+<li>
+  <a href="simulation.html">Simulation</a>
+</li>
+<li>
+  <a href="parameters.html">MCL parameters</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li>
+  <a href="index.html#installation">Install</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -362,254 +395,1347 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Simulation: shared function without shared
-accessions</h1>
-<h4 class="author">Yixuan Yang</h4>
+<h1 class="title toc-ignore">Simulation</h1>
+<h3 class="subtitle">Two benchmarks with known truth</h3>
 
 </div>
 
 
-<div id="the-question" class="section level1">
-<h1>The question</h1>
-<p>When different proteins contribute the same function, can a
-beta-diversity method tell two groups apart? Bray-Curtis compares
-samples through accession identity, so a functional shift spread across
-<em>non-overlapping</em> homologs is invisible to it by construction.
-This page builds exactly that case and runs three distances over it:</p>
-<ol style="list-style-type: decimal">
-<li><strong>RBF-MMD</strong> on TM-Vec embeddings
-(<code>sample_mmd()</code>).</li>
-<li><strong>Bray-Curtis on MCL bins</strong>, from a graph joining
-proteins with a predicted TM-score of at least 0.7.</li>
-<li><strong>Bray-Curtis at the protein level</strong> — the conventional
-baseline.</li>
-</ol>
-<p>The first two read protein relatedness, each through a different
-lens; the third reads identity only.</p>
-<pre class="r"><code>library(repdist)
-library(ggplot2)</code></pre>
-</div>
-<div id="the-protein-universe" class="section level1">
-<h1>The protein universe</h1>
-<p>Ten CATH FunFams — functional families of structural domains — with
-150 members each, embedded with TM-Vec. The membership table and
-embeddings are <code>validation/funfam_universe.rds</code> on this
-branch; <code>validation/README.md</code> describes their source and
-<code>validation/prepare_funfam_universe.R</code> their reconstruction.
-These coordinates come from the older <code>scikit-bio/tmvec</code>
-head, not the current default, and their model revisions were not
-recorded: they are a fixed example, not a reference for new
-inference.</p>
-<pre class="r"><code>u &lt;- readRDS(file.path(&quot;validation&quot;, &quot;funfam_universe.rds&quot;))
-members &lt;- u$members
-x &lt;- u$proteins
-ids &lt;- members$protein
-table(members$label)
-#&gt; 
-#&gt; ABC binding protein    Dihydrolipoyl DH       FtsH protease               GAPDH 
-#&gt;                 150                 150                 150                 150 
-#&gt;      LysR regulator     MFS transporter       PdxS synthase       Ribosomal S12 
-#&gt;                 150                 150                 150                 150 
-#&gt;      RuvC resolvase                SHMT 
-#&gt;                 150                 150</code></pre>
-</div>
-<div id="the-design" class="section level1">
-<h1>The design</h1>
-<p>Twenty samples, ten per group, and <strong>every sample contains
-every protein</strong>, so presence/absence carries no information and
-only abundance can be read. Each sample has ten proteins upregulated
-twenty-fold over lognormal baseline abundances:</p>
-<ul>
-<li><strong>Group A</strong> draws its ten at random across all ten
-families — diffuse noise with no functional theme.</li>
-<li><strong>Group B</strong> draws its ten from a single family (SHMT) —
-a coherent functional shift.</li>
-</ul>
-<p>Within each group the upregulated sets are <strong>disjoint</strong>,
-and group A never draws a protein group B uses, so <em>no two samples
-share a single upregulated accession</em>. Group B’s samples have
-nothing in common at the accession level and everything in common at the
-family level — the case an identity-based distance cannot see.</p>
-<pre class="r"><code>n_per_group &lt;- 10L
-n_up &lt;- 10L
-fold &lt;- 20
-depth &lt;- 100000L
-set.seed(20260901)
-
-group &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n_per_group))
-b_family &lt;- members$family[members$label == &quot;SHMT&quot;][1]
-
-# Disjoint, not merely independent: draw once, then cut into blocks.
-draw_blocks &lt;- function(pool) {
-    unname(split(
-        sample(pool, n_per_group * n_up), rep(seq_len(n_per_group), each = n_up)
-    ))
-}
-up_B &lt;- draw_blocks(ids[members$family == b_family])
-up_A &lt;- draw_blocks(setdiff(ids, unlist(up_B)))
-up &lt;- c(up_A, up_B)
-
-w &lt;- matrix(rlnorm(length(group) * length(ids), sdlog = 0.7),
-    nrow = length(group),
-    dimnames = list(sprintf(&quot;s%02d&quot;, seq_along(group)), ids)
-)
-for (i in seq_along(group)) w[i, up[[i]]] &lt;- w[i, up[[i]]] * fold
-counts &lt;- t(apply(w, 1, function(x) rmultinom(1, depth, x)[, 1]))
-
-c(
-    shared_upregulated_accessions = sum(duplicated(unlist(up))),
-    observed_in_every_sample = mean(colSums(counts &gt; 0) == length(group))
-)
-#&gt; shared_upregulated_accessions      observed_in_every_sample 
-#&gt;                             0                             1</code></pre>
-</div>
-<div id="three-distances" class="section level1">
-<h1>Three distances</h1>
-<p>One similarity matrix feeds the bins:
-<code>protein_similarity()</code> keeps every pair of proteins with a
-predicted TM-score of at least 0.7, and an alignment covering half of
-both sequences, as an edge, and <code>bin_proteins()</code> splits the
-graph by Markov clustering (MCL) at inflation 2. The 0.7 is an edge
-floor, not an all-pairs guarantee: a bin can hold pairs below it, joined
-through shared neighbours. MMD builds its euclidean ground metric from
-the same embeddings internally.</p>
-<pre class="r"><code>S &lt;- protein_similarity(x, min_sim = 0.7)
-b &lt;- bin_proteins(S, inflation = 2)
-binned &lt;- bin_glom(counts, b)
-sizes &lt;- lengths(b$clusters)
-c(b$graph, bins = length(sizes), largest_bin = max(sizes),
-    singleton_fraction = sum(sizes == 1) / sum(sizes))
-#&gt;           proteins              edges           isolated         components 
-#&gt;               1500             111735                  0                  9 
-#&gt;  largest_component               bins        largest_bin singleton_fraction 
-#&gt;                300                 10                150                  0</code></pre>
-<p>The graph leaves no protein isolated and joins some families into
-shared components; MCL splits those again, and the ten families come
-back as 10 bins without ever being told there were ten.</p>
-<div id="what-rbf-mmd-computes" class="section level2">
-<h2>What RBF-MMD computes</h2>
-<p>Each sample is a weighted point cloud in embedding space: protein
-<span class="math inline">\(a\)</span> enters with its relative
-abundance <span class="math inline">\(w_a\)</span>. For samples <span
-class="math inline">\(p\)</span> and <span
-class="math inline">\(q\)</span>,</p>
-<p><span class="math display">\[\mathrm{MMD}^2(p,q)\;=\;\sum_{a,b} w^p_a
-w^p_b\,k(a,b)
-\;-\;2\sum_{a,b} w^p_a w^q_b\,k(a,b)
-\;+\;\sum_{a,b} w^q_a w^q_b\,k(a,b),\]</span></p>
-<p>under a Gaussian kernel on the euclidean ground metric, <span
-class="math inline">\(k(a,b)=\exp\!\left(-\lVert
-z_a-z_b\rVert^2/2\sigma^2\right)\)</span>, which on the unit-norm rows
-<code>embed_proteins()</code> returns is exactly <span
-class="math inline">\(\exp\!\left(-(1-\mathrm{TM}_{ab})/\sigma^2\right)\)</span>.</p>
-<p>The middle term is the whole difference from Bray-Curtis. Two
-<em>different</em> proteins with <span
-class="math inline">\(k(a,b)\approx 1\)</span> cancel there almost as
-completely as the same accession would. Shrink <span
-class="math inline">\(k\)</span> to the indicator of <span
-class="math inline">\(a=b\)</span> and the expression collapses to <span
-class="math inline">\(\lVert w^p - w^q\rVert^2\)</span> — an
-identity-only distance, blind to any relationship between distinct
-proteins. That is the corner this simulation puts the protein-level
-baseline in by construction.</p>
-<p><code>sigma</code> defaults to the median pairwise distance among the
-retained proteins, the usual median heuristic; the value actually used
-comes back as <code>attr(D, "sigma")</code>, and passing it back holds
-the bandwidth fixed across runs or studies.</p>
-<pre class="r"><code>D &lt;- list(
-    `RBF-MMD` = sample_mmd(counts, x),
-    `Bray-Curtis (MCL bins)` = vegan::vegdist(binned, &quot;bray&quot;),
-    `Bray-Curtis (protein)` = vegan::vegdist(counts, &quot;bray&quot;)
-)</code></pre>
-</div>
-</div>
-<div id="permanova" class="section level1">
-<h1>PERMANOVA</h1>
-<pre class="r"><code>md &lt;- data.frame(group = group)
-perma &lt;- do.call(rbind, lapply(names(D), function(n) {
-    set.seed(1)
-    a &lt;- vegan::adonis2(D[[n]] ~ group, data = md, permutations = 999)
-    data.frame(
-        distance = n, R2 = round(a$R2[1], 3),
-        F = round(a[[&quot;F&quot;]][1], 2), p = a$`Pr(&gt;F)`[1]
-    )
-}))
-knitr::kable(perma, row.names = FALSE)</code></pre>
+<div id="overview" class="section level1">
+<h1>Overview</h1>
+<p>Two simulations with known truth answer different questions; the <a
+href="case_study.html">case study</a> then applies repdist to real
+metaproteomes, where there is none.</p>
 <table>
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
 <thead>
 <tr class="header">
-<th align="left">distance</th>
-<th align="right">R2</th>
-<th align="right">F</th>
-<th align="right">p</th>
+<th></th>
+<th>Simulation 1</th>
+<th>Simulation 2</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">RBF-MMD</td>
-<td align="right">0.470</td>
-<td align="right">15.99</td>
-<td align="right">0.001</td>
+<td>Question</td>
+<td>Can a sample distance detect a shared latent relationship among
+enriched proteins when no accession is shared?</td>
+<td>Can it separate two functional states when every sample carries its
+state through different sequence clusters?</td>
 </tr>
 <tr class="even">
-<td align="left">Bray-Curtis (MCL bins)</td>
-<td align="right">0.461</td>
-<td align="right">15.41</td>
-<td align="right">0.001</td>
+<td>Proteins</td>
+<td>CATH FunFam domains</td>
+<td>Swiss-Prot enzymes, full length</td>
 </tr>
 <tr class="odd">
-<td align="left">Bray-Curtis (protein)</td>
-<td align="right">0.051</td>
-<td align="right">0.98</td>
-<td align="right">0.741</td>
+<td>Truth</td>
+<td>FunFam membership</td>
+<td>experimental EC3</td>
+</tr>
+<tr class="even">
+<td>Groups</td>
+<td>one FunFam (coherent) against a matched null</td>
+<td>EC3-A against EC3-B, symmetric</td>
+</tr>
+<tr class="odd">
+<td>Sequence clusters</td>
+<td>QC: every enriched domain in its own 50% MMseqs2 cluster</td>
+<td>the test: no 50% cluster enriched twice within a condition</td>
+</tr>
+<tr class="even">
+<td>Distances</td>
+<td>MMD, Bray-Curtis on MCL bins and on proteins</td>
+<td>the same, plus Bray-Curtis on MMseqs2 bins</td>
 </tr>
 </tbody>
 </table>
-<p>Both distances that can read protein relatedness — through the kernel
-or the bins — find the group difference decisively. Protein-level
-Bray-Curtis finds nothing: each sample’s upregulated set is private, so
-to an identity-based comparison every sample is equally unlike every
-other, in both groups.</p>
+<p>Simulation 1 is a controlled positive benchmark: FunFams are tight
+structural and functional families, so the hidden coherence is strong.
+Simulation 2 is harder and closer to metaproteomics: an EC3 class spans
+many sequence families and often several folds. Neither asks whether
+structure beats sequence. Both ask whether a representation-aware
+distance keeps the relationship between different proteins that protein
+identity, or hard sequence bins, discard.</p>
+<pre class="r"><code>library(repdist)
+library(ggplot2)
+library(vegan)</code></pre>
+<div id="count-model" class="section level2">
+<h2>Count model</h2>
+<p>Both simulations use twenty samples, two groups of ten, and the same
+negative-binomial model. Every protein of a universe is present at
+baseline in every sample; sample <span class="math inline">\(i\)</span>
+has expected composition</p>
+<p><span class="math display">\[
+p_i = (1 - \rho)\,\pi + \rho\, q_i ,
+\]</span></p>
+<p>where <span class="math inline">\(\pi_j \propto \mathrm{LogNormal}(0,
+1)\)</span> is the common baseline and <span
+class="math inline">\(q_i\)</span> spreads its mass evenly over sample
+<span class="math inline">\(i\)</span>’s enriched proteins. The signal
+strength <span class="math inline">\(\rho\)</span> is the expected share
+of abundance on the enriched proteins: a defined mass, not a fold
+change. Counts have mean <span class="math inline">\(\mu_{ij} = s_i D
+p_{ij}\)</span> with depth <span class="math inline">\(D = 2 \times
+10^4\)</span> and size factor <span class="math inline">\(s_i \sim
+\mathrm{LogNormal}(0, 0.25)\)</span>, and variance <span
+class="math inline">\(\mu + \phi\mu^2\)</span>, with a DESeq2-like
+dispersion trend at each count’s own mean, <span
+class="math inline">\(\phi_{ij} = (0.1 + 1/\mu_{ij})\, e_j\)</span>,
+<span class="math inline">\(e_j \sim \mathrm{LogNormal}(0,
+0.5)\)</span>. The <span class="math inline">\(k\)</span>-th enriched
+protein of the second group takes the baseline abundance of the <span
+class="math inline">\(k\)</span>-th of the first, so the groups also
+match on the baseline of the proteins that carry the signal.</p>
+<p>The representative signal strength is <span
+class="math inline">\(\rho\)</span> = 2%, fixed before any result: in
+the source study of the case study, glycoside hydrolases rose from under
+1% to over 2.5% of the metaproteome on the yeast diet <span
+class="citation">(<a href="#ref-blakeleyruiz2025diet">Blakeley-Ruiz et
+al. 2025</a>)</span>.</p>
+<pre class="r"><code>depth &lt;- 2e4
+rho_example &lt;- 0.02
+nb_counts &lt;- function(up, ids, rho, pairs) {
+    n &lt;- length(up)
+    pi &lt;- setNames(rlnorm(length(ids)), ids)
+    pi[pairs[, 2]] &lt;- pi[pairs[, 1]] # matched baseline of enriched proteins
+    pi &lt;- pi / sum(pi)
+    s &lt;- rlnorm(n, 0, 0.25)
+    e &lt;- rlnorm(length(ids), 0, 0.5)
+    p &lt;- matrix((1 - rho) * pi, n, length(ids), byrow = TRUE,
+        dimnames = list(names(up), ids))
+    for (j in seq_len(n)) {
+        p[j, up[[j]]] &lt;- p[j, up[[j]]] + rho / length(up[[j]])
+    }
+    mu &lt;- s * depth * p
+    phi &lt;- (0.1 + 1 / mu) * rep(e, each = n)
+    matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), n,
+        dimnames = dimnames(p))
+}</code></pre>
 </div>
-<div id="ordination" class="section level1">
-<h1>Ordination</h1>
-<p>PCoA on each distance, in the order above. The percentages in each
-panel heading are that axis’s share of the total variation, computed per
-distance because each has its own eigenvalues.</p>
-<pre class="r"><code>ord &lt;- do.call(rbind, lapply(names(D), function(n) {
-    e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
-    rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0]) # negative eigenvalues excluded
-    data.frame(
-        Axis1 = e$points[, 1], Axis2 = e$points[, 2], group = group,
-        panel = sprintf(&quot;%s\n(PCo1 %.1f%%, PCo2 %.1f%%)&quot;, n, rel[1], rel[2])
+<div id="distances-and-tests" class="section level2">
+<h2>Distances and tests</h2>
+<ul>
+<li><strong>MMD</strong>: <code>sample_mmd()</code>, the maximum mean
+discrepancy between samples under a Gaussian kernel on the protein
+embeddings (see the <a
+href="reference.html#sample-level-distance-mmd">Reference</a>).</li>
+<li><strong>Bray-Curtis (repdist MCL bins)</strong>:
+<code>protein_similarity()</code> → <code>bin_proteins()</code> →
+<code>bin_glom()</code>, then Bray-Curtis on the bin counts. The bins
+depend only on the universe, so they are built once per universe, with
+package defaults (predicted TM-score ≥ 0.7, coverage ≥ 0.5, inflation
+2).</li>
+<li><strong>Bray-Curtis (MMseqs2 bins)</strong>: counts summed within
+MMseqs2 sequence clusters <span class="citation">(<a
+href="#ref-steinegger2017mmseqs2">Steinegger and Söding
+2017</a>)</span>, then Bray-Curtis (Simulation 2 only).</li>
+<li><strong>Bray-Curtis (protein)</strong>: Bray-Curtis on the protein
+counts.</li>
+</ul>
+<p>PERMANOVA <span class="citation">(<a
+href="#ref-anderson2001permanova">Anderson 2001</a>)</span> tests
+whether the groups differ in their distance-based centroids; PERMDISP
+<span class="citation">(<a href="#ref-anderson2006permdisp">Anderson
+2006</a>)</span> tests whether they differ in spread (mean distance to
+the centroid). Both use 999 permutations in <code>vegan</code> <span
+class="citation">(<a href="#ref-oksanen2025vegan"><span
+class="nocase">Oksanen et al.</span> 2025</a>)</span>; a test detects at
+p ≤ 0.05.</p>
+<pre class="r"><code>group_tests &lt;- function(D, group) {
+    set.seed(1)
+    a &lt;- adonis2(D ~ group, data = data.frame(group = group),
+        permutations = 999)
+    bd &lt;- betadisper(D, group)
+    set.seed(1)
+    pd &lt;- permutest(bd, permutations = 999)
+    disp &lt;- tapply(bd$distances, group, mean)
+    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(&gt;F)`[1],
+        setNames(disp, paste(&quot;dispersion&quot;, names(disp))),
+        PERMDISP_p = pd$tab[1, &quot;Pr(&gt;F)&quot;])
+}
+test_all &lt;- function(D, group) {
+    t(vapply(D, group_tests, numeric(6), group = group))
+}</code></pre>
+</div>
+</div>
+<div id="simulation-1-hidden-coherence-across-distinct-proteins"
+class="section level1">
+<h1>Simulation 1 — Hidden coherence across distinct proteins</h1>
+<p><strong>Question.</strong> Can a representation-aware sample distance
+detect a shared latent protein relationship when protein-accession
+identity contains no shared signal?</p>
+<ul>
+<li><strong>H0 (null group):</strong> the enriched proteins share no
+imposed relationship.</li>
+<li><strong>H1 (coherent group):</strong> the enriched proteins all
+belong to one FunFam, but no two samples enrich the same domain, or the
+same sequence cluster.</li>
+</ul>
+<p>At the accession level both groups look equally heterogeneous: ten
+samples, ten different enriched domains. Only the coherent group hides a
+shared family. This is a positive control, not a symmetric biological
+comparison, and FunFam membership is a structural and functional family,
+not a proxy for function in general.</p>
+<div id="domain-universe" class="section level2">
+<h2>Domain universe</h2>
+<pre class="r"><code>ff &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_funfam.rds&quot;))
+x1 &lt;- ff$proteins
+a1 &lt;- ff$annotation
+# every domain has its own 50% cluster and its own UniProt accession
+stopifnot(identical(a1$domain, names(x1)), !anyDuplicated(a1$mmseqs50),
+    !anyDuplicated(a1$accession))
+c(FunFams = nrow(ff$families), domains = length(x1))
+#&gt; FunFams domains 
+#&gt;     144     762
+ff$provenance$steps
+#&gt;     seed_alignment_domains           bacteria_archaea 
+#&gt;                     339674                     140538 
+#&gt;             length_50_1000          standard_residues 
+#&gt;                     140282                     139722 
+#&gt;           unique_sequences clusters_within_one_funfam 
+#&gt;                      34906                      34906 
+#&gt;      one_per_50pct_cluster          one_per_accession 
+#&gt;                        786                        762 
+#&gt;          capped_per_funfam 
+#&gt;                        762</code></pre>
+<p>FunFams are domain-level families, so the universe holds domain
+sequences, not full-length proteins.
+<code>data-raw/simulation_funfam.R</code> takes, in each of the 300 CATH
+v4.3 superfamilies <span class="citation">(<a
+href="#ref-sillitoe2021cath">Sillitoe et al. 2021</a>)</span> with the
+most S35 representatives, the largest FunFam <span class="citation">(<a
+href="#ref-das2015funfam">Das et al. 2015</a>)</span> whose seed
+alignment has DOPS ≥ 70. Its Bacteria and Archaea members of 50 to 1000
+residues, with standard residues only, are clustered with MMseqs2 at 50%
+identity and 80% coverage of both sequences, and one domain is kept per
+cluster (clusters spanning two FunFams are dropped), then one per
+UniProt accession, at most 100 per FunFam (the largest has 48). FunFams
+are tight orthologue groups: the 34906 unique prokaryotic domain
+sequences fall into 786 clusters at 50% identity. Every domain was
+embedded with <code>embed_proteins(model = "tmvec")</code>. One FunFam
+per superfamily keeps different FunFams structurally distinct.</p>
+<p>A FunFam is a target if it has at least ten domains, so its ten
+enriched domains come from ten different 50% clusters and ten different
+proteins. Eligibility uses only FunFam membership and the clusters,
+never the embeddings or any result; every FunFam stays in the universe
+as background.</p>
+<pre class="r"><code>n1 &lt;- 10L
+targets &lt;- sort(names(which(table(a1$family) &gt;= n1)))
+length(targets)
+#&gt; [1] 24</code></pre>
+</div>
+<div id="design" class="section level2">
+<h2>Design</h2>
+<p>For target <span class="math inline">\(t\)</span> (seed <span
+class="math inline">\(t\)</span>): the coherent group’s ten samples each
+enrich one domain of the target FunFam, drawn without replacement. Each
+null sample enriches one domain from a different non-target FunFam, so
+the ten null domains come from ten FunFams of ten other superfamilies;
+each is the domain closest in length to one coherent domain (ties at
+random), and takes that domain’s baseline abundance. Both groups use the
+same <span class="math inline">\(\rho\)</span> = 2%, depth, size factors
+and dispersion model.</p>
+<pre class="r"><code>draw_ff &lt;- function(i) {
+    set.seed(i)
+    coherent &lt;- a1$domain[a1$family == targets[i]]
+    coherent &lt;- coherent[sample.int(length(coherent), n1)]
+    pool &lt;- a1[a1$family != targets[i], ]
+    null &lt;- character(n1)
+    for (j in sample.int(n1)) {
+        gap &lt;- abs(pool$length - a1$length[match(coherent[j], a1$domain)])
+        best &lt;- which(gap == min(gap))
+        best &lt;- best[sample.int(length(best), 1L)]
+        null[j] &lt;- pool$domain[best]
+        pool &lt;- pool[pool$family != pool$family[best], ]
+    }
+    up &lt;- as.list(c(null, coherent))
+    names(up) &lt;- sprintf(&quot;s%02d&quot;, seq_along(up))
+    list(up = up, pairs = cbind(coherent, null),
+        group = factor(rep(c(&quot;null&quot;, &quot;coherent&quot;), each = n1),
+            c(&quot;null&quot;, &quot;coherent&quot;)))
+}
+simulate_ff &lt;- function(i, rho = rho_example) {
+    d &lt;- draw_ff(i) # sets the seed; the counts continue the same stream
+    d$counts &lt;- nb_counts(d$up, a1$domain, rho, d$pairs)
+    d
+}</code></pre>
+<pre class="r"><code>bins1 &lt;- bin_proteins(protein_similarity(x1,
+    n_cores = BiocParallel::multicoreWorkers()))
+distances_ff &lt;- function(counts) {
+    list(
+        MMD = sample_mmd(counts, x1),
+        `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins1),
+            &quot;bray&quot;),
+        `Bray-Curtis (protein)` = vegdist(counts, &quot;bray&quot;)
     )
-}))
-ord$panel &lt;- factor(ord$panel, unique(ord$panel))
-
-ggplot(ord, aes(Axis1, Axis2, colour = group)) +
-    geom_point(size = 2, alpha = 0.85) +
-    stat_ellipse(type = &quot;t&quot;, linewidth = 0.3) +
-    facet_wrap(~panel, nrow = 1, scales = &quot;free&quot;) +
-    labs(x = &quot;PCo1&quot;, y = &quot;PCo2&quot;, colour = &quot;group&quot;) +
-    theme_bw() +
-    theme(legend.position = &quot;bottom&quot;)</code></pre>
-<p><img src="simulation_files/figure-html/pcoa-1.png" alt="PCoA of the simulated samples under RBF-MMD, MCL-bin Bray-Curtis, and protein-level Bray-Curtis, coloured by group" width="960" /></p>
-<p>In the first two panels group B collapses into a tight cluster away
-from group A, and the first axis — about half of the total variation —
-carries the separation. In the protein-level Bray-Curtis panel the two
-groups sit interleaved, and the leading axes hold a few percent each:
-the distance is near-constant across all pairs, within group and
-between.</p>
+}</code></pre>
 </div>
-<div id="reading" class="section level1">
-<h1>Reading</h1>
-<p>The two structure-aware routes are not interchangeable in general —
-MMD weighs graded similarity through a kernel, the bins through a graph
-floor and MCL — but on a coherent functional shift they agree, and the
-conventional baseline is blind to it. When homologs rather than shared
-accessions carry a signal, the choice of representation is not a
-refinement; it is the difference between detecting the effect and
-missing it entirely.</p>
+<div id="representative-funfam" class="section level2">
+<h2>Representative FunFam</h2>
+<p>The representative target is drawn with a fixed seed before any
+simulation is run.</p>
+<pre class="r"><code>set.seed(20261008)
+ex1 &lt;- sample(length(targets), 1)
+sim1 &lt;- simulate_ff(ex1)
+ff$families[ff$families$family == targets[ex1], c(&quot;family&quot;, &quot;name&quot;)]</code></pre>
+<div class="kable-table">
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">family</th>
+<th align="left">name</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">1197</td>
+<td align="left">3.30.70.890/FF/000001</td>
+<td align="left">Galactokinase</td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre class="r"><code># no accession or 50% cluster repeats; lengths are matched
+stopifnot(!anyDuplicated(unlist(sim1$up)),
+    !anyDuplicated(a1$mmseqs50[match(unlist(sim1$up), a1$domain)]))
+sapply(list(coherent = sim1$pairs[, 1], null = sim1$pairs[, 2]),
+    function(d) summary(a1$length[match(d, a1$domain)]))
+#&gt;         coherent   null
+#&gt; Min.      161.00 161.00
+#&gt; 1st Qu.   171.25 171.25
+#&gt; Median    175.50 174.50
+#&gt; Mean      173.50 173.40
+#&gt; 3rd Qu.   176.75 176.75
+#&gt; Max.      180.00 180.00
+D1 &lt;- distances_ff(sim1$counts)
+knitr::kable(test_all(D1, sim1$group), digits = 3)</code></pre>
+<table>
+<colgroup>
+<col width="32%" />
+<col width="6%" />
+<col width="6%" />
+<col width="6%" />
+<col width="16%" />
+<col width="20%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">R2</th>
+<th align="right">F</th>
+<th align="right">p</th>
+<th align="right">dispersion null</th>
+<th align="right">dispersion coherent</th>
+<th align="right">PERMDISP_p</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="right">0.155</td>
+<td align="right">3.310</td>
+<td align="right">0.001</td>
+<td align="right">0.016</td>
+<td align="right">0.013</td>
+<td align="right">0.007</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (repdist MCL bins)</td>
+<td align="right">0.044</td>
+<td align="right">0.826</td>
+<td align="right">0.439</td>
+<td align="right">0.126</td>
+<td align="right">0.105</td>
+<td align="right">0.460</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="right">0.038</td>
+<td align="right">0.703</td>
+<td align="right">0.965</td>
+<td align="right">0.191</td>
+<td align="right">0.178</td>
+<td align="right">0.542</td>
+</tr>
+</tbody>
+</table>
+<p><img src="simulation_files/figure-html/ff-pcoa-1.png" alt="PCoA of Simulation 1's representative target under three distances, coloured by group" width="960" /></p>
+</div>
+<div id="all-eligible-funfams" class="section level2">
+<h2>All eligible FunFams</h2>
+<pre class="r"><code>within_tm &lt;- function(ids) {
+    Z &lt;- S4Vectors::mcols(x1)$embedding[ids, ]
+    Z &lt;- Z / sqrt(rowSums(Z^2))
+    s &lt;- tcrossprod(Z)
+    median(s[upper.tri(s)])
+}
+bench1 &lt;- do.call(rbind, lapply(seq_along(targets), function(i) {
+    s &lt;- simulate_ff(i)
+    r &lt;- test_all(distances_ff(s$counts), s$group)
+    data.frame(target = targets[i],
+        name = ff$families$name[match(targets[i], ff$families$family)],
+        within_TM = within_tm(a1$domain[a1$family == targets[i]]),
+        method = rownames(r), R2 = r[, &quot;R2&quot;], p = r[, &quot;p&quot;],
+        PERMDISP_p = r[, &quot;PERMDISP_p&quot;],
+        dispersion_null = r[, &quot;dispersion null&quot;],
+        dispersion_coherent = r[, &quot;dispersion coherent&quot;], row.names = NULL)
+}))
+bench1$method &lt;- factor(bench1$method, names(D1))
+write.csv(bench1, file.path(&quot;supplement&quot;, &quot;simulation1_funfams.csv&quot;),
+    row.names = FALSE)
+summ1 &lt;- do.call(rbind, lapply(split(bench1, bench1$method), function(d) {
+    data.frame(method = d$method[1], targets = nrow(d),
+        `PERMANOVA p ≤ 0.05` = sum(d$p &lt;= 0.05),
+        `PERMDISP p ≤ 0.05` = sum(d$PERMDISP_p &lt;= 0.05),
+        `PERMANOVA only` = sum(d$p &lt;= 0.05 &amp; d$PERMDISP_p &gt; 0.05),
+        `median R2` = median(d$R2), check.names = FALSE)
+}))
+knitr::kable(summ1, digits = 3, row.names = FALSE)</code></pre>
+<table>
+<colgroup>
+<col width="30%" />
+<col width="7%" />
+<col width="18%" />
+<col width="17%" />
+<col width="14%" />
+<col width="9%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">method</th>
+<th align="right">targets</th>
+<th align="right">PERMANOVA p ≤ 0.05</th>
+<th align="right">PERMDISP p ≤ 0.05</th>
+<th align="right">PERMANOVA only</th>
+<th align="right">median R2</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="right">24</td>
+<td align="right">24</td>
+<td align="right">13</td>
+<td align="right">11</td>
+<td align="right">0.134</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (repdist MCL bins)</td>
+<td align="right">24</td>
+<td align="right">1</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.059</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="right">24</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">0.045</td>
+</tr>
+</tbody>
+</table>
+<p><code>PERMANOVA only</code> counts targets detected by PERMANOVA
+without a significant dispersion difference. The number of MCL bins
+holding each target FunFam’s domains, counted over targets:</p>
+<pre class="r"><code>bins_per_target &lt;- vapply(targets, function(t) {
+    length(unique(bins1$membership[a1$domain[a1$family == t]]))
+}, integer(1))
+table(bins_per_target)
+#&gt; bins_per_target
+#&gt;  1  2 
+#&gt; 23  1
+c(MCL_bins = length(bins1$clusters))
+#&gt; MCL_bins 
+#&gt;      146</code></pre>
+<p>Each target’s PERMANOVA <span class="math inline">\(R^2\)</span>
+(filled: p ≤ 0.05), against the median predicted TM-score between the
+target FunFam’s domains:</p>
+<p><img src="simulation_files/figure-html/ff-plot-1.png" alt="PERMANOVA R2 per target FunFam against its within-family predicted TM-score, by distance" width="864" /></p>
+<p>Every target, with its R2, p and PERMDISP p per distance: <a
+href="supplement/simulation1_funfams.csv"><code>supplement/simulation1_funfams.csv</code></a>.</p>
+</div>
+</div>
+<div id="simulation-2-sequence-disjoint-functional-contrasts"
+class="section level1">
+<h1>Simulation 2 — Sequence-disjoint functional contrasts</h1>
+<p><strong>Question.</strong> Can representation-aware analysis recover
+a condition-level functional difference when the proteins carrying each
+function belong to different sequence clusters in every sample?</p>
+<p>Two coherent functional states are compared symmetrically: condition
+A is enriched for one EC3, condition B for another, and within a
+condition no MMseqs2 sequence cluster is enriched in two samples.</p>
+<div id="protein-universe" class="section level2">
+<h2>Protein universe</h2>
+<pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
+mm &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_mmseqs2.rds&quot;))
+# the sequence clusters were computed on this exact universe file
+stopifnot(identical(mm$provenance$universe_md5,
+    unname(tools::md5sum(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;)))))
+x &lt;- u$proteins
+ann &lt;- u$annotation
+stopifnot(identical(ann$protein, names(x)),
+    identical(mm$clusters$protein, names(x)))
+ann$mmseqs50 &lt;- mm$clusters$mmseqs50
+ann$mmseqs30 &lt;- mm$clusters$mmseqs30
+c(proteins = length(x), EC3 = length(unique(ann$ec3)),
+    EC4 = length(unique(ann$ec4)))
+#&gt; proteins      EC3      EC4 
+#&gt;     4920      229     2679
+u$provenance$steps
+#&gt;               candidates      single_complete_ec4           length_50_1000 
+#&gt;                    18779                     5903                     5794 
+#&gt;                no_U_or_O uniref50_representatives 
+#&gt;                     5786                     4920</code></pre>
+<p>The proteins are UniProtKB/Swiss-Prot entries <span
+class="citation">(<a href="#ref-uniprot2025">The UniProt Consortium
+2025</a>)</span> (release 2026_03) from Bacteria and Archaea,
+non-fragments, with an experimentally supported catalytic activity. An
+entry is kept only if every EC number it carries, on any reaction or in
+its name, is one complete four-level number (EC4) and at least one
+reaction with that number has experimental evidence (ECO:0000269).
+Full-length sequences of 50 to 1000 residues (the TM-Vec head’s training
+range) without selenocysteine or pyrrolysine are kept, one protein per
+UniRef50 cluster <span class="citation">(<a
+href="#ref-suzek2015uniref"><span class="nocase">Suzek et al.</span>
+2015</a>)</span>, and embedded with
+<code>embed_proteins(model = "tmvec")</code>
+(<code>data-raw/simulation_universe.R</code>).</p>
+</div>
+<div id="sequence-clusters" class="section level2">
+<h2>Sequence clusters</h2>
+<p><code>data-raw/simulation_mmseqs2.R</code> clusters the same
+sequences with MMseqs2 18.8cc5c. The primary clustering uses 50%
+identity, the usual protein-family level (as UniRef50); 30% identity is
+a permissive sensitivity analysis. Both require the alignment to cover
+80% of both sequences (<code>--cov-mode 0</code>) and use the most
+sensitive prefilter (<code>-s 7.5</code>):</p>
+<pre class="r"><code>mm$provenance[c(&quot;cluster_50&quot;, &quot;cluster_30&quot;)]
+#&gt; $cluster_50
+#&gt; [1] &quot;mmseqs easy-cluster &lt;tmp&gt;/universe.fasta &lt;tmp&gt;/c0.5 &lt;tmp&gt;/work --min-seq-id 0.5 -c 0.8 --cov-mode 0 --cluster-mode 0 -s 7.5&quot;
+#&gt; 
+#&gt; $cluster_30
+#&gt; [1] &quot;mmseqs easy-cluster &lt;tmp&gt;/universe.fasta &lt;tmp&gt;/c0.3 &lt;tmp&gt;/work --min-seq-id 0.3 -c 0.8 --cov-mode 0 --cluster-mode 0 -s 7.5&quot;
+mm$provenance$n_clusters
+#&gt; mmseqs50 mmseqs30 
+#&gt;     4454     2945
+# every 50% cluster lies inside one 30% cluster
+all(tapply(ann$mmseqs30, ann$mmseqs50, function(v) length(unique(v))) == 1)
+#&gt; [1] TRUE</code></pre>
+<p>Because the universe is already one protein per UniRef50 cluster, the
+50% clustering is close to the proteins themselves.</p>
+</div>
+<div id="eligible-classes-and-contrasts" class="section level2">
+<h2>Eligible classes and contrasts</h2>
+<p>Each sample is enriched in two proteins of its condition’s EC3, and
+every enriched protein of a condition comes from a different 50%
+cluster. An EC3 is eligible if it spans at least 10 × 2 = 20 distinct
+50% clusters. Eligibility uses only the EC labels and the MMseqs2
+clusters, never the embeddings, the MCL bins or any result. The eligible
+EC3s are shuffled with a fixed seed and paired in order, so each EC3
+enters exactly one contrast.</p>
+<pre class="r"><code>n_per_group &lt;- 10L
+n_enriched &lt;- 2L
+k &lt;- n_per_group * n_enriched
+clusters_per &lt;- function(level) {
+    tapply(ann$mmseqs50, ann[[level]], function(v) length(unique(v)))
+}
+n50 &lt;- clusters_per(&quot;ec3&quot;)
+eligible &lt;- sort(names(n50)[n50 &gt;= k])
+c(EC3 = length(n50), eligible = length(eligible),
+    `eligible EC4` = sum(clusters_per(&quot;ec4&quot;) &gt;= k))
+#&gt;          EC3     eligible eligible EC4 
+#&gt;          229           56            5
+set.seed(20261008)
+shuffled &lt;- sample(eligible)
+contrasts &lt;- data.frame(A = shuffled[c(TRUE, FALSE)],
+    B = shuffled[c(FALSE, TRUE)])
+nrow(contrasts)
+#&gt; [1] 28</code></pre>
+<p>Only 5 EC4 classes meet the same rule, too few for an EC4 simulation,
+so EC4 is used to score the bins below.</p>
+</div>
+<div id="design-1" class="section level2">
+<h2>Design</h2>
+<p>For contrast <span class="math inline">\(c\)</span> (seed <span
+class="math inline">\(c\)</span>), condition A draws 20 distinct 50%
+clusters of EC3-A and one protein from each, two per sample. To keep the
+enrichment from collapsing into one enzyme, clusters are taken one per
+EC4 of the class before a second from any EC4, in random order.
+Condition B does the same in EC3-B, excluding any cluster A used. The
+conditions match on everything in the count model; only the class
+carrying the signal differs.</p>
+<p><span class="math inline">\(\rho\)</span> takes the values 0, 1%, 2%,
+5% and 10%; at <span class="math inline">\(\rho = 0\)</span> both
+conditions have the same distribution, so detections are false
+positives. A contrast uses the same seed at every <span
+class="math inline">\(\rho\)</span>, so its enriched proteins, baseline,
+size factors and dispersions do not change with the signal strength.</p>
+<pre class="r"><code>rhos &lt;- c(0, 0.01, 0.02, 0.05, 0.10)
+mm50 &lt;- setNames(ann$mmseqs50, ann$protein)
+mm30 &lt;- setNames(ann$mmseqs30, ann$protein)
+draw_enriched &lt;- function(ec, exclude = character()) {
+    cand &lt;- unique(ann[ann$ec3 == ec &amp; !ann$mmseqs50 %in% exclude,
+        c(&quot;mmseqs50&quot;, &quot;ec4&quot;)])
+    cand &lt;- cand[sample.int(nrow(cand)), ]
+    cand &lt;- cand[!duplicated(cand$mmseqs50), ]
+    # one cluster per EC4 before a second from any EC4
+    cand &lt;- cand[order(ave(seq_len(nrow(cand)), cand$ec4, FUN = seq_along)), ]
+    vapply(seq_len(k), function(r) {
+        p &lt;- ann$protein[ann$mmseqs50 == cand$mmseqs50[r] &amp;
+            ann$ec4 == cand$ec4[r]]
+        p[sample.int(length(p), 1L)]
+    }, &quot;&quot;)
+}
+enriched &lt;- function(i) {
+    set.seed(i)
+    a &lt;- draw_enriched(contrasts$A[i])
+    b &lt;- draw_enriched(contrasts$B[i], exclude = mm50[a])
+    up &lt;- unname(split(c(a, b), rep(seq_len(2 * n_per_group),
+        each = n_enriched)))
+    names(up) &lt;- sprintf(&quot;s%02d&quot;, seq_along(up))
+    list(up = up, pairs = cbind(a, b),
+        group = factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n_per_group)))
+}
+simulate_ec &lt;- function(i, rho) {
+    d &lt;- enriched(i) # sets the seed; the counts continue the same stream
+    d$counts &lt;- nb_counts(d$up, ann$protein, rho, d$pairs)
+    d
+}</code></pre>
+<pre class="r"><code>S &lt;- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())
+bins &lt;- bin_proteins(S)
+glom &lt;- function(counts, cluster) t(rowsum(t(counts), cluster[colnames(counts)]))
+distances_ec &lt;- function(counts) {
+    list(
+        MMD = sample_mmd(counts, x),
+        `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
+            &quot;bray&quot;),
+        `Bray-Curtis (MMseqs2 bins)` = vegdist(glom(counts, mm50), &quot;bray&quot;),
+        `Bray-Curtis (protein)` = vegdist(counts, &quot;bray&quot;),
+        `Bray-Curtis (MMseqs2 30% bins)` = vegdist(glom(counts, mm30), &quot;bray&quot;)
+    )
+}</code></pre>
+<p>The fifth distance, MMseqs2 bins at 30% identity, is the sensitivity
+analysis; it is reported in the tables but not in the ordination.</p>
+</div>
+<div id="representative-contrast" class="section level2">
+<h2>Representative contrast</h2>
+<p>The first contrast of the seeded pairing, at <span
+class="math inline">\(\rho\)</span> = 2%; both were fixed before any
+result.</p>
+<pre class="r"><code>sim &lt;- simulate_ec(1, rho_example)
+unlist(contrasts[1, ])
+#&gt;       A       B 
+#&gt; &quot;2.7.7&quot; &quot;2.3.2&quot;
+enr &lt;- data.frame(sample = rep(names(sim$up), lengths(sim$up)),
+    condition = rep(sim$group, lengths(sim$up)), protein = unlist(sim$up))
+enr &lt;- cbind(enr, ann[match(enr$protein, ann$protein),
+    c(&quot;ec4&quot;, &quot;name&quot;, &quot;mmseqs50&quot;, &quot;mmseqs30&quot;)])
+enr$mcl_bin &lt;- bins$membership[enr$protein]
+write.csv(enr, file.path(&quot;supplement&quot;, &quot;simulation2_example_enriched.csv&quot;),
+    row.names = FALSE)
+# no 50% cluster is enriched twice within a condition
+stopifnot(!anyDuplicated(enr$mmseqs50[enr$condition == &quot;A&quot;]),
+    !anyDuplicated(enr$mmseqs50[enr$condition == &quot;B&quot;]))
+# distinct labels among each condition&#39;s 20 enriched proteins
+t(sapply(split(enr, enr$condition), function(d) c(
+    `50% clusters` = length(unique(d$mmseqs50)),
+    `30% clusters` = length(unique(d$mmseqs30)),
+    `MCL bins` = length(unique(d$mcl_bin)), EC4 = length(unique(d$ec4)))))
+#&gt;   50% clusters 30% clusters MCL bins EC4
+#&gt; A           20           20       17  20
+#&gt; B           20           17       12  16
+# realised share of each sample&#39;s counts on its enriched proteins
+tapply(vapply(seq_along(sim$up), function(i) {
+    sum(sim$counts[i, sim$up[[i]]]) / sum(sim$counts[i, ])
+}, numeric(1)), sim$group, median)
+#&gt;          A          B 
+#&gt; 0.02200388 0.02131370
+D &lt;- distances_ec(sim$counts)
+res &lt;- test_all(D, sim$group)
+knitr::kable(res, digits = 3)</code></pre>
+<table>
+<colgroup>
+<col width="36%" />
+<col width="6%" />
+<col width="6%" />
+<col width="6%" />
+<col width="15%" />
+<col width="15%" />
+<col width="12%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">R2</th>
+<th align="right">F</th>
+<th align="right">p</th>
+<th align="right">dispersion A</th>
+<th align="right">dispersion B</th>
+<th align="right">PERMDISP_p</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="right">0.115</td>
+<td align="right">2.328</td>
+<td align="right">0.001</td>
+<td align="right">0.012</td>
+<td align="right">0.011</td>
+<td align="right">0.704</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (repdist MCL bins)</td>
+<td align="right">0.061</td>
+<td align="right">1.170</td>
+<td align="right">0.207</td>
+<td align="right">0.179</td>
+<td align="right">0.200</td>
+<td align="right">0.220</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 bins)</td>
+<td align="right">0.054</td>
+<td align="right">1.037</td>
+<td align="right">0.263</td>
+<td align="right">0.271</td>
+<td align="right">0.280</td>
+<td align="right">0.487</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="right">0.055</td>
+<td align="right">1.052</td>
+<td align="right">0.222</td>
+<td align="right">0.283</td>
+<td align="right">0.289</td>
+<td align="right">0.549</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 30% bins)</td>
+<td align="right">0.057</td>
+<td align="right">1.085</td>
+<td align="right">0.220</td>
+<td align="right">0.229</td>
+<td align="right">0.242</td>
+<td align="right">0.314</td>
+</tr>
+</tbody>
+</table>
+<p>Each sample’s enriched proteins: <a
+href="supplement/simulation2_example_enriched.csv"><code>supplement/simulation2_example_enriched.csv</code></a>.</p>
+<p><img src="simulation_files/figure-html/ec-pcoa-1.png" alt="PCoA of Simulation 2's representative contrast under four distances, coloured by condition" width="1056" /></p>
+</div>
+<div id="sequence-divergence-of-the-enriched-proteins"
+class="section level2">
+<h2>Sequence divergence of the enriched proteins</h2>
+<p>For every contrast and condition, the 180 pairs of enriched proteins
+from different samples are checked against the two clusterings, the MCL
+bins, the EC4 labels and an all-vs-all MMseqs2 search
+(<code>-s 7.5</code>, E-value ≤ 10<sup>-3</sup>; a pair without a hit
+has no detectable sequence similarity). This depends only on the design,
+not on <span class="math inline">\(\rho\)</span> or any test.</p>
+<pre class="r"><code>hit_key &lt;- paste(mm$hits$p1, mm$hits$p2)
+cross_pairs &lt;- function(sets) {
+    s &lt;- rep(seq_along(sets), lengths(sets))
+    p &lt;- unlist(sets)
+    ij &lt;- which(outer(s, s, &quot;&lt;&quot;), arr.ind = TRUE)
+    data.frame(a = p[ij[, 1]], b = p[ij[, 2]])
+}
+ec4 &lt;- setNames(ann$ec4, ann$protein)
+divergence &lt;- do.call(rbind, lapply(seq_len(nrow(contrasts)), function(i) {
+    d &lt;- enriched(i)
+    do.call(rbind, lapply(c(&quot;A&quot;, &quot;B&quot;), function(g) {
+        pr &lt;- cross_pairs(d$up[d$group == g])
+        h &lt;- mm$hits$fident[match(paste(pmin(pr$a, pr$b), pmax(pr$a, pr$b)),
+            hit_key)]
+        data.frame(contrast = i, condition = g, EC3 = contrasts[i, g],
+            `same 50% cluster` = mean(mm50[pr$a] == mm50[pr$b]),
+            `same 30% cluster` = mean(mm30[pr$a] == mm30[pr$b]),
+            `sequence hit` = mean(!is.na(h)),
+            `max identity` = if (all(is.na(h))) NA else max(h, na.rm = TRUE),
+            `same MCL bin` = mean(bins$membership[pr$a] ==
+                bins$membership[pr$b]),
+            `same EC4` = mean(ec4[pr$a] == ec4[pr$b]),
+            `distinct EC4` = length(unique(ec4[unlist(d$up[d$group == g])])),
+            check.names = FALSE)
+    }))
+}))
+stopifnot(all(divergence$`same 50% cluster` == 0))
+knitr::kable(t(vapply(divergence[-(1:3)], function(v) {
+    quantile(v, c(0, 0.5, 1), na.rm = TRUE)
+}, numeric(3))), digits = 3)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">0%</th>
+<th align="right">50%</th>
+<th align="right">100%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">same 50% cluster</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td align="left">same 30% cluster</td>
+<td align="right">0.000</td>
+<td align="right">0.019</td>
+<td align="right">0.194</td>
+</tr>
+<tr class="odd">
+<td align="left">sequence hit</td>
+<td align="right">0.000</td>
+<td align="right">0.056</td>
+<td align="right">0.578</td>
+</tr>
+<tr class="even">
+<td align="left">max identity</td>
+<td align="right">0.261</td>
+<td align="right">0.413</td>
+<td align="right">0.671</td>
+</tr>
+<tr class="odd">
+<td align="left">same MCL bin</td>
+<td align="right">0.000</td>
+<td align="right">0.053</td>
+<td align="right">0.628</td>
+</tr>
+<tr class="even">
+<td align="left">same EC4</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">1.000</td>
+</tr>
+<tr class="odd">
+<td align="left">distinct EC4</td>
+<td align="right">1.000</td>
+<td align="right">20.000</td>
+<td align="right">20.000</td>
+</tr>
+</tbody>
+</table>
+<p>Rows give, per condition, the share of cross-sample pairs in one 50%
+cluster, in one 30% cluster, with a detectable sequence hit, in one MCL
+bin and with one EC4; the highest identity of any hit pair; and the
+number of distinct EC4s among the 20 enriched proteins. Columns are the
+minimum, median and maximum over the 56 conditions.</p>
+</div>
+<div id="all-contrasts" class="section level2">
+<h2>All contrasts</h2>
+<pre class="r"><code>bench2 &lt;- do.call(rbind, lapply(seq_len(nrow(contrasts)), function(i) {
+    do.call(rbind, lapply(rhos, function(rho) {
+        s &lt;- simulate_ec(i, rho)
+        r &lt;- test_all(distances_ec(s$counts), s$group)
+        data.frame(contrast = i, A = contrasts$A[i], B = contrasts$B[i],
+            rho = rho, method = rownames(r), R2 = r[, &quot;R2&quot;], p = r[, &quot;p&quot;],
+            PERMDISP_p = r[, &quot;PERMDISP_p&quot;], row.names = NULL)
+    }))
+}))
+bench2$method &lt;- factor(bench2$method, names(D))
+# the representative contrast is the benchmark&#39;s contrast 1 at rho = 2%
+stopifnot(isTRUE(all.equal(unname(res[, &quot;p&quot;]),
+    bench2$p[bench2$contrast == 1 &amp; bench2$rho == rho_example])))
+write.csv(bench2, file.path(&quot;supplement&quot;, &quot;simulation2_contrasts.csv&quot;),
+    row.names = FALSE)</code></pre>
+<p>Contrasts detected by PERMANOVA, out of 28, with the number also
+significant by PERMDISP in parentheses. At <span
+class="math inline">\(\rho = 0\)</span> these are false positives; about
+1.4 are expected at α = 0.05.</p>
+<table style="width:100%;">
+<colgroup>
+<col width="46%" />
+<col width="10%" />
+<col width="10%" />
+<col width="10%" />
+<col width="10%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">ρ = 0%</th>
+<th align="left">ρ = 1%</th>
+<th align="left">ρ = 2%</th>
+<th align="left">ρ = 5%</th>
+<th align="left">ρ = 10%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="left">0 (1)</td>
+<td align="left">26 (4)</td>
+<td align="left">27 (2)</td>
+<td align="left">28 (6)</td>
+<td align="left">28 (3)</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (repdist MCL bins)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">4 (1)</td>
+<td align="left">12 (2)</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 bins)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 30% bins)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (2)</td>
+<td align="left">1 (1)</td>
+<td align="left">3 (1)</td>
+</tr>
+</tbody>
+</table>
+<p>MMseqs2 50% bins and proteins coincide at zero in the plot.</p>
+<p><img src="simulation_files/figure-html/ec-detection-plot-1.png" alt="Share of EC3 contrasts detected by PERMANOVA against signal strength, by distance" width="720" /></p>
+<p>Median PERMANOVA <span class="math inline">\(R^2\)</span> over
+contrasts. <span class="math inline">\(R^2\)</span> is not on a common
+scale across distances: Bray-Curtis on many sparse features has a higher
+floor at <span class="math inline">\(\rho = 0\)</span>.</p>
+<table style="width:100%;">
+<colgroup>
+<col width="46%" />
+<col width="10%" />
+<col width="10%" />
+<col width="10%" />
+<col width="10%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">ρ = 0%</th>
+<th align="right">ρ = 1%</th>
+<th align="right">ρ = 2%</th>
+<th align="right">ρ = 5%</th>
+<th align="right">ρ = 10%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="right">0.050</td>
+<td align="right">0.088</td>
+<td align="right">0.133</td>
+<td align="right">0.173</td>
+<td align="right">0.194</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (repdist MCL bins)</td>
+<td align="right">0.045</td>
+<td align="right">0.049</td>
+<td align="right">0.055</td>
+<td align="right">0.068</td>
+<td align="right">0.077</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 bins)</td>
+<td align="right">0.050</td>
+<td align="right">0.051</td>
+<td align="right">0.051</td>
+<td align="right">0.050</td>
+<td align="right">0.050</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="right">0.050</td>
+<td align="right">0.050</td>
+<td align="right">0.051</td>
+<td align="right">0.051</td>
+<td align="right">0.051</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 30% bins)</td>
+<td align="right">0.048</td>
+<td align="right">0.049</td>
+<td align="right">0.052</td>
+<td align="right">0.056</td>
+<td align="right">0.059</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="mmseqs2-bins-against-repdist" class="section level2">
+<h2>MMseqs2 bins against repdist</h2>
+<p>Per signal strength, the number of contrasts that one distance
+detects and the other does not:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">ρ = 1%</th>
+<th align="right">ρ = 2%</th>
+<th align="right">ρ = 5%</th>
+<th align="right">ρ = 10%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD, not MMseqs2 bins</td>
+<td align="right">26</td>
+<td align="right">27</td>
+<td align="right">28</td>
+<td align="right">28</td>
+</tr>
+<tr class="even">
+<td align="left">MMseqs2 bins, not MMD</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+<tr class="odd">
+<td align="left">MCL bins, not MMseqs2 bins</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">4</td>
+<td align="right">12</td>
+</tr>
+<tr class="even">
+<td align="left">MMseqs2 bins, not MCL bins</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+<tr class="odd">
+<td align="left">MMseqs2 30% bins, not MCL bins</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+</tbody>
+</table>
+<p>Every contrast, signal strength and distance, with R2, p and PERMDISP
+p: <a
+href="supplement/simulation2_contrasts.csv"><code>supplement/simulation2_contrasts.csv</code></a>.</p>
+</div>
+</div>
+<div id="protein-clustering-against-functional-labels"
+class="section level1">
+<h1>Protein clustering against functional labels</h1>
+<p>This benchmark is separate from the sample-level simulations. The MCL
+bins of Simulation 2’s universe were built from embeddings and
+alignments alone; EC labels are used only here. The two MMseqs2
+clusterings are scored the same way for comparison. With <span
+class="math inline">\(n_k\)</span> members of label <span
+class="math inline">\(k\)</span> in a group of size <span
+class="math inline">\(n\)</span>:</p>
+<ul>
+<li><strong>Purity</strong> is <span class="math inline">\(\max_k n_k /
+n\)</span>, averaged over groups with at least two members.</li>
+<li><strong>Precision</strong> is the share of same-group protein pairs
+that share the label.</li>
+<li><strong>Recall</strong> is the share of same-label protein pairs
+placed in one group.</li>
+<li><strong>F1</strong> is <span class="math inline">\(2PR/(P +
+R)\)</span>.</li>
+</ul>
+<p>Purity and precision ignore singletons, so many small, pure groups
+score high on both while splitting each class across groups; recall
+measures that splitting. Each score is also given with the labels
+shuffled across proteins and the groups held fixed (mean of 100
+shuffles).</p>
+<pre class="r"><code>groupings &lt;- list(`repdist MCL bins` = bins$membership,
+    `MMseqs2 50%` = mm50, `MMseqs2 30%` = mm30)
+knitr::kable(t(vapply(groupings, function(m) {
+    sizes &lt;- as.vector(table(m))
+    c(groups = length(sizes), `multi-member` = sum(sizes &gt; 1),
+        `singleton proteins (%)` = 100 * sum(sizes == 1) / length(m),
+        table(cut(sizes, c(0, 1, 2, 5, 10, 50, Inf),
+            labels = c(&quot;1&quot;, &quot;2&quot;, &quot;3-5&quot;, &quot;6-10&quot;, &quot;11-50&quot;, &quot;&gt;50&quot;))),
+        largest = max(sizes))
+}, numeric(10))), digits = 1)</code></pre>
+<table>
+<colgroup>
+<col width="17%" />
+<col width="7%" />
+<col width="13%" />
+<col width="23%" />
+<col width="5%" />
+<col width="4%" />
+<col width="4%" />
+<col width="5%" />
+<col width="6%" />
+<col width="4%" />
+<col width="8%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">groups</th>
+<th align="right">multi-member</th>
+<th align="right">singleton proteins (%)</th>
+<th align="right">1</th>
+<th align="right">2</th>
+<th align="right">3-5</th>
+<th align="right">6-10</th>
+<th align="right">11-50</th>
+<th align="right">&gt;50</th>
+<th align="right">largest</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">repdist MCL bins</td>
+<td align="right">1662</td>
+<td align="right">842</td>
+<td align="right">16.7</td>
+<td align="right">820</td>
+<td align="right">342</td>
+<td align="right">305</td>
+<td align="right">120</td>
+<td align="right">74</td>
+<td align="right">1</td>
+<td align="right">59</td>
+</tr>
+<tr class="even">
+<td align="left">MMseqs2 50%</td>
+<td align="right">4454</td>
+<td align="right">359</td>
+<td align="right">83.2</td>
+<td align="right">4095</td>
+<td align="right">290</td>
+<td align="right">66</td>
+<td align="right">3</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">8</td>
+</tr>
+<tr class="odd">
+<td align="left">MMseqs2 30%</td>
+<td align="right">2945</td>
+<td align="right">941</td>
+<td align="right">40.7</td>
+<td align="right">2004</td>
+<td align="right">523</td>
+<td align="right">343</td>
+<td align="right">59</td>
+<td align="right">16</td>
+<td align="right">0</td>
+<td align="right">39</td>
+</tr>
+</tbody>
+</table>
+<p>Columns <code>1</code> to <code>&gt;50</code> count groups by
+size.</p>
+<pre class="r"><code>labels &lt;- list(EC3 = setNames(ann$ec3, ann$protein), EC4 = ec4)
+scores &lt;- function(m, lab) {
+    lab &lt;- lab[names(m)]
+    nk &lt;- table(paste(m, lab, sep = &quot;\r&quot;))
+    group_of &lt;- sub(&quot;\r.*&quot;, &quot;&quot;, names(nk))
+    n &lt;- table(m)
+    multi &lt;- names(n)[n &gt; 1]
+    top &lt;- tapply(as.vector(nk), group_of, max)
+    same &lt;- sum(choose(nk, 2))
+    precision &lt;- same / sum(choose(n, 2))
+    recall &lt;- same / sum(choose(table(lab), 2))
+    c(purity = mean(top[multi] / n[multi]), precision = precision,
+        recall = recall, F1 = 2 * precision * recall / (precision + recall))
+}
+set.seed(1)
+ec_scores &lt;- do.call(rbind, lapply(names(labels), function(level) {
+    do.call(rbind, lapply(names(groupings), function(g) {
+        m &lt;- groupings[[g]]
+        obs &lt;- scores(m, labels[[level]])
+        shuf &lt;- rowMeans(replicate(100, scores(m,
+            setNames(sample(labels[[level]]), names(labels[[level]])))))
+        data.frame(level = level, grouping = g, t(obs),
+            `purity, shuffled` = shuf[[&quot;purity&quot;]],
+            `precision, shuffled` = shuf[[&quot;precision&quot;]],
+            `recall, shuffled` = shuf[[&quot;recall&quot;]], check.names = FALSE)
+    }))
+}))
+knitr::kable(ec_scores, digits = 3, row.names = FALSE)</code></pre>
+<table>
+<colgroup>
+<col width="5%" />
+<col width="15%" />
+<col width="6%" />
+<col width="9%" />
+<col width="6%" />
+<col width="5%" />
+<col width="15%" />
+<col width="18%" />
+<col width="15%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">level</th>
+<th align="left">grouping</th>
+<th align="right">purity</th>
+<th align="right">precision</th>
+<th align="right">recall</th>
+<th align="right">F1</th>
+<th align="right">purity, shuffled</th>
+<th align="right">precision, shuffled</th>
+<th align="right">recall, shuffled</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">EC3</td>
+<td align="left">repdist MCL bins</td>
+<td align="right">0.903</td>
+<td align="right">0.690</td>
+<td align="right">0.069</td>
+<td align="right">0.125</td>
+<td align="right">0.356</td>
+<td align="right">0.018</td>
+<td align="right">0.002</td>
+</tr>
+<tr class="even">
+<td align="left">EC3</td>
+<td align="left">MMseqs2 50%</td>
+<td align="right">0.983</td>
+<td align="right">0.966</td>
+<td align="right">0.003</td>
+<td align="right">0.006</td>
+<td align="right">0.473</td>
+<td align="right">0.018</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="odd">
+<td align="left">EC3</td>
+<td align="left">MMseqs2 30%</td>
+<td align="right">0.948</td>
+<td align="right">0.868</td>
+<td align="right">0.022</td>
+<td align="right">0.044</td>
+<td align="right">0.412</td>
+<td align="right">0.017</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td align="left">EC4</td>
+<td align="left">repdist MCL bins</td>
+<td align="right">0.695</td>
+<td align="right">0.161</td>
+<td align="right">0.441</td>
+<td align="right">0.236</td>
+<td align="right">0.333</td>
+<td align="right">0.001</td>
+<td align="right">0.002</td>
+</tr>
+<tr class="odd">
+<td align="left">EC4</td>
+<td align="left">MMseqs2 50%</td>
+<td align="right">0.921</td>
+<td align="right">0.852</td>
+<td align="right">0.071</td>
+<td align="right">0.131</td>
+<td align="right">0.462</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td align="left">EC4</td>
+<td align="left">MMseqs2 30%</td>
+<td align="right">0.780</td>
+<td align="right">0.390</td>
+<td align="right">0.278</td>
+<td align="right">0.325</td>
+<td align="right">0.395</td>
+<td align="right">0.001</td>
+<td align="right">0.000</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="summary" class="section level1">
+<h1>Summary</h1>
+<ul>
+<li><strong>Simulation 1.</strong> At <span
+class="math inline">\(\rho\)</span> = 2%, MMD detected 24 of 24 target
+FunFams; Bray-Curtis on MCL bins detected 1 and on proteins 1. For MMD,
+PERMDISP was also significant for 13 targets, the null group being more
+spread in 13 of them, as expected when each null sample moves in its own
+direction: there PERMANOVA reflects spread as well as location, and 11
+detections show no dispersion difference. The MCL bins hold 23 of 24
+target FunFams in one bin, so the bins do carry the hidden family;
+Bray-Curtis loses it because a 2% shift in one of 146 bins is small
+against the sampling noise summed over all of them. MMD’s graded
+similarity uses the shared family directly.</li>
+<li><strong>Simulation 2.</strong> At <span
+class="math inline">\(\rho\)</span> = 1, 2, 5 and 10%, MMD detected 26,
+27, 28, 28 of 28 contrasts, Bray-Curtis on MCL bins 0, 0, 4, 12, on
+MMseqs2 bins 0, 0, 0, 0 (30% bins: 0, 0, 1, 3) and on proteins 0, 0, 0,
+0. At <span class="math inline">\(\rho = 0\)</span> false positives
+totalled 0 over the five distances and 28 contrasts. MMD missed 3
+contrast–<span class="math inline">\(\rho\)</span> combinations, all at
+<span class="math inline">\(\rho \le\)</span> 2% with p between 0.055
+and 0.068. PERMDISP was significant for at most 6 of 28 contrasts for
+any distance and <span class="math inline">\(\rho &gt; 0\)</span>, so
+the detections are shifts in location. MMseqs2 bins detected 0
+contrast–<span class="math inline">\(\rho\)</span> combinations that MMD
+or the MCL bins missed. A condition’s 20 enriched proteins span a median
+of 20 EC4s; 2 of 56 conditions are a single EC4, an EC3 holding one
+enzyme with enough sequence clusters.</li>
+<li><strong>Protein clustering.</strong> MCL bins are functionally
+homogeneous but fragment broader EC classes: EC3 purity 0.903 and
+precision 0.690, but recall 0.069. They do not reconstruct EC classes.
+MMseqs2 clusters are purer still and fragment more (EC3 recall 0.003 at
+50% and 0.022 at 30%). At EC4 the 30% clusters score a higher F1 than
+the MCL bins (0.325 against 0.236), with higher precision (0.390 against
+0.161): an MCL bin often joins different EC4s of one class (EC3
+precision 0.690).</li>
+</ul>
+<p>Both simulations are built in the regime the method is meant for:
+related proteins spread over sequence clusters that do not overlap by
+construction. There, a distance on graded representation similarity
+keeps relationships between different proteins that protein identity and
+hard sequence bins discard, and hard representation bins keep part of
+them. This does not show that structure beats sequence in general. The
+<a href="case_study.html">case study</a> goes one step further, to a
+real metaproteomic contrast with no known functional truth.</p>
+</div>
+<div id="supplementary-files" class="section level1 unnumbered">
+<h1 class="unnumbered">Supplementary files</h1>
+<ul>
+<li><a
+href="supplement/simulation1_funfams.csv"><code>supplement/simulation1_funfams.csv</code></a>:
+Simulation 1, every target FunFam and distance.</li>
+<li><a
+href="supplement/simulation2_contrasts.csv"><code>supplement/simulation2_contrasts.csv</code></a>:
+Simulation 2, every contrast, signal strength and distance.</li>
+<li><a
+href="supplement/simulation2_example_enriched.csv"><code>supplement/simulation2_example_enriched.csv</code></a>:
+the representative contrast’s enriched proteins, with their EC4, MMseqs2
+clusters and MCL bin.</li>
+</ul>
 <pre class="r"><code>sessionInfo()
 #&gt; R version 4.5.2 (2025-10-31)
 #&gt; Platform: aarch64-apple-darwin20
@@ -629,29 +1755,92 @@ missing it entirely.</p>
 #&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
 #&gt; 
 #&gt; other attached packages:
-#&gt; [1] ggplot2_4.0.3  repdist_0.99.0
+#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
 #&gt; 
 #&gt; loaded via a namespace (and not attached):
 #&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.22-9     
-#&gt;  [4] digest_0.6.39       magrittr_2.0.5      MCL_1.0            
+#&gt;  [4] MCL_1.0             digest_0.6.39       magrittr_2.0.5     
 #&gt;  [7] evaluate_1.0.5      grid_4.5.2          RColorBrewer_1.1-3 
 #&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-5       
-#&gt; [13] mgcv_1.9-4          scales_1.4.0        permute_0.9-10     
-#&gt; [16] Biostrings_2.78.0   codetools_0.2-20    jquerylib_0.1.4    
-#&gt; [19] cli_3.6.6           rlang_1.3.0         crayon_1.5.3       
-#&gt; [22] expm_1.0-0          XVector_0.50.0      splines_4.5.2      
-#&gt; [25] withr_3.0.3         cachem_1.1.0        yaml_2.3.12        
-#&gt; [28] otel_0.2.0          vegan_2.7-5         tools_4.5.2        
-#&gt; [31] parallel_4.5.2      BiocParallel_1.44.0 dplyr_1.2.1        
-#&gt; [34] BiocGenerics_0.56.0 vctrs_0.7.3         R6_2.6.1           
-#&gt; [37] stats4_4.5.2        lifecycle_1.0.5     pwalign_1.6.0      
-#&gt; [40] Seqinfo_1.0.0       S4Vectors_0.48.1    IRanges_2.44.0     
-#&gt; [43] MASS_7.3-65         cluster_2.1.8.2     pkgconfig_2.0.3    
-#&gt; [46] pillar_1.11.1       bslib_0.11.0        gtable_0.3.6       
-#&gt; [49] glue_1.8.1          xfun_0.58           tibble_3.3.1       
-#&gt; [52] tidyselect_1.2.1    knitr_1.51          farver_2.1.2       
-#&gt; [55] nlme_3.1-169        htmltools_0.5.9     labeling_0.4.3     
-#&gt; [58] rmarkdown_2.31      compiler_4.5.2      S7_0.2.2</code></pre>
+#&gt; [13] mgcv_1.9-4          scales_1.4.0        Biostrings_2.78.0  
+#&gt; [16] codetools_0.2-20    jquerylib_0.1.4     cli_3.6.6          
+#&gt; [19] expm_1.0-0          rlang_1.3.0         crayon_1.5.3       
+#&gt; [22] XVector_0.50.0      splines_4.5.2       withr_3.0.3        
+#&gt; [25] cachem_1.1.0        yaml_2.3.12         otel_0.2.0         
+#&gt; [28] tools_4.5.2         parallel_4.5.2      BiocParallel_1.44.0
+#&gt; [31] dplyr_1.2.1         BiocGenerics_0.56.0 vctrs_0.7.3        
+#&gt; [34] R6_2.6.1            stats4_4.5.2        lifecycle_1.0.5    
+#&gt; [37] Seqinfo_1.0.0       S4Vectors_0.48.1    IRanges_2.44.0     
+#&gt; [40] MASS_7.3-65         cluster_2.1.8.2     pkgconfig_2.0.3    
+#&gt; [43] pillar_1.11.1       bslib_0.11.0        gtable_0.3.6       
+#&gt; [46] glue_1.8.1          xfun_0.58           tibble_3.3.1       
+#&gt; [49] tidyselect_1.2.1    knitr_1.51          farver_2.1.2       
+#&gt; [52] htmltools_0.5.9     nlme_3.1-169        labeling_0.4.3     
+#&gt; [55] rmarkdown_2.31      compiler_4.5.2      S7_0.2.2</code></pre>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-anderson2001permanova" class="csl-entry">
+Anderson, Marti J. 2001. <span>“A New Method for Non-Parametric
+Multivariate Analysis of Variance.”</span> <em>Austral Ecology</em> 26
+(1): 32–46. <a
+href="https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x">https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x</a>.
+</div>
+<div id="ref-anderson2006permdisp" class="csl-entry">
+Anderson, Marti J. 2006. <span>“Distance-Based Tests for Homogeneity of
+Multivariate Dispersions.”</span> <em>Biometrics</em> 62 (1): 245–53. <a
+href="https://doi.org/10.1111/j.1541-0420.2005.00440.x">https://doi.org/10.1111/j.1541-0420.2005.00440.x</a>.
+</div>
+<div id="ref-blakeleyruiz2025diet" class="csl-entry">
+Blakeley-Ruiz, J. Alfredo, Alexandria Bartlett, Arthur S. McMillan, et
+al. 2025. <span>“Dietary Protein Source Alters Gut Microbiota
+Composition and Function.”</span> <em>The ISME Journal</em> 19 (1):
+wraf048. <a
+href="https://doi.org/10.1093/ismejo/wraf048">https://doi.org/10.1093/ismejo/wraf048</a>.
+</div>
+<div id="ref-das2015funfam" class="csl-entry">
+Das, Sayoni, David Lee, Ian Sillitoe, Natalie L. Dawson, Jonathan G.
+Lees, and Christine A. Orengo. 2015. <span>“Functional Classification of
+<span>CATH</span> Superfamilies: A Domain-Based Approach for Protein
+Function Annotation.”</span> <em>Bioinformatics</em> 31 (21): 3460–67.
+<a
+href="https://doi.org/10.1093/bioinformatics/btv398">https://doi.org/10.1093/bioinformatics/btv398</a>.
+</div>
+<div id="ref-oksanen2025vegan" class="csl-entry">
+<span class="nocase">Oksanen, Jari, Gavin L. Simpson, F. Guillaume
+Blanchet, et al.</span> 2025. <em>Vegan: Community Ecology Package</em>.
+<a
+href="https://CRAN.R-project.org/package=vegan">https://CRAN.R-project.org/package=vegan</a>.
+</div>
+<div id="ref-sillitoe2021cath" class="csl-entry">
+Sillitoe, Ian, Nicola Bordin, Natalie Dawson, et al. 2021.
+<span>“<span>CATH</span>: Increased Structural Coverage of Functional
+Space.”</span> <em>Nucleic Acids Research</em> 49 (D1): D266–73. <a
+href="https://doi.org/10.1093/nar/gkaa1079">https://doi.org/10.1093/nar/gkaa1079</a>.
+</div>
+<div id="ref-steinegger2017mmseqs2" class="csl-entry">
+Steinegger, Martin, and Johannes Söding. 2017.
+<span>“<span>MMseqs2</span> Enables Sensitive Protein Sequence Searching
+for the Analysis of Massive Data Sets.”</span> <em>Nature
+Biotechnology</em> 35 (11): 1026–28. <a
+href="https://doi.org/10.1038/nbt.3988">https://doi.org/10.1038/nbt.3988</a>.
+</div>
+<div id="ref-suzek2015uniref" class="csl-entry">
+<span class="nocase">Suzek, Baris E., Yuqi Wang, Hongzhan Huang, Peter
+B. McGarvey, Cathy H. Wu, and the UniProt Consortium</span>. 2015.
+<span>“<span>UniRef</span> Clusters: A Comprehensive and Scalable
+Alternative for Improving Sequence Similarity Searches.”</span>
+<em>Bioinformatics</em> 31 (6): 926–32. <a
+href="https://doi.org/10.1093/bioinformatics/btu739">https://doi.org/10.1093/bioinformatics/btu739</a>.
+</div>
+<div id="ref-uniprot2025" class="csl-entry">
+The UniProt Consortium. 2025. <span>“<span>UniProt</span>: The Universal
+Protein Knowledgebase in 2025.”</span> <em>Nucleic Acids Research</em>
+53 (D1): D609–17. <a
+href="https://doi.org/10.1093/nar/gkae1010">https://doi.org/10.1093/nar/gkae1010</a>.
+</div>
+</div>
 </div>
 
 

@@ -5,15 +5,13 @@
 .Ruserdata
 *.Rproj
 *_cache/
-index.knit.md
-index.utf8.md
+*.knit.md
+*.utf8.md
 .claude/settings.local.json
 
-# analysis inputs and outputs, not redistributed here
+# downloaded source tables and other local inputs, never committed
 /data
-*.rds
 
-# validation/ inputs are committed; its run outputs are rebuilt by its scripts
-!validation/*.rds
-validation/case_study1/
-validation/simulation_benchmark_partial.rds
+# curated inputs are committed; any other .rds is a local artifact
+*.rds
+!curated/*.rds

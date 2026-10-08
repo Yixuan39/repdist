@@ -1,35 +1,34 @@
-# repdist analyses
+# repdist site
 
-The `gh-pages` branch: the [repdist](https://github.com/Yixuan39/repdist) site,
-served at <https://yixuan39.github.io/repdist/>.
+The `gh-pages` branch holds the [repdist](https://github.com/Yixuan39/repdist)
+documentation site, served at <https://yixuan39.github.io/repdist/>. The
+package itself, its vignette and its tests are on `main`.
 
-An `rmarkdown` website (`_site.yml`, Bootstrap `cosmo`) rendered in place, so
-all pages share one theme and navbar:
+| Page | Source | Reads |
+| --- | --- | --- |
+| Home | `index.Rmd` | |
+| Reference | `reference.Rmd` | `curated/simulation_universe.rds` |
+| Simulation | `simulation.Rmd` | `curated/simulation_funfam.rds`, `curated/simulation_universe.rds`, `curated/simulation_mmseqs2.rds` |
+| MCL parameters | `parameters.Rmd` | `curated/simulation_universe.rds` |
+| Case study | `case_study.Rmd` | `curated/diet_yeast.rds` |
 
-| Page | Source |
-| --- | --- |
-| [Home](https://yixuan39.github.io/repdist/) | `index.Rmd` |
-| [Simulation](https://yixuan39.github.io/repdist/simulation.html) | `simulation.Rmd` |
-| [Real-data validation](https://yixuan39.github.io/repdist/case_study.html) | `case_study.Rmd` |
-| [Data curation](https://yixuan39.github.io/repdist/data_curation.html) | `data_curation.Rmd` |
-| [EC3 benchmark](https://yixuan39.github.io/repdist/validation/benchmark_report.html) | `validation/benchmark_report.Rmd` |
-| [Full-catalog run](https://yixuan39.github.io/repdist/validation/case_study1_report.html) | `validation/case_study1_report.Rmd` |
-
-Rebuild with:
-
-```r
-rmarkdown::render_site()
+```
+data-raw/   scripts that build curated/ from the public sources (see its README)
+curated/    curated input objects read by the pages
+supplement/ full result tables written by the pages at render time
+data/       downloaded source tables (not committed)
 ```
 
-That writes the page HTMLs, `site_libs/` and `*_files/` into the branch
-root. `README.md` and `data/` are excluded in `_site.yml`. The two
-`validation/` reports are rendered on their own with `rmarkdown::render()`.
+Rebuild from scratch, from the branch root, with the current `repdist`
+installed:
 
-The simulation page reads `validation/funfam_universe.rds`; `validation/`
-also holds the EC3 benchmark and the full-catalog case-study scripts.
-The real-data pages use the mouse faecal metaproteome of Blakeley-Ruiz
-*et al.*, *ISME J* **19**(1) wraf048 and read `data/test_study/` relative to
-the working directory. Those inputs are not redistributed here, so a rebuild needs them
-put in place first; `data_curation.Rmd` must run before `case_study.Rmd`,
-which reads the phyloseq object it writes. The package itself, its vignette
-and its tests are on `main`.
+```sh
+Rscript data-raw/simulation_universe.R
+Rscript data-raw/simulation_mmseqs2.R
+Rscript data-raw/simulation_funfam.R
+Rscript data-raw/diet_yeast.R
+Rscript -e 'rmarkdown::render_site()'
+```
+
+The pages compute every result at render time from the curated objects; no
+knitr cache is used.

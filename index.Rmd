@@ -1,57 +1,69 @@
 ---
-title: "repdist: measure, analyze and compare protein representation distances"
+title: "repdist"
+subtitle: "Comparing proteins and metaproteomes in protein representation space"
 ---
 
-<style>
-.main-container img { max-width: 620px; display: block; margin: 1.5em auto 0.5em; }
-.caption-note { color: #b52b27; }
-</style>
+Identity-based measures compare proteins only by accession. Protein-level
+Bray-Curtis, for example, treats two different accessions as unrelated even
+when they share fold and function. Two metaproteomes can therefore hold
+different accessions yet carry similar structural or functional protein
+repertoires.
 
-`repdist` measures the distance between proteins in a frozen protein language
-model's representation space and uses it twice:
+`repdist` uses protein representations (embeddings from a protein language
+model; by default TM-Vec, whose cosine similarity is a predicted TM-score)
+for two related tasks:
 
-1. **Between samples.** Each sample is an abundance-weighted distribution
-   over protein embeddings, compared by maximum mean discrepancy
-   (`sample_mmd()`).
-2. **Between proteins.** Pairs above a similarity and alignment-coverage
-   floor form a sparse graph (`protein_similarity()`), Markov clustering
-   splits it into bins (`bin_proteins()`), and the bins' summed counts
-   (`bin_glom()`) go to differential abundance.
+**A. Comparing samples.** Each sample is an abundance-weighted distribution of
+its proteins in representation space. `sample_mmd()` compares two such
+distributions by the maximum mean discrepancy (MMD) under a Gaussian (RBF)
+kernel, so different but closely related proteins partly match.
 
-The default representation is **TM-Vec**, whose cosine similarity
-approximates the TM-score of two structures. Two communities can run the same
-reaction on accessions that never overlap; an identity-based comparison
-cannot see that, and a structure-aware one can when the proteins share
-structure.
+**B. Grouping proteins.** `protein_similarity()` turns pairwise similarities
+into a weighted graph, keeping only pairs that pass a similarity threshold
+and an alignment-coverage threshold. `bin_proteins()` partitions the graph by
+Markov clustering (MCL), and `bin_glom()` sums protein counts within each
+bin for count-based analyses such as DESeq2.
 
-![](simulation_files/figure-html/pcoa-1.png)
+```
+sequences ─ embed_proteins() / read_embeddings() ─► embeddings
+                                                       │
+         ┌─────────────────────────────────────────────┴───────────────┐
+         ▼                                                             ▼
+  sample_mmd(counts, x)                                 protein_similarity(x)
+  samples × samples distance                            weighted protein graph
+  (PERMANOVA, PCoA)                                              │
+                                                          bin_proteins(S)  (MCL)
+                                                                 │
+                                                          bin_glom(counts, bins)
+                                                          samples × bins counts
+```
 
-<span class="caption-note">Two groups of simulated samples differing by
-function, carried on non-overlapping homologs.</span> MMD and MCL bins both
-separate them; protein-level Bray-Curtis, which can only ask whether two
-samples hold the same accession, sees nothing.
+# Documentation
 
-# The method, then the data
+**[Reference](reference.html)**: what each function computes and how to call
+it: embeddings, the MMD distance, the similarity graph and MCL bins, and
+the QC plots.
 
-**[Simulation](simulation.html)** — the methodological test. Ten CATH
-FunFams, every protein in every sample, and a functional shift carried by
-accessions no two samples share: RBF-MMD, Bray-Curtis on MCL bins and
-protein-level Bray-Curtis, by PERMANOVA and PCoA. The
-[benchmark over experimentally characterised enzyme classes
-(EC3)](validation/benchmark_report.html) repeats the test with every EC3 as
-the target.
+**[Simulation](simulation.html)**: two benchmarks with known truth. A
+controlled positive benchmark on CATH FunFam domains, where one group's
+enriched proteins share a hidden family and no accession; and sequence-disjoint
+contrasts between enzyme classes (EC3) of experimentally
+characterised Swiss-Prot enzymes, against Bray-Curtis on MCL bins, MMseqs2
+bins and proteins. Then how completely the MCL bins recover enzyme classes.
 
-**[Real-data validation](case_study.html)** — the same workflow on the full
-mouse faecal metaproteome of Blakeley-Ruiz *et al.*, *ISME J* **19**(1)
-wraf048: six dietary protein sources, 19,171 proteins. MMD beta diversity,
-MCL bins at the package defaults, DESeq2 on the bins, and a functional
-reading of the most responsive annotated bins. The [full-catalog
-run](validation/case_study1_report.html) adds the file readers,
-KEGG function on the embedding map, and run time and memory at this size.
+**[MCL parameters](parameters.html)**: how `min_sim`, `min_coverage` and
+the MCL inflation change the bins, scored against the simulation's enzyme
+labels.
 
-# Installation
+**[Case study](case_study.html)**: a worked metaproteomics
+analysis of a 20% yeast vs 20% casein diet comparison in mice: beta
+diversity, the representation space, MCL bins and bin-level differential
+abundance with DESeq2.
 
-`repdist` is an R package. Install the development version from GitHub:
+# Installation {#installation}
+
+`repdist` is an R package (R >= 4.5). Install the development version from
+GitHub:
 
 ```r
 if (!requireNamespace("remotes", quietly = TRUE))
@@ -59,50 +71,26 @@ if (!requireNamespace("remotes", quietly = TRUE))
 remotes::install_github("Yixuan39/repdist")
 ```
 
-Embeddings run through a pinned `basilisk` Python environment, so no manual
-Python setup is needed.
+`embed_proteins()` runs its models in a Python environment that `repdist`
+creates and manages itself through `basilisk`; no manual Python setup is
+needed. Model weights are downloaded on first use.
 
 ```r
 library(repdist)
+x <- embed_proteins("proteins.fasta")      # default model: "tmvec"
 
-x <- embed_proteins("proteins.fasta", model = "tmvec")
+D <- sample_mmd(counts, x)                 # samples x samples dist
+vegan::adonis2(D ~ group, data = metadata)
 
-D <- sample_mmd(counts, x)                # RBF-MMD between samples
-vegan::adonis2(D ~ condition, data = meta)
-
-S <- protein_similarity(x, min_sim = 0.7, min_coverage = 0.5)
-bins <- bin_proteins(S, inflation = 2)
-bin_glom(counts, bins)                    # samples x bins
+S <- protein_similarity(x)                 # weighted similarity graph
+bins <- bin_proteins(S)                    # MCL bins
+binned <- bin_glom(counts, bins)           # samples x bins counts
 ```
 
-`protein_similarity()` keeps a pair as an edge only above `min_sim` and when
-the alignment covers at least `min_coverage` of both sequences;
-`bin_proteins()` runs MCL on those edges. The floor applies to edges, not all
-pairs: a bin can hold pairs below it. `vignette("repdist")` tours the
-functions.
-
-# Reproducing
-
-Every page's source sits beside `index.Rmd` at the root of the
-[`gh-pages` branch](https://github.com/Yixuan39/repdist/tree/gh-pages);
-`rmarkdown::render_site()` rebuilds them with the installed `repdist`.
-
-```
-simulation.Rmd      # reads validation/funfam_universe.rds
-data_curation.Rmd   # -> data/test_study/ps.rds
-case_study.Rmd      # reads ps.rds and cached TM-Vec embeddings
-validation/         # EC3 benchmark and full-catalog run, with their reports
-```
-
-The simulation page needs only the package and `validation/funfam_universe.rds`;
-`validation/README.md` describes that universe and the EC3 benchmark.
-The real-data pages read `data/test_study/` relative to the working
-directory, and `data_curation.Rmd` must run first. Those study inputs are not
-redistributed here; the curation page names the files and the accession they
-come from.
+`counts` has samples in rows and proteins in columns, named as in `x`.
 
 # Source
 
-Package source, issues and the vignette are at
-[github.com/Yixuan39/repdist](https://github.com/Yixuan39/repdist). This site is
-built from the repository's `gh-pages` branch. Released under MIT.
+Package source, issues and the package vignette:
+[github.com/Yixuan39/repdist](https://github.com/Yixuan39/repdist). MIT
+licence.

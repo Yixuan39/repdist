@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>MCL parameters</title>
+
+<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">repdist</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Reference
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="reference.html">Overview</a>
+    </li>
+    <li>
+      <a href="reference.html#protein-representations">Protein representations</a>
+    </li>
+    <li>
+      <a href="reference.html#sample-level-distance-mmd">Sample-level distance: MMD</a>
+    </li>
+    <li>
+      <a href="reference.html#protein-similarity-graph-and-mcl-clustering">Protein similarity graph and MCL clustering</a>
+    </li>
+    <li>
+      <a href="reference.html#qc-and-visualization">QC and visualization</a>
+    </li>
+  </ul>
+</li>
+<li>
+  <a href="simulation.html">Simulation</a>
+</li>
+<li>
+  <a href="parameters.html">MCL parameters</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li>
+  <a href="index.html#installation">Install</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Yixuan39/repdist">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">MCL parameters</h1>
+<h3 class="subtitle">How the graph thresholds and inflation shape the
+bins</h3>
+
+</div>
+
+
+<p><code>protein_similarity()</code> and <code>bin_proteins()</code>
+have three parameters: the similarity threshold <code>min_sim</code>,
+the coverage threshold <code>min_coverage</code> and the MCL
+<code>inflation</code>. This page scores a grid of the three against
+known enzyme labels, using the <a href="simulation.html">simulation</a>
+universe of experimentally characterised Swiss-Prot enzymes.</p>
+<pre class="r"><code>library(repdist)
+library(ggplot2)</code></pre>
+<pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
+x &lt;- u$proteins
+ec4 &lt;- setNames(u$annotation$ec4, u$annotation$protein)
+ec3 &lt;- setNames(u$annotation$ec3, u$annotation$protein)
+length(x)
+#&gt; [1] 4920</code></pre>
+<div id="grid" class="section level1">
+<h1>Grid</h1>
+<pre class="r"><code>grid &lt;- expand.grid(min_sim = c(0.6, 0.7, 0.8, 0.9),
+    min_coverage = c(0, 0.5, 0.8), inflation = c(1.5, 2, 3, 4))
+nrow(grid)
+#&gt; [1] 48</code></pre>
+<p>The two thresholds act independently on each pair, so one similarity
+matrix per coverage threshold, computed at the lowest
+<code>min_sim</code>, gives every other <code>min_sim</code> by zeroing
+the pairs below it. The check below confirms this for the package
+defaults.</p>
+<pre class="r"><code>n_cores &lt;- BiocParallel::multicoreWorkers()
+base &lt;- lapply(c(`0` = 0, `0.5` = 0.5, `0.8` = 0.8), function(cv) {
+    protein_similarity(x, min_sim = 0.6, min_coverage = cv, n_cores = n_cores)
+})
+gate &lt;- function(S, t) {
+    S[S &lt; t] &lt;- 0
+    diag(S) &lt;- 1
+    S
+}
+stopifnot(isTRUE(all.equal(gate(base[[&quot;0.5&quot;]], 0.7),
+    protein_similarity(x, min_sim = 0.7, min_coverage = 0.5,
+        n_cores = n_cores))))</code></pre>
+</div>
+<div id="scores" class="section level1">
+<h1>Scores</h1>
+<p>Each setting is scored on protein pairs. <strong>Precision</strong>
+is the share of pairs placed in one bin that carry the same label;
+<strong>recall</strong> is the share of same-label pairs placed in one
+bin; F1 is their harmonic mean. Pair counts grow with the square of bin
+size, so large mixed bins weigh heavily on precision.</p>
+<pre class="r"><code>pair_scores &lt;- function(membership, labels) {
+    tab &lt;- table(membership, labels[names(membership)])
+    same_bin_same_label &lt;- sum(choose(tab, 2))
+    c(precision = same_bin_same_label / sum(choose(rowSums(tab), 2)),
+        recall = same_bin_same_label / sum(choose(colSums(tab), 2)))
+}
+results &lt;- do.call(rbind, lapply(seq_len(nrow(grid)), function(k) {
+    g &lt;- grid[k, ]
+    b &lt;- bin_proteins(gate(base[[as.character(g$min_coverage)]], g$min_sim),
+        inflation = g$inflation)
+    sizes &lt;- lengths(b$clusters)
+    s4 &lt;- pair_scores(b$membership, ec4)
+    s3 &lt;- pair_scores(b$membership, ec3)
+    data.frame(g, bins = length(sizes),
+        `singletons (%)` = 100 * sum(sizes == 1) / length(x),
+        `largest bin` = max(sizes),
+        `EC4 precision` = s4[[&quot;precision&quot;]], `EC4 recall` = s4[[&quot;recall&quot;]],
+        `EC4 F1` = 2 * prod(s4) / sum(s4),
+        `EC3 precision` = s3[[&quot;precision&quot;]], `EC3 recall` = s3[[&quot;recall&quot;]],
+        check.names = FALSE)
+}))</code></pre>
+<pre class="r"><code>ggplot(results, aes(min_sim, `EC4 F1`, colour = factor(inflation))) +
+    geom_line() +
+    geom_point(size = 1.5) +
+    facet_wrap(~min_coverage, labeller = label_both) +
+    labs(x = &quot;min_sim (predicted TM-score)&quot;, y = &quot;EC4 pairwise F1&quot;,
+        colour = &quot;inflation&quot;) +
+    theme_bw()</code></pre>
+<p><img src="parameters_files/figure-html/f1-plot-1.png" alt="EC4 F1 against the similarity threshold, by coverage threshold and inflation" width="768" /></p>
+<pre class="r"><code>knitr::kable(results[order(results$min_coverage, results$min_sim,
+    results$inflation), ], digits = 3, row.names = FALSE)</code></pre>
+<table>
+<colgroup>
+<col width="6%" />
+<col width="10%" />
+<col width="8%" />
+<col width="4%" />
+<col width="12%" />
+<col width="10%" />
+<col width="11%" />
+<col width="9%" />
+<col width="5%" />
+<col width="11%" />
+<col width="9%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="right">min_sim</th>
+<th align="right">min_coverage</th>
+<th align="right">inflation</th>
+<th align="right">bins</th>
+<th align="right">singletons (%)</th>
+<th align="right">largest bin</th>
+<th align="right">EC4 precision</th>
+<th align="right">EC4 recall</th>
+<th align="right">EC4 F1</th>
+<th align="right">EC3 precision</th>
+<th align="right">EC3 recall</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">0.6</td>
+<td align="right">0.0</td>
+<td align="right">1.5</td>
+<td align="right">260</td>
+<td align="right">1.585</td>
+<td align="right">560</td>
+<td align="right">0.014</td>
+<td align="right">0.684</td>
+<td align="right">0.027</td>
+<td align="right">0.129</td>
+<td align="right">0.233</td>
+</tr>
+<tr class="even">
+<td align="right">0.6</td>
+<td align="right">0.0</td>
+<td align="right">2.0</td>
+<td align="right">302</td>
+<td align="right">1.585</td>
+<td align="right">513</td>
+<td align="right">0.018</td>
+<td align="right">0.666</td>
+<td align="right">0.035</td>
+<td align="right">0.148</td>
+<td align="right">0.201</td>
+</tr>
+<tr class="odd">
+<td align="right">0.6</td>
+<td align="right">0.0</td>
+<td align="right">3.0</td>
+<td align="right">377</td>
+<td align="right">1.931</td>
+<td align="right">508</td>
+<td align="right">0.019</td>
+<td align="right">0.628</td>
+<td align="right">0.037</td>
+<td align="right">0.154</td>
+<td align="right">0.186</td>
+</tr>
+<tr class="even">
+<td align="right">0.6</td>
+<td align="right">0.0</td>
+<td align="right">4.0</td>
+<td align="right">484</td>
+<td align="right">2.846</td>
+<td align="right">501</td>
+<td align="right">0.020</td>
+<td align="right">0.561</td>
+<td align="right">0.038</td>
+<td align="right">0.171</td>
+<td align="right">0.176</td>
+</tr>
+<tr class="odd">
+<td align="right">0.7</td>
+<td align="right">0.0</td>
+<td align="right">1.5</td>
+<td align="right">626</td>
+<td align="right">5.366</td>
+<td align="right">405</td>
+<td align="right">0.026</td>
+<td align="right">0.588</td>
+<td align="right">0.051</td>
+<td align="right">0.205</td>
+<td align="right">0.166</td>
+</tr>
+<tr class="even">
+<td align="right">0.7</td>
+<td align="right">0.0</td>
+<td align="right">2.0</td>
+<td align="right">679</td>
+<td align="right">5.366</td>
+<td align="right">339</td>
+<td align="right">0.032</td>
+<td align="right">0.548</td>
+<td align="right">0.060</td>
+<td align="right">0.225</td>
+<td align="right">0.140</td>
+</tr>
+<tr class="odd">
+<td align="right">0.7</td>
+<td align="right">0.0</td>
+<td align="right">3.0</td>
+<td align="right">766</td>
+<td align="right">5.650</td>
+<td align="right">238</td>
+<td align="right">0.044</td>
+<td align="right">0.535</td>
+<td align="right">0.082</td>
+<td align="right">0.290</td>
+<td align="right">0.127</td>
+</tr>
+<tr class="even">
+<td align="right">0.7</td>
+<td align="right">0.0</td>
+<td align="right">4.0</td>
+<td align="right">835</td>
+<td align="right">6.098</td>
+<td align="right">155</td>
+<td align="right">0.056</td>
+<td align="right">0.522</td>
+<td align="right">0.101</td>
+<td align="right">0.349</td>
+<td align="right">0.119</td>
+</tr>
+<tr class="odd">
+<td align="right">0.8</td>
+<td align="right">0.0</td>
+<td align="right">1.5</td>
+<td align="right">1319</td>
+<td align="right">13.720</td>
+<td align="right">90</td>
+<td align="right">0.094</td>
+<td align="right">0.483</td>
+<td align="right">0.158</td>
+<td align="right">0.463</td>
+<td align="right">0.086</td>
+</tr>
+<tr class="even">
+<td align="right">0.8</td>
+<td align="right">0.0</td>
+<td align="right">2.0</td>
+<td align="right">1370</td>
+<td align="right">13.720</td>
+<td align="right">61</td>
+<td align="right">0.110</td>
+<td align="right">0.474</td>
+<td align="right">0.178</td>
+<td align="right">0.508</td>
+<td align="right">0.080</td>
+</tr>
+<tr class="odd">
+<td align="right">0.8</td>
+<td align="right">0.0</td>
+<td align="right">3.0</td>
+<td align="right">1421</td>
+<td align="right">13.841</td>
+<td align="right">60</td>
+<td align="right">0.112</td>
+<td align="right">0.445</td>
+<td align="right">0.179</td>
+<td align="right">0.522</td>
+<td align="right">0.076</td>
+</tr>
+<tr class="even">
+<td align="right">0.8</td>
+<td align="right">0.0</td>
+<td align="right">4.0</td>
+<td align="right">1465</td>
+<td align="right">14.207</td>
+<td align="right">59</td>
+<td align="right">0.118</td>
+<td align="right">0.438</td>
+<td align="right">0.186</td>
+<td align="right">0.536</td>
+<td align="right">0.072</td>
+</tr>
+<tr class="odd">
+<td align="right">0.9</td>
+<td align="right">0.0</td>
+<td align="right">1.5</td>
+<td align="right">2389</td>
+<td align="right">32.947</td>
+<td align="right">43</td>
+<td align="right">0.189</td>
+<td align="right">0.330</td>
+<td align="right">0.240</td>
+<td align="right">0.672</td>
+<td align="right">0.043</td>
+</tr>
+<tr class="even">
+<td align="right">0.9</td>
+<td align="right">0.0</td>
+<td align="right">2.0</td>
+<td align="right">2425</td>
+<td align="right">32.947</td>
+<td align="right">43</td>
+<td align="right">0.200</td>
+<td align="right">0.326</td>
+<td align="right">0.248</td>
+<td align="right">0.691</td>
+<td align="right">0.041</td>
+</tr>
+<tr class="odd">
+<td align="right">0.9</td>
+<td align="right">0.0</td>
+<td align="right">3.0</td>
+<td align="right">2472</td>
+<td align="right">33.150</td>
+<td align="right">43</td>
+<td align="right">0.208</td>
+<td align="right">0.313</td>
+<td align="right">0.250</td>
+<td align="right">0.709</td>
+<td align="right">0.039</td>
+</tr>
+<tr class="even">
+<td align="right">0.9</td>
+<td align="right">0.0</td>
+<td align="right">4.0</td>
+<td align="right">2515</td>
+<td align="right">33.577</td>
+<td align="right">43</td>
+<td align="right">0.222</td>
+<td align="right">0.308</td>
+<td align="right">0.258</td>
+<td align="right">0.726</td>
+<td align="right">0.037</td>
+</tr>
+<tr class="odd">
+<td align="right">0.6</td>
+<td align="right">0.5</td>
+<td align="right">1.5</td>
+<td align="right">1486</td>
+<td align="right">14.858</td>
+<td align="right">59</td>
+<td align="right">0.143</td>
+<td align="right">0.458</td>
+<td align="right">0.218</td>
+<td align="right">0.658</td>
+<td align="right">0.077</td>
+</tr>
+<tr class="even">
+<td align="right">0.6</td>
+<td align="right">0.5</td>
+<td align="right">2.0</td>
+<td align="right">1570</td>
+<td align="right">14.858</td>
+<td align="right">59</td>
+<td align="right">0.157</td>
+<td align="right">0.446</td>
+<td align="right">0.233</td>
+<td align="right">0.682</td>
+<td align="right">0.070</td>
+</tr>
+<tr class="odd">
+<td align="right">0.6</td>
+<td align="right">0.5</td>
+<td align="right">3.0</td>
+<td align="right">1673</td>
+<td align="right">15.508</td>
+<td align="right">59</td>
+<td align="right">0.170</td>
+<td align="right">0.428</td>
+<td align="right">0.243</td>
+<td align="right">0.702</td>
+<td align="right">0.064</td>
+</tr>
+<tr class="even">
+<td align="right">0.6</td>
+<td align="right">0.5</td>
+<td align="right">4.0</td>
+<td align="right">1772</td>
+<td align="right">16.890</td>
+<td align="right">59</td>
+<td align="right">0.176</td>
+<td align="right">0.411</td>
+<td align="right">0.247</td>
+<td align="right">0.711</td>
+<td align="right">0.060</td>
+</tr>
+<tr class="odd">
+<td align="right">0.7</td>
+<td align="right">0.5</td>
+<td align="right">1.5</td>
+<td align="right">1604</td>
+<td align="right">16.667</td>
+<td align="right">59</td>
+<td align="right">0.151</td>
+<td align="right">0.449</td>
+<td align="right">0.226</td>
+<td align="right">0.670</td>
+<td align="right">0.072</td>
+</tr>
+<tr class="even">
+<td align="right">0.7</td>
+<td align="right">0.5</td>
+<td align="right">2.0</td>
+<td align="right">1662</td>
+<td align="right">16.667</td>
+<td align="right">59</td>
+<td align="right">0.161</td>
+<td align="right">0.441</td>
+<td align="right">0.236</td>
+<td align="right">0.690</td>
+<td align="right">0.069</td>
+</tr>
+<tr class="odd">
+<td align="right">0.7</td>
+<td align="right">0.5</td>
+<td align="right">3.0</td>
+<td align="right">1743</td>
+<td align="right">17.154</td>
+<td align="right">59</td>
+<td align="right">0.173</td>
+<td align="right">0.430</td>
+<td align="right">0.246</td>
+<td align="right">0.711</td>
+<td align="right">0.064</td>
+</tr>
+<tr class="even">
+<td align="right">0.7</td>
+<td align="right">0.5</td>
+<td align="right">4.0</td>
+<td align="right">1823</td>
+<td align="right">18.110</td>
+<td align="right">59</td>
+<td align="right">0.179</td>
+<td align="right">0.411</td>
+<td align="right">0.249</td>
+<td align="right">0.718</td>
+<td align="right">0.060</td>
+</tr>
+<tr class="odd">
+<td align="right">0.8</td>
+<td align="right">0.5</td>
+<td align="right">1.5</td>
+<td align="right">1871</td>
+<td align="right">21.524</td>
+<td align="right">58</td>
+<td align="right">0.166</td>
+<td align="right">0.421</td>
+<td align="right">0.239</td>
+<td align="right">0.700</td>
+<td align="right">0.064</td>
+</tr>
+<tr class="even">
+<td align="right">0.8</td>
+<td align="right">0.5</td>
+<td align="right">2.0</td>
+<td align="right">1911</td>
+<td align="right">21.524</td>
+<td align="right">58</td>
+<td align="right">0.176</td>
+<td align="right">0.409</td>
+<td align="right">0.246</td>
+<td align="right">0.714</td>
+<td align="right">0.061</td>
+</tr>
+<tr class="odd">
+<td align="right">0.8</td>
+<td align="right">0.5</td>
+<td align="right">3.0</td>
+<td align="right">1955</td>
+<td align="right">21.728</td>
+<td align="right">58</td>
+<td align="right">0.183</td>
+<td align="right">0.403</td>
+<td align="right">0.251</td>
+<td align="right">0.730</td>
+<td align="right">0.059</td>
+</tr>
+<tr class="even">
+<td align="right">0.8</td>
+<td align="right">0.5</td>
+<td align="right">4.0</td>
+<td align="right">2005</td>
+<td align="right">22.317</td>
+<td align="right">58</td>
+<td align="right">0.192</td>
+<td align="right">0.395</td>
+<td align="right">0.258</td>
+<td align="right">0.732</td>
+<td align="right">0.055</td>
+</tr>
+<tr class="odd">
+<td align="right">0.9</td>
+<td align="right">0.5</td>
+<td align="right">1.5</td>
+<td align="right">2557</td>
+<td align="right">35.346</td>
+<td align="right">43</td>
+<td align="right">0.231</td>
+<td align="right">0.319</td>
+<td align="right">0.268</td>
+<td align="right">0.754</td>
+<td align="right">0.038</td>
+</tr>
+<tr class="even">
+<td align="right">0.9</td>
+<td align="right">0.5</td>
+<td align="right">2.0</td>
+<td align="right">2589</td>
+<td align="right">35.346</td>
+<td align="right">43</td>
+<td align="right">0.241</td>
+<td align="right">0.314</td>
+<td align="right">0.273</td>
+<td align="right">0.761</td>
+<td align="right">0.036</td>
+</tr>
+<tr class="odd">
+<td align="right">0.9</td>
+<td align="right">0.5</td>
+<td align="right">3.0</td>
+<td align="right">2638</td>
+<td align="right">35.630</td>
+<td align="right">40</td>
+<td align="right">0.246</td>
+<td align="right">0.299</td>
+<td align="right">0.270</td>
+<td align="right">0.763</td>
+<td align="right">0.034</td>
+</tr>
+<tr class="even">
+<td align="right">0.9</td>
+<td align="right">0.5</td>
+<td align="right">4.0</td>
+<td align="right">2666</td>
+<td align="right">35.894</td>
+<td align="right">40</td>
+<td align="right">0.257</td>
+<td align="right">0.294</td>
+<td align="right">0.274</td>
+<td align="right">0.782</td>
+<td align="right">0.032</td>
+</tr>
+<tr class="odd">
+<td align="right">0.6</td>
+<td align="right">0.8</td>
+<td align="right">1.5</td>
+<td align="right">2211</td>
+<td align="right">28.293</td>
+<td align="right">58</td>
+<td align="right">0.174</td>
+<td align="right">0.355</td>
+<td align="right">0.233</td>
+<td align="right">0.716</td>
+<td align="right">0.053</td>
+</tr>
+<tr class="even">
+<td align="right">0.6</td>
+<td align="right">0.8</td>
+<td align="right">2.0</td>
+<td align="right">2258</td>
+<td align="right">28.293</td>
+<td align="right">58</td>
+<td align="right">0.189</td>
+<td align="right">0.349</td>
+<td align="right">0.245</td>
+<td align="right">0.742</td>
+<td align="right">0.050</td>
+</tr>
+<tr class="odd">
+<td align="right">0.6</td>
+<td align="right">0.8</td>
+<td align="right">3.0</td>
+<td align="right">2343</td>
+<td align="right">28.984</td>
+<td align="right">55</td>
+<td align="right">0.204</td>
+<td align="right">0.338</td>
+<td align="right">0.255</td>
+<td align="right">0.758</td>
+<td align="right">0.046</td>
+</tr>
+<tr class="even">
+<td align="right">0.6</td>
+<td align="right">0.8</td>
+<td align="right">4.0</td>
+<td align="right">2402</td>
+<td align="right">29.756</td>
+<td align="right">52</td>
+<td align="right">0.215</td>
+<td align="right">0.330</td>
+<td align="right">0.261</td>
+<td align="right">0.771</td>
+<td align="right">0.043</td>
+</tr>
+<tr class="odd">
+<td align="right">0.7</td>
+<td align="right">0.8</td>
+<td align="right">1.5</td>
+<td align="right">2238</td>
+<td align="right">28.841</td>
+<td align="right">58</td>
+<td align="right">0.175</td>
+<td align="right">0.353</td>
+<td align="right">0.234</td>
+<td align="right">0.719</td>
+<td align="right">0.053</td>
+</tr>
+<tr class="even">
+<td align="right">0.7</td>
+<td align="right">0.8</td>
+<td align="right">2.0</td>
+<td align="right">2278</td>
+<td align="right">28.841</td>
+<td align="right">58</td>
+<td align="right">0.188</td>
+<td align="right">0.347</td>
+<td align="right">0.244</td>
+<td align="right">0.742</td>
+<td align="right">0.050</td>
+</tr>
+<tr class="odd">
+<td align="right">0.7</td>
+<td align="right">0.8</td>
+<td align="right">3.0</td>
+<td align="right">2362</td>
+<td align="right">29.472</td>
+<td align="right">56</td>
+<td align="right">0.204</td>
+<td align="right">0.337</td>
+<td align="right">0.254</td>
+<td align="right">0.759</td>
+<td align="right">0.046</td>
+</tr>
+<tr class="even">
+<td align="right">0.7</td>
+<td align="right">0.8</td>
+<td align="right">4.0</td>
+<td align="right">2421</td>
+<td align="right">30.305</td>
+<td align="right">52</td>
+<td align="right">0.217</td>
+<td align="right">0.328</td>
+<td align="right">0.261</td>
+<td align="right">0.778</td>
+<td align="right">0.043</td>
+</tr>
+<tr class="odd">
+<td align="right">0.8</td>
+<td align="right">0.8</td>
+<td align="right">1.5</td>
+<td align="right">2349</td>
+<td align="right">31.159</td>
+<td align="right">53</td>
+<td align="right">0.185</td>
+<td align="right">0.340</td>
+<td align="right">0.240</td>
+<td align="right">0.732</td>
+<td align="right">0.049</td>
+</tr>
+<tr class="even">
+<td align="right">0.8</td>
+<td align="right">0.8</td>
+<td align="right">2.0</td>
+<td align="right">2388</td>
+<td align="right">31.179</td>
+<td align="right">53</td>
+<td align="right">0.198</td>
+<td align="right">0.335</td>
+<td align="right">0.249</td>
+<td align="right">0.744</td>
+<td align="right">0.046</td>
+</tr>
+<tr class="odd">
+<td align="right">0.8</td>
+<td align="right">0.8</td>
+<td align="right">3.0</td>
+<td align="right">2455</td>
+<td align="right">31.626</td>
+<td align="right">53</td>
+<td align="right">0.220</td>
+<td align="right">0.328</td>
+<td align="right">0.263</td>
+<td align="right">0.764</td>
+<td align="right">0.041</td>
+</tr>
+<tr class="even">
+<td align="right">0.8</td>
+<td align="right">0.8</td>
+<td align="right">4.0</td>
+<td align="right">2500</td>
+<td align="right">32.134</td>
+<td align="right">53</td>
+<td align="right">0.231</td>
+<td align="right">0.319</td>
+<td align="right">0.268</td>
+<td align="right">0.783</td>
+<td align="right">0.039</td>
+</tr>
+<tr class="odd">
+<td align="right">0.9</td>
+<td align="right">0.8</td>
+<td align="right">1.5</td>
+<td align="right">2801</td>
+<td align="right">40.671</td>
+<td align="right">43</td>
+<td align="right">0.243</td>
+<td align="right">0.281</td>
+<td align="right">0.261</td>
+<td align="right">0.781</td>
+<td align="right">0.033</td>
+</tr>
+<tr class="even">
+<td align="right">0.9</td>
+<td align="right">0.8</td>
+<td align="right">2.0</td>
+<td align="right">2839</td>
+<td align="right">40.671</td>
+<td align="right">40</td>
+<td align="right">0.253</td>
+<td align="right">0.272</td>
+<td align="right">0.262</td>
+<td align="right">0.787</td>
+<td align="right">0.031</td>
+</tr>
+<tr class="odd">
+<td align="right">0.9</td>
+<td align="right">0.8</td>
+<td align="right">3.0</td>
+<td align="right">2878</td>
+<td align="right">40.833</td>
+<td align="right">38</td>
+<td align="right">0.270</td>
+<td align="right">0.266</td>
+<td align="right">0.268</td>
+<td align="right">0.804</td>
+<td align="right">0.029</td>
+</tr>
+<tr class="even">
+<td align="right">0.9</td>
+<td align="right">0.8</td>
+<td align="right">4.0</td>
+<td align="right">2901</td>
+<td align="right">41.098</td>
+<td align="right">37</td>
+<td align="right">0.277</td>
+<td align="right">0.260</td>
+<td align="right">0.268</td>
+<td align="right">0.815</td>
+<td align="right">0.028</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="reading" class="section level1">
+<h1>Reading</h1>
+<ul>
+<li><strong>The coverage gate matters most.</strong> Without it, low
+similarity thresholds chain proteins that share a single domain into a
+few very large bins (the largest holds 339 proteins at
+<code>min_sim</code> 0.7 and inflation 2) and EC3 precision drops to
+0.22, against 0.69 with <code>min_coverage</code> 0.5.</li>
+<li><strong>With the coverage gate, the scores change slowly.</strong>
+Raising <code>min_sim</code> or inflation trades recall for precision:
+across those settings EC4 F1 stays between 0.22 and 0.27. The package
+defaults (<code>min_sim</code> 0.7, <code>min_coverage</code> 0.5,
+inflation 2) give EC4 F1 0.24 with 17% singletons.</li>
+<li><strong>Bins are structural, labels are functional.</strong> EC3
+precision is high but EC4 precision is low at every setting: a bin often
+holds one structural family whose members catalyse related but different
+reactions. No setting turns structural bins into EC4 classes; the
+thresholds choose the granularity of the structural grouping.</li>
+</ul>
+<pre class="r"><code>sessionInfo()
+#&gt; R version 4.5.2 (2025-10-31)
+#&gt; Platform: aarch64-apple-darwin20
+#&gt; Running under: macOS 27.0.1
+#&gt; 
+#&gt; Matrix products: default
+#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+#&gt; 
+#&gt; locale:
+#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt; 
+#&gt; time zone: America/New_York
+#&gt; tzcode source: internal
+#&gt; 
+#&gt; attached base packages:
+#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
+#&gt; 
+#&gt; other attached packages:
+#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
+#&gt; 
+#&gt; loaded via a namespace (and not attached):
+#&gt;  [1] SummarizedExperiment_1.40.0 gtable_0.3.6               
+#&gt;  [3] xfun_0.58                   bslib_0.11.0               
+#&gt;  [5] Biobase_2.70.0              lattice_0.22-9             
+#&gt;  [7] vctrs_0.7.3                 tools_4.5.2                
+#&gt;  [9] generics_0.1.4              stats4_4.5.2               
+#&gt; [11] parallel_4.5.2              tibble_3.3.1               
+#&gt; [13] cluster_2.1.8.2             pkgconfig_2.0.3            
+#&gt; [15] Matrix_1.7-5                RColorBrewer_1.1-3         
+#&gt; [17] S7_0.2.2                    S4Vectors_0.48.1           
+#&gt; [19] lifecycle_1.0.5             compiler_4.5.2             
+#&gt; [21] farver_2.1.2                Biostrings_2.78.0          
+#&gt; [23] fontawesome_0.5.3           DESeq2_1.50.2              
+#&gt; [25] Seqinfo_1.0.0               codetools_0.2-20           
+#&gt; [27] htmltools_0.5.9             sass_0.4.10                
+#&gt; [29] yaml_2.3.12                 pillar_1.11.1              
+#&gt; [31] crayon_1.5.3                jquerylib_0.1.4            
+#&gt; [33] MASS_7.3-65                 BiocParallel_1.44.0        
+#&gt; [35] cachem_1.1.0                DelayedArray_0.36.1        
+#&gt; [37] abind_1.4-8                 MCL_1.0                    
+#&gt; [39] nlme_3.1-169                locfit_1.5-9.12            
+#&gt; [41] tidyselect_1.2.1            digest_0.6.39              
+#&gt; [43] Rtsne_0.17                  dplyr_1.2.1                
+#&gt; [45] labeling_0.4.3              splines_4.5.2              
+#&gt; [47] fastmap_1.2.0               grid_4.5.2                 
+#&gt; [49] SparseArray_1.10.10         expm_1.0-0                 
+#&gt; [51] cli_3.6.6                   magrittr_2.0.5             
+#&gt; [53] S4Arrays_1.10.1             withr_3.0.3                
+#&gt; [55] scales_1.4.0                rmarkdown_2.31             
+#&gt; [57] pwalign_1.6.0               XVector_0.50.0             
+#&gt; [59] matrixStats_1.5.0           otel_0.2.0                 
+#&gt; [61] evaluate_1.0.5              knitr_1.51                 
+#&gt; [63] GenomicRanges_1.62.1        IRanges_2.44.0             
+#&gt; [65] viridisLite_0.4.3           mgcv_1.9-4                 
+#&gt; [67] rlang_1.3.0                 Rcpp_1.1.2                 
+#&gt; [69] glue_1.8.1                  BiocGenerics_0.56.0        
+#&gt; [71] jsonlite_2.0.0              R6_2.6.1                   
+#&gt; [73] MatrixGenerics_1.22.0</code></pre>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

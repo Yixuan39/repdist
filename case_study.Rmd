@@ -1,343 +1,386 @@
 ---
-title: "Real-data validation: the mouse dietary-protein metaproteome"
-author: "Yixuan Yang"
+title: "Case study"
+subtitle: "Mouse gut metaproteome: 20% yeast vs 20% casein protein"
+bibliography: references.bib
+link-citations: true
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
-                      fig.height = 4, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(
+    collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4,
+    message = FALSE, warning = FALSE
+)
 ```
 
-The [simulation benchmark](simulation.html) tests the method against a known
-functional truth. This page runs the same workflow on a real metaproteome,
-where there is no such truth, to check that it behaves sensibly at the size
-of a full catalog:
-
-1. **Beta diversity** with RBF-MMD and PERMANOVA.
-2. **MCL bins** on the TM-Vec similarity graph at the package defaults.
-3. **Differential abundance** on the bins with DESeq2.
-4. **Functional reading** of the most responsive annotated bins.
+This page runs the `repdist` workflow on a published metaproteome: beta
+diversity with MMD (`sample_mmd()`, the maximum mean discrepancy under a
+Gaussian RBF kernel on the protein embeddings), the representation space,
+MCL bins, and bin-level differential abundance.
 
 ```{r libs}
 library(repdist)
 library(ggplot2)
-library(phyloseq)
+library(vegan)
 ```
 
-# The full dataset
+# Study and comparison
 
-The study is Blakeley-Ruiz *et al.*, *ISME J* **19**(1) wraf048: mouse faecal
-metaproteomes across six dietary protein sources, quantified by spectral
-counting.
+Blakeley-Ruiz *et al.* [@blakeleyruiz2025diet] fed twelve mice (two cages of
+three per sex) a series of defined diets, one week each, and measured faecal
+metaproteomes by spectral counting (PRIDE PXD041586).
+
+**The input sequences are already sequence-reduced.** The microbial protein
+catalog comes from metagenome-assembled genomes annotated with PROKKA;
+unbinned genes were added only if no binned gene matched them at 90% identity
+(CD-HIT-2D), and the host and diet reference proteomes were clustered at 95%
+identity. Every reported protein also has at least one protein-unique
+peptide. Near-identical proteins are therefore rare in the table (see
+[sequence identity of graph edges](#edge-identity)): the relatedness that MMD
+and the bins add beyond protein identity is mostly remote homology. This is
+consistent with the modest difference between MMD and protein-level
+Bray-Curtis below.
+
+This page compares two diets of the same protein amount: **20% yeast protein
+(Yeast) against 20% casein (Casein)**, casein being the reference protein of
+the series. Only mice sampled on both diets are used (11 pairs), and diet is
+tested within mouse. The yeast diet came three weeks after the casein diet,
+so diet is confounded with feeding period in this serial design.
 
 ```{r data}
-path <- file.path("data", "test_study")
-MAX_AA <- 3000L
+d <- readRDS(file.path("curated", "diet_yeast.rds"))
+x <- d$proteins # sequences with TM-Vec embeddings
+counts <- d$counts # raw PSM counts, samples x proteins
+samples <- d$samples
+ann <- d$annotation
+d$provenance$contrast
+table(samples$diet, samples$sex)
+```
 
-ps <- readRDS(file.path(path, "ps.rds"))
-floor_depth <- min(sample_sums(ps))
+The curated object was built by `data-raw/diet_yeast.R` from the paper's
+supplementary Data Set 1 (PSM counts and sequences) and Data Set 6
+(annotation): every microbial protein with at least one PSM in these 22
+samples, its species group and GTDB lineage, the study's curated function,
+KEGG orthology (KO) assignments and CAZy families, and a TM-Vec embedding
+computed with `embed_proteins()`.
 
+**Protein length.** Proteins longer than `MAX_AA` = `r d$provenance$max_aa`
+residues were removed before embedding:
+`r d$provenance$steps[["longer_than_max"]]` of
+`r d$provenance$steps[["detected"]]` proteins, carrying
+`r sprintf("%.1f%%", 100 * d$provenance$long_protein_psm_share)` of the PSMs.
+This is an analysis choice, not a package limit: `embed_proteins()` embeds
+sequences of any length, but the TM-Vec head was trained on chains of up to
+1000 residues, so predicted TM-scores for much longer chains are
+extrapolations.
+
+```{r dims}
+c(samples = nrow(counts), proteins = ncol(counts))
+```
+
+# Beta diversity
+
+Sequencing depth differs by diet (yeast samples have about twice the PSMs of
+casein samples), and depth changes which proteins are observed. Both
+distances are therefore computed on counts rarefied to the smallest sample.
+
+```{r rarefy}
+tapply(rowSums(counts), samples$diet, range)
 set.seed(1)
-psd <- rarefy_even_depth(ps, sample.size = floor_depth, rngseed = 1,
-                         replace = FALSE, verbose = FALSE)
-psd <- prune_samples(sample_data(psd)$phase != "baseline", psd)
-psd <- prune_taxa(taxa_sums(psd) > 0, psd)
-
-n_after_rarefaction <- ntaxa(psd)
-protein_length <- Biostrings::width(refseq(psd)[taxa_names(psd)])
-too_long <- protein_length > MAX_AA
-long_abundance <- sum(taxa_sums(psd)[too_long]) / sum(taxa_sums(psd))
-psd <- prune_taxa(!too_long, psd)
-
-keep <- taxa_names(psd)
-psu <- prune_samples(sample_data(ps)$phase != "baseline", ps)
-psu <- prune_taxa(taxa_names(psu) %in% keep, psu)
-
-counts <- Matrix::Matrix(t(as(otu_table(psd), "matrix")), sparse = TRUE)
-counts_raw <- t(as(otu_table(psu), "matrix"))[rownames(counts), keep, drop = FALSE]
-
-md <- data.frame(sample_data(psd))[rownames(counts), ]
-md$diet <- factor(md$diet)
-md$dose <- factor(md$dose)
-md$subject <- factor(md$subject)
-
-# Annotations from Extended Data Table 6: join on Protein Identifier, fall
-# back to the species-code column, and keep a match only where the residue
-# count agrees.
-t6 <- read.delim(file.path(path, "annotated",
-                           "ExtendedDataTable6AnnotatedMicrobialMetaproteomes.txt"),
-                 skip = 2, quote = "\"", check.names = FALSE,
-                 colClasses = "character", comment.char = "", fileEncoding = "latin1")
-len <- Biostrings::width(refseq(psd)[keep])
-agrees <- function(r) !is.na(r) & suppressWarnings(as.integer(t6$AA[r])) == len
-r_id <- match(keep, t6[["Protein Identifier"]])
-r_code <- match(keep, t6[["Protein Identifier with Species Code"]])
-row <- ifelse(agrees(r_id), r_id, ifelse(agrees(r_code), r_code, NA))
-annotation <- t6[["Consensus annotation"]][row]
-annotation[!nzchar(trimws(annotation)) | tolower(annotation) == "unknown"] <- NA
-taxa <- data.frame(
-  genus = as(tax_table(psd), "matrix")[keep, "Genus"],
-  annotation = annotation,
-  row.names = keep, stringsAsFactors = FALSE)
-
-d <- list(counts = counts, counts_raw = counts_raw, metadata = md, taxa = taxa)
-
-c(samples = nrow(counts), proteins = ncol(counts),
-  removed_over_3000aa = sum(too_long),
-  removed_abundance_pct = round(100 * long_abundance, 3))
-table(md$diet)
-```
-
-Rarefaction provides the abundance filter: proteins absent after subsampling
-are removed. It retained `r n_after_rarefaction` proteins; the 3,000aa ceiling
-then removed `r sum(too_long)` more, representing only
-`r sprintf("%.3f", 100 * long_abundance)`% of rarefied abundance. The count
-matrix is sparse; `counts_raw` contains unrarefied counts for exactly the same
-proteins and samples.
-
-**The ceiling is a choice made here, not a limit `repdist` imposes.**
-`embed_proteins()` embeds every sequence whole -- it never truncates and never
-silently drops -- and no function in the package takes a maximum length. The
-reason to cut at 3,000 residues is TM-Vec: its head was trained on structure
-pairs through 1,000 residues, so a predicted TM-score for a chain many times
-longer is extrapolation well outside what the model saw. At
-`r sprintf("%.3f", 100 * long_abundance)`% of abundance the cut costs
-essentially nothing here, which is what makes it worth taking. On a catalog
-where long proteins carry real signal, raise it or drop it.
-
-# Embedding
-
-`embed_proteins()` embeds every sequence whole. The full TM-Vec embeddings are
-cached outside the render because model inference is not part of the statistical
-analysis.
-
-```{r Z}
-cached <- readRDS(file.path(path, "embeddings_tmvec1_large.rds"))
-x <- refseq(psd)[keep]
-stopifnot(identical(as.character(x), cached$seq[keep]))
-S4Vectors::mcols(x)$embedding <- cached$Z[keep, ]
-rm(cached)
-x
-```
-
-`x` is the `AAStringSet` every `repdist` function takes: the sequences, with
-one embedding row per protein in `mcols(x)$embedding`. TM-Vec's head was
-trained to regress TM-score, so cosine similarity between two embeddings is a
-predicted TM-score. `known_models()` lists the other registered
-representations.
-
-```{r models}
-names(known_models())
-```
-
-# Step 1: beta diversity
-
-Bray-Curtis is the protein-identity baseline. MMD asks how far apart different
-proteins actually are. `sample_mmd()` builds a Euclidean RBF kernel from the
-embeddings, so the kernel remains positive semi-definite; on unit-norm TM-Vec
-embeddings that distance is a monotone transform of predicted TM-score.
-
-```{r distances}
+rarefied <- rrarefy(counts, min(rowSums(counts)))
 D <- list(
-  `Bray-Curtis` = vegan::vegdist(as.matrix(d$counts), "bray"),
-  `MMD` = sample_mmd(d$counts, x))
+    `Bray-Curtis (protein)` = vegdist(rarefied, "bray"),
+    MMD = sample_mmd(rarefied, x)
+)
+attr(D$MMD, "sigma")
 ```
 
-Both are abundance-weighted, so richness is checked before interpreting the
-diet effect.
-
-```{r qc-richness}
-rich <- vegan::specnumber(as.matrix(d$counts))
-round(vapply(D, function(x) cor(rich, rowMeans(as.matrix(x))), numeric(1)), 2)
-```
-
-## PERMANOVA
-
-Amount of protein, sex and age remain as covariates and diet enters last.
-Permutations are blocked within mouse.
+PERMANOVA [@anderson2001permanova] and PERMDISP [@anderson2006permdisp] use
+999 permutations restricted to within mouse.
 
 ```{r permanova}
-perm <- permute::how(blocks = md$subject, nperm = 999)
-
-res <- do.call(rbind, lapply(names(D), function(n) {
-  set.seed(1)
-  a <- vegan::adonis2(D[[n]] ~ dose + sex + age_week + diet, data = md,
-                      by = "terms", permutations = perm)
-  data.frame(distance = n, R2 = round(a["diet", "R2"], 3),
-             F = round(a["diet", "F"], 2), p = a["diet", "Pr(>F)"])
-}))
-knitr::kable(res, row.names = FALSE)
+perm <- permute::how(blocks = samples$subject, nperm = 999)
+tests <- t(vapply(D, function(Dk) {
+    set.seed(1)
+    a <- adonis2(Dk ~ diet, data = samples, permutations = perm)
+    bd <- betadisper(Dk, samples$diet)
+    set.seed(1)
+    pd <- permutest(bd, permutations = perm)
+    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(>F)`[1],
+        dispersion_Casein = mean(bd$distances[samples$diet == "Casein"]),
+        dispersion_Yeast = mean(bd$distances[samples$diet == "Yeast"]),
+        PERMDISP_p = pd$tab[1, "Pr(>F)"])
+}, numeric(6)))
+knitr::kable(tests, digits = 3)
 ```
 
-## Ordination
-
-```{r pcoa, fig.height = 3.6, fig.width = 6.5, fig.alt = "PCoA under Bray-Curtis and RBF-MMD, coloured by dietary protein source"}
+```{r pcoa, fig.width = 8, fig.height = 3.8, fig.alt = "PCoA under protein-level Bray-Curtis and MMD; lines join the two samples of each mouse"}
 ord <- do.call(rbind, lapply(names(D), function(n) {
-  e <- cmdscale(D[[n]], k = 2, eig = TRUE)
-  rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
-  data.frame(
-    Axis1 = e$points[, 1], Axis2 = e$points[, 2],
-    diet = md[rownames(e$points), "diet"],
-    panel = sprintf("%s  (PCo1 %.1f%%, PCo2 %.1f%%)", n, rel[1], rel[2]))
+    e <- cmdscale(D[[n]], k = 2, eig = TRUE)
+    rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
+    data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
+        diet = samples$diet, subject = samples$subject,
+        panel = sprintf("%s\nPCo1 %.0f%%, PCo2 %.0f%%", n, rel[1], rel[2]))
 }))
-
-ggplot(ord, aes(Axis1, Axis2, colour = diet)) +
-  geom_point(size = 1.6, alpha = 0.85) +
-  stat_ellipse(type = "t", linewidth = 0.3) +
-  facet_wrap(~ panel, scales = "free") +
-  labs(x = "PCo1", y = "PCo2", colour = "diet") +
-  theme_bw() +
-  theme(legend.position = "bottom")
+ord$panel <- factor(ord$panel, unique(ord$panel))
+ggplot(ord, aes(PCo1, PCo2)) +
+    geom_line(aes(group = subject), colour = "grey75") +
+    geom_point(aes(colour = diet), size = 2) +
+    facet_wrap(~panel, scales = "free") +
+    labs(colour = NULL) +
+    theme_bw() +
+    theme(legend.position = "bottom")
 ```
 
-# Step 2: MCL bins
+Each grey line joins the casein and yeast samples of one mouse.
 
-`protein_similarity()` keeps a pair as an edge when its predicted TM-score
-is at least `min_sim` (0.7 by default) and its local alignment covers at
-least half of both sequences, so two proteins sharing only one domain are not
-joined. `bin_proteins()` runs Markov clustering on the resulting graph at
-inflation 2; proteins with no edge stay singletons. The floor decides which
-pairs connect, not what a bin holds: a bin can hold pairs below it, joined
-through shared neighbours.
+Both distances separate the diets with similar effect sizes, and for both
+PERMDISP also detects unequal spread, in opposite directions: casein
+samples are more dispersed under Bray-Curtis, yeast samples under MMD.
+PERMANOVA with equal group sizes is fairly robust to unequal dispersion, and
+the paired samples are displaced along the first axis in both ordinations,
+so the separation is mainly a shift in location, with a difference in spread
+on top. Under Bray-Curtis the second axis separates the two mouse groups,
+which came from different vendor rooms.
 
-```{r ground}
-S <- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())
+# Representation space
+
+`plot_tsne()` maps all proteins by cosine distance (one minus the predicted
+TM-score), coloured by the study's manually curated broad function; proteins
+without one are grey. The map shows neighbourhoods in representation space;
+it is not evidence of function, and t-SNE does not preserve distances between
+groups.
+
+```{r tsne-function, fig.width = 7.5, fig.height = 4.6, fig.alt = "t-SNE of protein embeddings coloured by broad function"}
+set.seed(1)
+plot_tsne(x, color = setNames(ann$broad_function, ann$protein))
 ```
+
+The study assigned a KO to
+`r sprintf("%.0f%%", 100 * mean(!is.na(ann$ko)))` of the proteins. Proteins
+without a KO have fewer close relatives in the catalog: the quartiles of each
+protein's nearest-neighbour predicted TM-score, by KO status:
+
+```{r nearest-neighbour}
+ko_status <- ifelse(is.na(ann$ko), "no KO", "KO assigned")
+Z <- S4Vectors::mcols(x)$embedding
+Z <- Z / sqrt(rowSums(Z^2))
+sim <- tcrossprod(Z)
+diag(sim) <- NA
+nearest <- apply(sim, 1, max, na.rm = TRUE)
+rm(sim)
+tapply(nearest, ko_status, quantile, probs = c(0.25, 0.5, 0.75))
+```
+
+# Protein bins
+
+The similarity graph and MCL bins use the package defaults: an edge needs a
+predicted TM-score of at least 0.7 and a local alignment covering at least
+half of both sequences; MCL inflation is 2.
 
 ```{r bins}
-b <- bin_proteins(S, inflation = 2)
+S <- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())
+b <- bin_proteins(S)
 b$graph
-```
-
-The unrarefied counts sum to bin level with `bin_glom()`.
-
-```{r bin-counts}
-bin_cnt <- bin_glom(d$counts_raw, b)
-c(proteins = ncol(d$counts_raw), bins = ncol(bin_cnt))
-```
-
-```{r bin-sizes}
 sizes <- lengths(b$clusters)
-table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
-          labels = c("1", "2", "3-5", "6-10", ">10")))
+c(proteins = length(x), bins = length(sizes),
+    singleton_bins = sum(sizes == 1),
+    singleton_fraction = round(sum(sizes == 1) / length(x), 3))
+table(cut(sizes, c(0, 1, 2, 5, 10, 50, Inf),
+    labels = c("1", "2", "3-5", "6-10", "11-50", ">50")))
 ```
 
-`r sum(sizes == 1)` proteins remain singleton bins. The other
-`r sum(sizes > 1)` bins are communities of proteins connected above the
-floor, reducing the number of tested units by a factor of
-`r round(ncol(d$counts_raw) / ncol(bin_cnt), 1)`.
+The `r b$graph[["proteins"]]` proteins form `r b$graph[["components"]]`
+connected components, the largest with
+`r b$graph[["largest_component"]]` proteins; MCL splits the components into
+`r length(sizes)` bins, `r sum(sizes == 1)` of them singletons.
 
-# Step 3: differential abundance with DESeq2
+## Sequence identity of graph edges {#edge-identity}
 
-DESeq2 fits a negative-binomial model per bin on unrarefied counts. The paired
-design blocks on subject, and diet is tested by likelihood ratio against the
-model without diet.
+A random sample of 5,000 graph edges, aligned as in `protein_similarity()`
+(local, BLOSUM62), by percent identity:
+
+```{r edge-identity}
+set.seed(1)
+ij <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
+ij <- ij[sample(nrow(ij), 5000), ]
+seqs <- x
+S4Vectors::mcols(seqs) <- NULL
+aln <- pwalign::pairwiseAlignment(seqs[ij[, 1]], seqs[ij[, 2]],
+    substitutionMatrix = "BLOSUM62", type = "local",
+    gapOpening = 11, gapExtension = 1)
+identity <- pwalign::pid(aln, type = "PID1")
+round(prop.table(table(cut(identity, c(0, 30, 40, 50, 70, 90, 100.01),
+    right = FALSE, labels = c("<30%", "30-40%", "40-50%", "50-70%",
+        "70-90%", ">=90%")))), 3)
+```
+
+Most edges join proteins with similar predicted structure but low sequence
+identity (median `r round(median(identity))`%): remote homologs, which
+sequence identity alone would not group.
+
+# Differential abundance
+
+Raw (unrarefied) protein counts are summed to bins with `bin_glom()` and
+tested with DESeq2 [@love2014deseq2]. The design `~ subject + diet` pairs the
+two samples of each mouse; size factors use the `poscounts` estimator because
+no bin is observed in every sample. Fold changes are Yeast relative to Casein,
+shrunk with the `normal` prior for display; p-values are from the Wald test.
 
 ```{r deseq}
-dds <- DESeq2::DESeqDataSetFromMatrix(t(bin_cnt), md,
-                                      design = ~ subject + diet)
-dds <- DESeq2::DESeq(dds, test = "LRT", reduced = ~ subject,
-                     sfType = "poscounts", quiet = TRUE)
-res_lrt <- DESeq2::results(dds)
-
-c(bins_tested = nrow(res_lrt),
-  diet_significant = sum(res_lrt$padj <= 0.05, na.rm = TRUE))
+binned <- bin_glom(counts, b)
+dds <- DESeq2::DESeqDataSetFromMatrix(round(t(binned)), samples,
+    design = ~ subject + diet)
+dds <- DESeq2::DESeq(dds, sfType = "poscounts", quiet = TRUE)
+res <- DESeq2::results(dds, name = "diet_Yeast_vs_Casein", alpha = 0.05)
+lfc <- DESeq2::lfcShrink(dds, coef = "diet_Yeast_vs_Casein", type = "normal",
+    res = res, quiet = TRUE)
+DESeq2::summary(res)
 ```
 
-Each significant bin is assigned its largest shrunken diet-vs-Casein fold
-change for ranking and display.
-
-```{r effects}
-lev <- setdiff(levels(md$diet), "Casein")
-ddsw <- DESeq2::nbinomWaldTest(dds, quiet = TRUE)
-shrunk <- lapply(lev, function(l)
-  DESeq2::lfcShrink(ddsw, coef = paste0("diet_", l, "_vs_Casein"),
-                    type = "normal", quiet = TRUE))
-names(shrunk) <- lev
-fc <- vapply(shrunk, function(o) o$log2FoldChange, numeric(nrow(res_lrt)))
-rownames(fc) <- rownames(res_lrt)
-
-sig <- rownames(res_lrt)[!is.na(res_lrt$padj) & res_lrt$padj <= 0.05]
-top <- data.frame(
-  bin = sig,
-  members = sizes[sig],
-  padj = formatC(res_lrt[sig, "padj"], digits = 2, format = "e"),
-  diet = lev[apply(abs(fc[sig, , drop = FALSE]), 1, which.max)],
-  log2FC = round(fc[cbind(sig, lev[apply(abs(fc[sig, , drop = FALSE]),
-                                        1, which.max)])], 2))
-top <- top[order(-abs(top$log2FC)), ]
-knitr::kable(head(top, 8), row.names = FALSE)
+```{r volcano, fig.width = 6, fig.height = 4, fig.alt = "Volcano plot of bin-level differential abundance, Yeast vs Casein"}
+volcano <- data.frame(log2FC = lfc$log2FoldChange, p = res$pvalue,
+    significant = !is.na(res$padj) & res$padj < 0.05)
+ggplot(volcano[!is.na(volcano$p), ], aes(log2FC, -log10(p),
+    colour = significant)) +
+    geom_point(size = 1, alpha = 0.6) +
+    scale_colour_manual(values = c(`TRUE` = "firebrick", `FALSE` = "grey60"),
+        labels = c(`TRUE` = "padj < 0.05", `FALSE` = "not significant")) +
+    labs(x = "log2 fold change, Yeast vs Casein (shrunk)",
+        y = expression(-log[10](p)), colour = NULL) +
+    theme_bw()
 ```
 
-```{r volcano, fig.height = 3.4, fig.width = 9, fig.alt = "Diet-vs-Casein volcano plots for structural bins"}
-volc <- do.call(rbind, lapply(lev, function(l) {
-  o <- shrunk[[l]]
-  data.frame(bin = rownames(o), diet = l, log2FoldChange = o$log2FoldChange,
-             pvalue = o$pvalue, reject = !is.na(o$padj) & o$padj <= 0.05)
-}))
+Each bin's annotation summarises its members. A label shared by every
+annotated member is shown with its count (`3/4` means three of four members
+carry it, the fourth is unannotated); bins whose annotated members disagree
+are marked `mixed` with the number of distinct labels and the most frequent
+one.
 
-ggplot(volc, aes(log2FoldChange, -log10(pvalue), color = reject)) +
-  geom_point(alpha = 0.6, size = 1) +
-  facet_wrap(~ diet, nrow = 1) +
-  scale_color_manual(values = c(`FALSE` = "grey70", `TRUE` = "firebrick"),
-                     guide = "none") +
-  labs(x = "log2 fold change vs Casein", y = expression(-log[10](p))) +
-  theme_bw()
+```{r summarise}
+summarise_labels <- function(v) {
+    n <- length(v)
+    v <- v[!is.na(v)]
+    if (!length(v)) return("-")
+    tab <- sort(table(v), decreasing = TRUE)
+    top <- sprintf("%s (%d/%d)", strtrim(names(tab)[1], 40), tab[[1]], n)
+    if (length(tab) == 1L) top else
+        sprintf("mixed, %d: %s", length(tab), top)
+}
+bin_table <- function(bins) {
+    data.frame(
+        bin = bins,
+        proteins = sizes[bins],
+        taxon = vapply(b$clusters[bins],
+            function(m) summarise_labels(ann[m, "taxon"]), ""),
+        `function` = vapply(b$clusters[bins],
+            function(m) summarise_labels(ann[m, "consensus_annotation"]), ""),
+        KO = vapply(b$clusters[bins],
+            function(m) summarise_labels(ann[m, "ko"]), ""),
+        log2FC = round(lfc[bins, "log2FoldChange"], 2),
+        p = formatC(res[bins, "pvalue"], format = "e", digits = 1),
+        padj = formatC(res[bins, "padj"], format = "e", digits = 1),
+        check.names = FALSE, row.names = NULL
+    )
+}
+sig <- rownames(res)[!is.na(res$padj) & res$padj < 0.05]
+sig <- sig[order(res[sig, "padj"])]
+up_yeast <- head(sig[lfc[sig, "log2FoldChange"] > 0], 10)
+up_casein <- head(sig[lfc[sig, "log2FoldChange"] < 0], 10)
 ```
 
-# Step 4: responsive bins, read functionally
+The ten most significant bins higher on the yeast diet:
 
-Select the three most responsive multi-member bins with at least two annotated
-proteins.
+```{r table-yeast}
+knitr::kable(bin_table(up_yeast))
+```
+
+The most significant yeast-enriched bin, `r up_yeast[1]`, holds
+`r sizes[[up_yeast[1]]]` proteins that the study annotated as GH92 family
+glycosyl hydrolases (α-mannosidases), almost all from *B. thetaiotaomicron*.
+The source study reported these enzymes increasing on the yeast diet and
+linked them to the mannan of yeast cell-wall glycoproteins
+[@blakeleyruiz2025diet]. None of the bin's members has a KO, so a KO-level
+summary would not have grouped them.
+
+The ten most significant bins higher on the casein diet:
+
+```{r table-casein}
+knitr::kable(bin_table(up_casein))
+```
+
+Several casein-enriched bins are large and mixed across taxa, for example
+substrate-binding proteins of carbohydrate ABC transporters: they summarise
+a structural family shared by many organisms rather than one organism's
+protein.
+
+# Inside a bin
+
+`plot_bin_similarity()` shows all pairwise predicted TM-scores within one
+bin. A black outline marks a pair that **is** an edge of the graph: it passed
+both thresholds (predicted TM-score ≥ 0.7, coverage ≥ 0.5) and keeps its
+similarity as the edge weight. A cell without an outline is not an edge
+(weight 0 in `S`). MCL clusters along the outlined edges. Shown are the most
+significant bin with 4 to 30 members in each direction, with a count of
+their member pairs: edges, pairs below the similarity threshold, and pairs
+above it that failed the coverage gate.
 
 ```{r pick}
-n_ann <- vapply(b$clusters[top$bin],
-                function(m) sum(!is.na(d$taxa[m, "annotation"])), integer(1))
-picks <- head(top[top$members > 1 & n_ann >= 2, ], 3)
-knitr::kable(picks, row.names = FALSE)
+pick <- function(bins) bins[sizes[bins] >= 4 & sizes[bins] <= 30][1]
+shown <- c(Yeast = pick(sig[lfc[sig, "log2FoldChange"] > 0]),
+    Casein = pick(sig[lfc[sig, "log2FoldChange"] < 0]))
+pair_types <- function(bin) {
+    m <- b$clusters[[bin]]
+    R <- tcrossprod(Z[m, ])
+    E <- S[m, m] > 0
+    up <- upper.tri(E)
+    c(pairs = sum(up), edges = sum(E[up]), below_0.7 = sum(R[up] < 0.7),
+        failed_coverage = sum(R[up] >= 0.7 & !E[up]))
+}
+data.frame(bin = shown, t(vapply(shown, pair_types, numeric(4))))
 ```
 
-```{r members}
-info <- do.call(rbind, lapply(seq_len(nrow(picks)), function(i) {
-  m <- b$clusters[[picks$bin[i]]]
-  data.frame(
-    bin = picks$bin[i],
-    genus = d$taxa[m, "genus"],
-    annotation = substr(d$taxa[m, "annotation"], 1, 52),
-    mean_Casein = round(colMeans(d$counts_raw[md$diet == "Casein", m,
-                                               drop = FALSE]), 1),
-    mean_top = round(colMeans(d$counts_raw[md$diet == picks$diet[i], m,
-                                           drop = FALSE]), 1))
-}))
-knitr::kable(info, row.names = FALSE)
+```{r bin-yeast, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected yeast-enriched bin; edges outlined"}
+plot_bin_similarity(b, shown[["Yeast"]], S, x)
 ```
 
-An MCL bin makes no all-pairs promise: members are joined through the
-graph, so a pair inside a bin need not be an edge. The within-bin predicted
-TM-scores of the leading annotated bin, with the graph's edges outlined:
-
-```{r bin-similarity, fig.height = 4.5, fig.alt = "Pairwise predicted TM-scores inside the leading annotated bin, edges outlined"}
-plot_bin_similarity(b, picks$bin[1], S, x)
+```{r members-yeast}
+m <- b$clusters[[shown[["Yeast"]]]]
+knitr::kable(ann[m, c("taxon", "consensus_annotation", "ko", "cazy")],
+    row.names = TRUE)
 ```
 
-A bin is a community in a similarity graph. Agreement among its members'
-annotations is evidence about its function; membership alone is not.
+```{r bin-casein, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected casein-enriched bin; edges outlined"}
+plot_bin_similarity(b, shown[["Casein"]], S, x)
+```
 
-# Practical notes
+```{r members-casein}
+m <- b$clusters[[shown[["Casein"]]]]
+knitr::kable(ann[m, c("taxon", "consensus_annotation", "ko", "cazy")],
+    row.names = TRUE)
+```
 
-**Rarefy first** for whole-community distances. The differential-abundance
-model uses the corresponding unrarefied counts and handles depth through size
-factors.
+In the GH92 bin every pair of members is an edge. In
+`r shown[["Casein"]]`, mostly unannotated proteins from several
+*Acetatifactor* species groups and unbinned contigs, some members are joined only
+through shared neighbours (pairs below 0.7) and some similar pairs are not
+edges because their alignment covers less than half of one sequence. MCL
+keeps both kinds of pair in one bin; the thresholds act on edges, not on
+every pair.
 
-**Memory.** `protein_similarity()` and `sample_mmd()` hold dense
-protein-by-protein matrices, so memory grows with the square of the protein
-count; bin the identified subset of a catalog, never a whole search database.
-MCL's cost follows the largest connected component, which the `MCL` package
-holds as one dense matrix.
+# Notes
 
-**Bandwidth.** `sample_mmd()` returns its bandwidth as `attr(, "sigma")`;
-pass it back when comparisons across studies need one fixed kernel.
+- Diet is confounded with feeding period (weeks 2 and 5) in this serial
+  design, so the differences cannot be attributed to diet alone.
+- Beta diversity uses rarefied counts; differential abundance uses raw
+  counts with DESeq2 size factors.
+- A bin is a similarity-network cluster. Agreement among its members'
+  annotations is evidence about its function; bins can span species and,
+  when large, related functions.
+- KO assignments are the study's own (Mantis, else MicrobeAnnotator). A
+  missing KO does not mean an unknown function, as the GH92 bin shows.
 
 ```{r session}
 sessionInfo()
 ```
+
+# References {-}
