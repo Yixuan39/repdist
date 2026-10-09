@@ -488,9 +488,9 @@ any one accession.
 
 MCL makes no all-pairs promise: members are joined through the graph, so a
 pair inside a bin need not be an edge. `plot_bin_similarity()` colours every
-pair by its predicted TM-score and outlines the edges, so it shows whether a bin
-is one tight group or two sub-groups joined through a few edges. A pair above
-0.7 without an outline failed the coverage gate:
+pair by its predicted TM-score and crosses out every pair that is not an edge,
+so it shows whether a bin is one tight group or two sub-groups joined through a
+few edges. A crossed pair above 0.7 failed the coverage gate:
 
 ```{r floor}
 #| fig.height: 4.5

@@ -28,10 +28,10 @@ whether it is an \code{edge}. Needs the \code{ggplot2} package.
 \description{
 Heatmap of every pairwise similarity among one bin's members, the
 representative first and the rest by decreasing similarity to it. Colour
-is the similarity before any gate, from the embeddings; outlined cells
-are the edges of \code{S}, the graph MCL clustered. An MCL bin joins members
-through shared neighbours, so a pair inside it need not be an edge, and a
-pair above \code{min_sim} is not one if it failed the coverage gate.
+is the similarity before any gate, from the embeddings; a cross marks each
+pair that is not an edge of \code{S}, the graph MCL clustered. An MCL bin joins
+members through shared neighbours, so a pair inside it need not be an edge,
+and a pair above \code{min_sim} is not one if it failed the coverage gate.
 }
 \examples{
 d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
