@@ -1,5 +1,6 @@
 utils::globalVariables(c(
-    "similarity", "protein", "partner", "tsne1", "tsne2"
+    "similarity", "protein", "partner", "tsne1", "tsne2",
+    "x_from", "y_from", "x_to", "y_to"
 ))
 
 #' Plot protein embeddings with t-SNE
@@ -76,10 +77,10 @@ plot_tsne <- function(x, perplexity = NULL, color = NULL) {
 #'
 #' Heatmap of every pairwise similarity among one bin's members, the
 #' representative first and the rest by decreasing similarity to it. Colour
-#' is the similarity before any gate, from the embeddings; outlined cells
-#' are the edges of `S`, the graph MCL clustered. An MCL bin joins members
-#' through shared neighbours, so a pair inside it need not be an edge, and a
-#' pair above `min_sim` is not one if it failed the coverage gate.
+#' is the similarity before any gate, from the embeddings; a cross marks each
+#' pair that is not an edge of `S`, the graph MCL clustered. An MCL bin joins
+#' members through shared neighbours, so a pair inside it need not be an edge,
+#' and a pair above `min_sim` is not one if it failed the coverage gate.
 #'
 #' @param bins Result of [bin_proteins()].
 #' @param bin Bin name, e.g. `"bin1"`.
@@ -110,7 +111,7 @@ plot_bin_similarity <- function(bins, bin, S, x, label_max = 20L,
     if (length(bin) != 1L || !bin %in% names(bins$clusters)) {
         stop("`bin` must name one bin, e.g. \"bin1\".", call. = FALSE)
     }
-    # an ungated matrix here would outline every pair
+    # an ungated matrix here would make every pair an edge
     n_edges <- sum(S[upper.tri(S)] > 0)
     if (nrow(S) != bins$graph[["proteins"]] ||
         n_edges != bins$graph[["edges"]]) {
@@ -141,22 +142,29 @@ plot_bin_similarity <- function(bins, bin, S, x, label_max = 20L,
         similarity = as.numeric(R),
         edge = as.vector(E)
     )
+    # each pair that is not an edge is crossed corner to corner
+    self <- as.character(df$protein) == as.character(df$partner)
+    off <- df[!df$edge & !self, ]
+    at_x <- as.numeric(off$protein)
+    at_y <- as.numeric(off$partner)
+    h <- 0.42
+    cross <- data.frame(x_from = at_x - h, x_to = at_x + h,
+        y_from = c(at_y - h, at_y + h), y_to = c(at_y + h, at_y - h))
     half <- name_max %/% 2
     elide <- function(x) ifelse(nchar(x) <= name_max, x, paste0(
         substr(x, 1L, half), "\u2026", substring(x, nchar(x) - half + 2L)))
     p <- ggplot2::ggplot(df,
         ggplot2::aes(protein, partner, fill = similarity)) +
         ggplot2::geom_tile() +
-        # inset, so neighbouring edges keep separate outlines
-        ggplot2::geom_tile(data = df[df$edge, ], fill = NA, colour = "black",
-            width = 0.9, height = 0.9,
-            linewidth = if (n > label_max) 0.3 else 0.8) +
+        ggplot2::geom_segment(data = cross, ggplot2::aes(x = x_from,
+            y = y_from, xend = x_to, yend = y_to), inherit.aes = FALSE,
+            linewidth = if (n > label_max) 0.3 else 0.6) +
         ggplot2::scale_fill_viridis_c(limits = c(0, 1)) +
         ggplot2::scale_y_discrete(labels = elide) +
         ggplot2::coord_fixed() +
         ggplot2::labs(x = NULL, y = NULL,
             title = sprintf("%s: %d proteins", bin, n),
-            subtitle = sprintf("%.0f%% of pairs are edges (outlined)",
+            subtitle = sprintf("%.0f%% of pairs are edges",
                 100 * mean(E[upper.tri(E)]))) +
         ggplot2::theme_minimal() +
         ggplot2::theme(axis.text.x = ggplot2::element_blank())

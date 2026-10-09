@@ -50,14 +50,15 @@ test_that("an MCL bin can hold pairs that are not edges", {
     b <- bin_proteins(G, inflation = 1.4)
     expect_length(b$clusters, 1L)
     p <- plot_bin_similarity(b, "bin1", G, x)
-    # every cell carries its ungated similarity, the 3 edges are outlined
+    # every cell carries its ungated similarity; the 3 pairs that are not
+    # edges are crossed, two strokes per cell on both sides of the diagonal
     S_all <- protein_similarity(x, min_sim = 0, min_coverage = 0)
     expect_equal(p$data$similarity, as.numeric(S_all[
         levels(p$data$protein), levels(p$data$protein)]))
     expect_gt(min(p$data$similarity), 0)
     expect_equal(sum(p$data$edge), 6L)
-    expect_equal(nrow(p$layers[[2]]$data), 6L)
-    expect_match(p$labels$subtitle, "50% of pairs are edges \\(outlined\\)")
+    expect_equal(nrow(p$layers[[2]]$data), 12L)
+    expect_match(p$labels$subtitle, "^50% of pairs are edges$")
     # the ungated matrix is not the graph MCL clustered
     expect_error(plot_bin_similarity(b, "bin1", S_all, x),
         "6 edges but `bins` was built from 3")
