@@ -25,9 +25,11 @@ library(vegan)
 
 # Study and comparison
 
-Blakeley-Ruiz *et al.* [@blakeleyruiz2025diet] fed twelve mice (two cages of
-three per sex) a series of defined diets, one week each, and measured faecal
-metaproteomes by spectral counting (PRIDE PXD041586).
+Blakeley-Ruiz *et al.* [@blakeleyruiz2025diet] fed twelve mice, four cages of
+three, a series of defined diets, one week each, and measured faecal
+metaproteomes by spectral counting (PRIDE PXD041586). The males (C1, C3) and
+females (C2, C4) came from different rooms at the Jackson Laboratory, so sex
+also marks two starting microbiomes, which the paper calls mouse groups.
 
 **The input sequences are already sequence-reduced.** The microbial protein
 catalog comes from metagenome-assembled genomes annotated with PROKKA;
@@ -91,7 +93,7 @@ protein_source[ctl] <- ifelse(samples$cage[ctl] %in% c("C1", "C2"), "Soy",
     "Casein")
 md <- data.frame(diet = protein_source,
     dose = ifelse(startsWith(token, "40"), "40", "20"),
-    sex = samples$sex, subject = samples$subject,
+    cage = samples$cage, subject = samples$subject,
     # the stopped chicken-bone week elapsed before CTL
     week = ifelse(ctl, 10L, samples$period),
     row.names = samples$sample)[token != "T0", ]
@@ -117,35 +119,37 @@ D <- list(
 ```
 
 PERMANOVA [@anderson2001permanova] tests protein source after protein amount,
-sex and week, and PERMDISP [@anderson2006permdisp] tests for unequal spread
+cage and week, and PERMDISP [@anderson2006permdisp] tests for unequal spread
 between sources; both use 999 permutations restricted to within mouse.
+Cage nests sex. Its R² is reported but not tested: within-mouse permutations
+cannot test a between-mouse term.
 
 ```{r permanova}
 perm <- permute::how(blocks = md$subject, nperm = 999)
 tests <- t(vapply(D, function(Dk) {
     set.seed(1)
-    a <- adonis2(Dk ~ dose + sex + week + diet, data = md, by = "terms",
+    a <- adonis2(Dk ~ dose + cage + week + diet, data = md, by = "terms",
         permutations = perm)
     set.seed(1)
     pd <- permutest(betadisper(Dk, md$diet), permutations = perm)
     c(`PERMANOVA R2` = a["diet", "R2"], `PERMANOVA p` = a["diet", "Pr(>F)"],
-        `PERMDISP p` = pd$tab[1, "Pr(>F)"])
-}, numeric(3)))
+        `PERMDISP p` = pd$tab[1, "Pr(>F)"], `Cage R2` = a["cage", "R2"])
+}, numeric(4)))
 knitr::kable(tests, digits = 3)
 ```
 
 Ellipses are 95% ellipses per protein source (multivariate t).
 
-```{r pcoa, fig.width = 9, fig.height = 4.2, fig.alt = "PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by sex, with 95% ellipses"}
+```{r pcoa, fig.width = 9, fig.height = 4.2, fig.alt = "PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by cage, with 95% ellipses"}
 ord <- do.call(rbind, lapply(names(D), function(n) {
     e <- cmdscale(D[[n]], k = 2, eig = TRUE)
     rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
     data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
-        diet = md$diet, sex = md$sex,
+        diet = md$diet, cage = md$cage,
         panel = sprintf("%s\nPCo1 %.0f%%, PCo2 %.0f%%", n, rel[1], rel[2]))
 }))
 ord$panel <- factor(ord$panel, unique(ord$panel))
-ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = sex)) +
+ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = cage)) +
     geom_point(size = 1.8) +
     stat_ellipse(aes(group = diet), linewidth = 0.4) +
     facet_wrap(~panel, scales = "free") +
@@ -160,11 +164,57 @@ to it than protein-level Bray-Curtis does (R²
 only Bray-Curtis also shows unequal spread between sources (PERMDISP p
 `r sprintf("%.3f", tests["Bray-Curtis (protein)", "PERMDISP p"])` against
 `r sprintf("%.3f", tests["MMD", "PERMDISP p"])`), so the MMD separation is
-mainly a shift in location. In the ordinations, the first Bray-Curtis axis
-separates the female from the male cages (sex is fixed by cage) and the yeast
-and egg samples separate on the second; under MMD the first axis separates
-the yeast and egg samples from the other sources and sex moves to the
-second.
+mainly a shift in location.
+
+Cage explains less under MMD (R²
+`r sprintf("%.3f", tests["MMD", "Cage R2"])` against
+`r sprintf("%.3f", tests["Bray-Curtis (protein)", "Cage R2"])`), and almost
+all of it is the split between the two mouse groups: the first Bray-Curtis
+axis separates C1 and C3 from C2 and C4, while the first MMD axis separates
+yeast and egg from the other sources.
+
+To see what separates the mouse groups, the next chunk sets aside proteins
+seen in only one group and finds each one's nearest protein in the other
+group by TM-Vec similarity.
+
+```{r group-private}
+group <- ifelse(md$cage %in% c("C1", "C3"), "A", "B")
+psm <- rowsum(counts[rownames(md), ], group)
+mine <- ifelse(psm["B", ] == 0, "A", ifelse(psm["A", ] == 0, "B", "shared"))
+group_private <- c(A = sum(psm["A", mine == "A"]) / sum(psm["A", ]),
+    B = sum(psm["B", mine == "B"]) / sum(psm["B", ]))
+# nearest protein seen in the other group, for a PSM-weighted sample of 300
+# group-private proteins per group
+Z <- S4Vectors::mcols(proteins)$embedding
+Z <- Z / sqrt(rowSums(Z^2))
+seqs <- proteins
+S4Vectors::mcols(seqs) <- NULL
+set.seed(1)
+nn <- do.call(rbind, lapply(c("A", "B"), function(g) {
+    own <- which(mine == g)
+    other <- which(psm[setdiff(c("A", "B"), g), ] > 0)
+    i <- sample(own, 300, prob = psm[g, own])
+    cs <- Z[i, ] %*% t(Z[other, ])
+    j <- other[max.col(cs, "first")]
+    aln <- pwalign::pairwiseAlignment(seqs[i], seqs[j],
+        substitutionMatrix = "BLOSUM62", type = "local",
+        gapOpening = 11, gapExtension = 1)
+    data.frame(group = g, tm = apply(cs, 1, max),
+        identity = pwalign::pid(aln, type = "PID1"))
+}))
+round(prop.table(table(cut(nn$identity, c(0, 30, 50, 70, 90, 100.01),
+    right = FALSE, labels = c("<30%", "30-50%", "50-70%", "70-90%",
+        ">=90%")))), 3)
+```
+
+The two mouse groups, A (C1, C3) and B (C2, C4), carry different variants
+of the same protein families. Proteins seen in one group only hold
+`r sprintf("%.0f%%", 100 * group_private["A"])` of A's and
+`r sprintf("%.0f%%", 100 * group_private["B"])` of B's PSMs, and their
+nearest protein in the other group is a same-fold homolog (median predicted
+TM-score `r sprintf("%.2f", median(nn$tm))`) at under 90% identity in
+`r sprintf("%.0f%%", 100 * mean(nn$identity < 90))` of cases. Bray-Curtis
+counts these as different proteins and MMD counts them as close.
 
 # The Yeast–Casein contrast
 

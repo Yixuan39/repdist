@@ -1,0 +1,194 @@
+---
+title: "Simulation 3: MMD, optimal transport and UniFrac"
+subtitle: "Embedding- and graph-based sample distances on one FunFam contrast"
+bibliography: references.bib
+link-citations: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4,
+    message = FALSE, warning = FALSE
+)
+```
+
+Group A's ten samples each enrich a different domain of one CATH FunFam;
+group B's each enrich a different domain of a second FunFam. Four sample
+distances that use the protein embeddings or the MCL graph are compared on
+the same counts.
+
+```{r libs}
+library(repdist)
+library(ggplot2)
+library(vegan)
+n_cores <- BiocParallel::multicoreWorkers()
+```
+
+# Simulation
+
+The FunFam domain universe and the negative-binomial count model of
+[Simulation 1](simulation_funfam.html): every domain is present at a
+log-normal baseline in every sample, and each sample puts $\rho$ = 2% of its
+expected abundance on its enriched domain. The $k$-th enriched domain of
+group B takes the baseline abundance of the $k$-th of group A. The two
+FunFams are drawn with a fixed seed from those with at least ten domains.
+
+```{r simulate}
+ff <- readRDS(file.path("curated", "simulation_funfam.rds"))
+ann <- ff$annotation
+stopifnot(identical(ann$domain, names(ff$proteins)))
+nb_counts <- function(up, ids, rho, pairs, depth = 2e4) {
+    n <- length(up)
+    pi <- setNames(rlnorm(length(ids)), ids)
+    pi[pairs[, 2]] <- pi[pairs[, 1]] # matched baseline of enriched domains
+    pi <- pi / sum(pi)
+    s <- rlnorm(n, 0, 0.25)
+    e <- rlnorm(length(ids), 0, 0.5)
+    p <- matrix((1 - rho) * pi, n, length(ids), byrow = TRUE,
+        dimnames = list(names(up), ids))
+    for (j in seq_len(n)) {
+        p[j, up[[j]]] <- p[j, up[[j]]] + rho / length(up[[j]])
+    }
+    mu <- s * depth * p
+    phi <- (0.1 + 1 / mu) * rep(e, each = n)
+    matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), n,
+        dimnames = dimnames(p))
+}
+n_per_group <- 10L
+size <- table(ann$family)
+set.seed(20261009)
+fams <- sample(names(size)[size >= n_per_group], 2)
+ff$families[match(fams, ff$families$family), c("family", "name")]
+pairs <- vapply(fams, function(f) {
+    sample(ann$domain[ann$family == f], n_per_group)
+}, character(n_per_group))
+up <- as.list(c(pairs))
+names(up) <- sprintf("s%02d", seq_along(up))
+counts <- nb_counts(up, ann$domain, 0.02, pairs)
+group <- factor(rep(c("A", "B"), each = n_per_group))
+```
+
+# Distances
+
+On unit-norm TM-Vec embeddings the Euclidean distance is
+$\sqrt{2(1 - \widehat{TM})}$, a metric in the predicted TM-score.
+
+- **MMD**: `sample_mmd()`, the maximum mean discrepancy under a Gaussian
+  kernel on the embeddings [@gretton2012mmd].
+- **OT (embedding)**: optimal transport, the exact 1-Wasserstein distance
+  between the samples' relative abundances, with the Euclidean distance
+  between embeddings as the cost [@peyre2019cot], solved by
+  `transport::wasserstein()` [@schuhmacher2024transport]. Under a metric
+  cost only the mass that differs needs to move, so each pair is solved on
+  $(p - q)^+$ against $(p - q)^-$.
+- **OT (MCL graph)**: the same, with the cost read from the weighted graph
+  that MCL clusters (`protein_similarity()`, package defaults). An edge
+  costs $1 - \widehat{TM}$, two domains cost their shortest path, and
+  domains with no path, or a path longer than 1, cost 1. With no edges every
+  pair costs 1 and this is Bray-Curtis on relative abundances.
+- **Weighted UniFrac (MCL tree)**: the MCL graph is compressed into a tree.
+  Each MCL bin (package defaults) becomes one tip, and the bins are joined
+  by average linkage (UPGMA) on the mean embedding distance between their
+  domains, i.e. UPGMA on the domains started from the bins. Weighted UniFrac
+  [@lozupone2007unifrac] is computed on the bin counts with `GUniFrac`
+  [@chen2012gunifrac]. It is the 1-Wasserstein distance under the tree's
+  path metric [@evans2012kr], so it differs from OT only in the ground
+  metric.
+
+```{r distances}
+S <- protein_similarity(ff$proteins, n_cores = n_cores)
+bins <- bin_proteins(S)
+Z <- S4Vectors::mcols(ff$proteins)$embedding
+Z <- Z / sqrt(rowSums(Z^2))
+rownames(Z) <- names(ff$proteins)
+C <- as.matrix(dist(Z)) # sqrt(2 (1 - predicted TM))
+g <- bins$membership[rownames(C)]
+sums <- rowsum(t(rowsum(C, g)), g) # bin x bin sums of domain distances
+n <- as.vector(table(g)[rownames(sums)])
+tree <- ape::as.phylo(hclust(as.dist(sums / outer(n, n)), "average",
+    members = n))
+w1 <- function(a, b, C) {
+    d <- a - b
+    P <- d > 0
+    N <- d < 0
+    m <- sum(d[P])
+    m * transport::wasserstein(d[P] / m, -d[N] / sum(-d[N]),
+        costm = C[P, N, drop = FALSE], p = 1)
+}
+edges <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
+graph <- igraph::graph_from_data_frame(data.frame(rownames(S)[edges[, 1]],
+    rownames(S)[edges[, 2]]), directed = FALSE, vertices = rownames(S))
+C_graph <- pmin(igraph::distances(graph, weights = 1 - S[edges]), 1)
+p <- counts / rowSums(counts)
+ot <- function(C) {
+    ij <- combn(nrow(p), 2)
+    OT <- matrix(0, nrow(p), nrow(p), dimnames = list(rownames(p),
+        rownames(p)))
+    OT[t(ij[2:1, ])] <- apply(ij, 2, function(k) w1(p[k[1], ], p[k[2], ], C))
+    as.dist(OT)
+}
+D <- list(
+    MMD = sample_mmd(counts, ff$proteins),
+    `OT (embedding)` = ot(C),
+    `OT (MCL graph)` = ot(C_graph),
+    `weighted UniFrac (MCL tree)` = as.dist(GUniFrac::GUniFrac(
+        bin_glom(counts, bins), tree, alpha = 1,
+        verbose = FALSE)$unifracs[, , "d_1"])
+)
+```
+
+```{r checks, include = FALSE}
+# transporting (p - q)+- equals the full-support distance
+stopifnot(identical(rownames(C_graph), colnames(p)),
+    all.equal(as.matrix(D$`OT (embedding)`)[2, 1],
+        transport::wasserstein(p[1, ], p[2, ], costm = C, p = 1)),
+    all.equal(as.matrix(D$`OT (MCL graph)`)[2, 1],
+        transport::wasserstein(p[1, ], p[2, ], costm = C_graph, p = 1)))
+# weighted UniFrac = W1 under the tree's path metric / (2 x tree height)
+pb <- bin_glom(counts, bins)
+pb <- pb / rowSums(pb)
+path <- ape::cophenetic.phylo(tree)[colnames(pb), colnames(pb)]
+H <- max(ape::node.depth.edgelength(tree))
+stopifnot(all.equal(as.matrix(D$`weighted UniFrac (MCL tree)`)[2, 1],
+    w1(pb[1, ], pb[2, ], path) / (2 * H)))
+```
+
+# PCoA
+
+Ellipses are 95% ellipses per group (multivariate t).
+
+```{r pcoa, echo = FALSE, fig.width = 8.5, fig.height = 7.5, fig.alt = "PCoA of the simulated FunFam contrast under MMD, optimal transport on the embeddings and on the MCL graph, and weighted UniFrac on the MCL tree, coloured by group, with 95% ellipses"}
+ord <- do.call(rbind, lapply(names(D), function(m) {
+    e <- cmdscale(D[[m]], k = 2, eig = TRUE)
+    rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
+    data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2], group = group,
+        panel = sprintf("%s\nPCo1 %.0f%%, PCo2 %.0f%%", m, rel[1], rel[2]))
+}))
+ord$panel <- factor(ord$panel, unique(ord$panel))
+ggplot(ord, aes(PCo1, PCo2, colour = group)) +
+    geom_point(size = 2) +
+    stat_ellipse(linewidth = 0.4) +
+    facet_wrap(~panel, scales = "free", nrow = 2) +
+    labs(colour = NULL) +
+    theme_bw() +
+    theme(legend.position = "bottom")
+```
+
+# PERMANOVA
+
+`adonis2()`, 999 permutations [@anderson2001permanova; @oksanen2025vegan].
+
+```{r permanova}
+knitr::kable(t(vapply(D, function(d) {
+    set.seed(1)
+    a <- adonis2(d ~ group, data = data.frame(group = group),
+        permutations = 999)
+    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(>F)`[1])
+}, numeric(3))), digits = 3)
+```
+
+```{r session}
+sessionInfo()
+```
+
+# References {-}

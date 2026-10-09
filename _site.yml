@@ -16,6 +16,8 @@ navbar:
           href: simulation_funfam.html
         - text: "Sequence-disjoint functions"
           href: simulation_ec.html
+        - text: "MMD, OT and UniFrac"
+          href: simulation_distances.html
         - text: "MCL parameters"
           href: parameters.html
   right:

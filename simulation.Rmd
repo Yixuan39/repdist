@@ -9,5 +9,8 @@ The simulation page has been split. The benchmarks are now:
 - [Simulation 2: Sequence-disjoint functional contrasts](simulation_ec.html):
   enzyme classes carried by different sequence clusters in every sample, and
   how the MCL bins group the same enzymes.
+- [Simulation 3: MMD, optimal transport and UniFrac](simulation_distances.html):
+  MMD, optimal transport on the embeddings and on the MCL graph, and
+  weighted UniFrac on an MCL tree, on one FunFam contrast.
 - [MCL parameters](parameters.html): how the graph thresholds and inflation
   shape the bins.

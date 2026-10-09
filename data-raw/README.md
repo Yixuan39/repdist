@@ -10,9 +10,9 @@ cached.
 
 | Object | Script | Used by |
 | --- | --- | --- |
-| `curated/simulation_universe.rds` | `simulation_universe.R` | `reference.Rmd`, `simulation_ec.Rmd`, `parameters.Rmd` |
-| `curated/simulation_mmseqs2.rds` | `simulation_mmseqs2.R` | `simulation_ec.Rmd` |
-| `curated/simulation_funfam.rds` | `simulation_funfam.R` | `simulation_funfam.Rmd` |
+| `curated/simulation_universe.rds` | `simulation_universe.R` | `reference.Rmd`, `simulation_ec.Rmd`, `simulation_distances.Rmd`, `parameters.Rmd` |
+| `curated/simulation_mmseqs2.rds` | `simulation_mmseqs2.R` | `simulation_ec.Rmd`, `simulation_distances.Rmd` |
+| `curated/simulation_funfam.rds` | `simulation_funfam.R` | `simulation_funfam.Rmd`, `simulation_distances.Rmd` |
 | `curated/diet_series.rds` | `diet_series.R` | `case_study.Rmd` |
 
 ```sh

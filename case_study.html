@@ -405,9 +405,11 @@ library(vegan)</code></pre>
 <h1>Study and comparison</h1>
 <p>Blakeley-Ruiz <em>et al.</em> <span class="citation">(<a
 href="#ref-blakeleyruiz2025diet">Blakeley-Ruiz et al. 2025</a>)</span>
-fed twelve mice (two cages of three per sex) a series of defined diets,
-one week each, and measured faecal metaproteomes by spectral counting
-(PRIDE PXD041586).</p>
+fed twelve mice, four cages of three, a series of defined diets, one
+week each, and measured faecal metaproteomes by spectral counting (PRIDE
+PXD041586). The males (C1, C3) and females (C2, C4) came from different
+rooms at the Jackson Laboratory, so sex also marks two starting
+microbiomes, which the paper calls mouse groups.</p>
 <p><strong>The input sequences are already sequence-reduced.</strong>
 The microbial protein catalog comes from metagenome-assembled genomes
 annotated with PROKKA; unbinned genes were added only if no binned gene
@@ -467,7 +469,7 @@ protein_source[ctl] &lt;- ifelse(samples$cage[ctl] %in% c(&quot;C1&quot;, &quot;
     &quot;Casein&quot;)
 md &lt;- data.frame(diet = protein_source,
     dose = ifelse(startsWith(token, &quot;40&quot;), &quot;40&quot;, &quot;20&quot;),
-    sex = samples$sex, subject = samples$subject,
+    cage = samples$cage, subject = samples$subject,
     # the stopped chicken-bone week elapsed before CTL
     week = ifelse(ctl, 10L, samples$period),
     row.names = samples$sample)[token != &quot;T0&quot;, ]
@@ -497,20 +499,22 @@ D &lt;- list(
 )</code></pre>
 <p>PERMANOVA <span class="citation">(<a
 href="#ref-anderson2001permanova">Anderson 2001</a>)</span> tests
-protein source after protein amount, sex and week, and PERMDISP <span
+protein source after protein amount, cage and week, and PERMDISP <span
 class="citation">(<a href="#ref-anderson2006permdisp">Anderson
 2006</a>)</span> tests for unequal spread between sources; both use 999
-permutations restricted to within mouse.</p>
+permutations restricted to within mouse. Cage nests sex. Its R² is
+reported but not tested: within-mouse permutations cannot test a
+between-mouse term.</p>
 <pre class="r"><code>perm &lt;- permute::how(blocks = md$subject, nperm = 999)
 tests &lt;- t(vapply(D, function(Dk) {
     set.seed(1)
-    a &lt;- adonis2(Dk ~ dose + sex + week + diet, data = md, by = &quot;terms&quot;,
+    a &lt;- adonis2(Dk ~ dose + cage + week + diet, data = md, by = &quot;terms&quot;,
         permutations = perm)
     set.seed(1)
     pd &lt;- permutest(betadisper(Dk, md$diet), permutations = perm)
     c(`PERMANOVA R2` = a[&quot;diet&quot;, &quot;R2&quot;], `PERMANOVA p` = a[&quot;diet&quot;, &quot;Pr(&gt;F)&quot;],
-        `PERMDISP p` = pd$tab[1, &quot;Pr(&gt;F)&quot;])
-}, numeric(3)))
+        `PERMDISP p` = pd$tab[1, &quot;Pr(&gt;F)&quot;], `Cage R2` = a[&quot;cage&quot;, &quot;R2&quot;])
+}, numeric(4)))
 knitr::kable(tests, digits = 3)</code></pre>
 <table>
 <thead>
@@ -519,20 +523,23 @@ knitr::kable(tests, digits = 3)</code></pre>
 <th align="right">PERMANOVA R2</th>
 <th align="right">PERMANOVA p</th>
 <th align="right">PERMDISP p</th>
+<th align="right">Cage R2</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td align="left">Bray-Curtis (protein)</td>
-<td align="right">0.253</td>
+<td align="right">0.251</td>
 <td align="right">0.001</td>
 <td align="right">0.001</td>
+<td align="right">0.191</td>
 </tr>
 <tr class="even">
 <td align="left">MMD</td>
-<td align="right">0.324</td>
+<td align="right">0.322</td>
 <td align="right">0.001</td>
 <td align="right">0.554</td>
+<td align="right">0.154</td>
 </tr>
 </tbody>
 </table>
@@ -541,26 +548,65 @@ knitr::kable(tests, digits = 3)</code></pre>
     e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
     rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0])
     data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
-        diet = md$diet, sex = md$sex,
+        diet = md$diet, cage = md$cage,
         panel = sprintf(&quot;%s\nPCo1 %.0f%%, PCo2 %.0f%%&quot;, n, rel[1], rel[2]))
 }))
 ord$panel &lt;- factor(ord$panel, unique(ord$panel))
-ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = sex)) +
+ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = cage)) +
     geom_point(size = 1.8) +
     stat_ellipse(aes(group = diet), linewidth = 0.4) +
     facet_wrap(~panel, scales = &quot;free&quot;) +
     labs(colour = NULL, shape = NULL) +
     theme_bw()</code></pre>
-<p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by sex, with 95% ellipses" width="864" /></p>
+<p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by cage, with 95% ellipses" width="864" /></p>
 <p>Both distances detect protein source. MMD attributes more of the
-variation to it than protein-level Bray-Curtis does (R² 0.324 against
-0.253), and only Bray-Curtis also shows unequal spread between sources
+variation to it than protein-level Bray-Curtis does (R² 0.322 against
+0.251), and only Bray-Curtis also shows unequal spread between sources
 (PERMDISP p 0.001 against 0.554), so the MMD separation is mainly a
-shift in location. In the ordinations, the first Bray-Curtis axis
-separates the female from the male cages (sex is fixed by cage) and the
-yeast and egg samples separate on the second; under MMD the first axis
-separates the yeast and egg samples from the other sources and sex moves
-to the second.</p>
+shift in location.</p>
+<p>Cage explains less under MMD (R² 0.154 against 0.191), and almost all
+of it is the split between the two mouse groups: the first Bray-Curtis
+axis separates C1 and C3 from C2 and C4, while the first MMD axis
+separates yeast and egg from the other sources.</p>
+<p>To see what separates the mouse groups, the next chunk sets aside
+proteins seen in only one group and finds each one’s nearest protein in
+the other group by TM-Vec similarity.</p>
+<pre class="r"><code>group &lt;- ifelse(md$cage %in% c(&quot;C1&quot;, &quot;C3&quot;), &quot;A&quot;, &quot;B&quot;)
+psm &lt;- rowsum(counts[rownames(md), ], group)
+mine &lt;- ifelse(psm[&quot;B&quot;, ] == 0, &quot;A&quot;, ifelse(psm[&quot;A&quot;, ] == 0, &quot;B&quot;, &quot;shared&quot;))
+group_private &lt;- c(A = sum(psm[&quot;A&quot;, mine == &quot;A&quot;]) / sum(psm[&quot;A&quot;, ]),
+    B = sum(psm[&quot;B&quot;, mine == &quot;B&quot;]) / sum(psm[&quot;B&quot;, ]))
+# nearest protein seen in the other group, for a PSM-weighted sample of 300
+# group-private proteins per group
+Z &lt;- S4Vectors::mcols(proteins)$embedding
+Z &lt;- Z / sqrt(rowSums(Z^2))
+seqs &lt;- proteins
+S4Vectors::mcols(seqs) &lt;- NULL
+set.seed(1)
+nn &lt;- do.call(rbind, lapply(c(&quot;A&quot;, &quot;B&quot;), function(g) {
+    own &lt;- which(mine == g)
+    other &lt;- which(psm[setdiff(c(&quot;A&quot;, &quot;B&quot;), g), ] &gt; 0)
+    i &lt;- sample(own, 300, prob = psm[g, own])
+    cs &lt;- Z[i, ] %*% t(Z[other, ])
+    j &lt;- other[max.col(cs, &quot;first&quot;)]
+    aln &lt;- pwalign::pairwiseAlignment(seqs[i], seqs[j],
+        substitutionMatrix = &quot;BLOSUM62&quot;, type = &quot;local&quot;,
+        gapOpening = 11, gapExtension = 1)
+    data.frame(group = g, tm = apply(cs, 1, max),
+        identity = pwalign::pid(aln, type = &quot;PID1&quot;))
+}))
+round(prop.table(table(cut(nn$identity, c(0, 30, 50, 70, 90, 100.01),
+    right = FALSE, labels = c(&quot;&lt;30%&quot;, &quot;30-50%&quot;, &quot;50-70%&quot;, &quot;70-90%&quot;,
+        &quot;&gt;=90%&quot;)))), 3)
+#&gt; 
+#&gt;   &lt;30% 30-50% 50-70% 70-90%  &gt;=90% 
+#&gt;  0.178  0.278  0.233  0.238  0.072</code></pre>
+<p>The two mouse groups, A (C1, C3) and B (C2, C4), carry different
+variants of the same protein families. Proteins seen in one group only
+hold 24% of A’s and 12% of B’s PSMs, and their nearest protein in the
+other group is a same-fold homolog (median predicted TM-score 0.97) at
+under 90% identity in 93% of cases. Bray-Curtis counts these as
+different proteins and MMD counts them as close.</p>
 </div>
 <div id="the-yeastcasein-contrast" class="section level1">
 <h1>The Yeast–Casein contrast</h1>
@@ -1327,8 +1373,8 @@ shows.</li>
 #&gt; [41] digest_0.6.39               Rtsne_0.17                 
 #&gt; [43] dplyr_1.2.1                 labeling_0.4.3             
 #&gt; [45] splines_4.5.2               fastmap_1.2.0              
-#&gt; [47] grid_4.5.2                  SparseArray_1.10.10        
-#&gt; [49] expm_1.0-0                  cli_3.6.6                  
+#&gt; [47] grid_4.5.2                  expm_1.0-0                 
+#&gt; [49] cli_3.6.6                   SparseArray_1.10.10        
 #&gt; [51] magrittr_2.0.5              S4Arrays_1.10.1            
 #&gt; [53] withr_3.0.3                 scales_1.4.0               
 #&gt; [55] rmarkdown_2.31              pwalign_1.6.0              

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Simulation 3: MMD, optimal transport and UniFrac</title>
+
+<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+<style type="text/css">
+/* for pandoc --citeproc since 2.11 */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">repdist</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li>
+  <a href="reference.html">Reference</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Simulations
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="simulation_funfam.html">Hidden coherence</a>
+    </li>
+    <li>
+      <a href="simulation_ec.html">Sequence-disjoint functions</a>
+    </li>
+    <li>
+      <a href="simulation_distances.html">MMD, OT and UniFrac</a>
+    </li>
+    <li>
+      <a href="parameters.html">MCL parameters</a>
+    </li>
+  </ul>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Yixuan39/repdist">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Simulation 3: MMD, optimal transport and
+UniFrac</h1>
+<h3 class="subtitle">Embedding- and graph-based sample distances on one
+FunFam contrast</h3>
+
+</div>
+
+
+<p>Group A’s ten samples each enrich a different domain of one CATH
+FunFam; group B’s each enrich a different domain of a second FunFam.
+Four sample distances that use the protein embeddings or the MCL graph
+are compared on the same counts.</p>
+<pre class="r"><code>library(repdist)
+library(ggplot2)
+library(vegan)
+n_cores &lt;- BiocParallel::multicoreWorkers()</code></pre>
+<div id="simulation" class="section level1">
+<h1>Simulation</h1>
+<p>The FunFam domain universe and the negative-binomial count model of
+<a href="simulation_funfam.html">Simulation 1</a>: every domain is
+present at a log-normal baseline in every sample, and each sample puts
+<span class="math inline">\(\rho\)</span> = 2% of its expected abundance
+on its enriched domain. The <span class="math inline">\(k\)</span>-th
+enriched domain of group B takes the baseline abundance of the <span
+class="math inline">\(k\)</span>-th of group A. The two FunFams are
+drawn with a fixed seed from those with at least ten domains.</p>
+<pre class="r"><code>ff &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_funfam.rds&quot;))
+ann &lt;- ff$annotation
+stopifnot(identical(ann$domain, names(ff$proteins)))
+nb_counts &lt;- function(up, ids, rho, pairs, depth = 2e4) {
+    n &lt;- length(up)
+    pi &lt;- setNames(rlnorm(length(ids)), ids)
+    pi[pairs[, 2]] &lt;- pi[pairs[, 1]] # matched baseline of enriched domains
+    pi &lt;- pi / sum(pi)
+    s &lt;- rlnorm(n, 0, 0.25)
+    e &lt;- rlnorm(length(ids), 0, 0.5)
+    p &lt;- matrix((1 - rho) * pi, n, length(ids), byrow = TRUE,
+        dimnames = list(names(up), ids))
+    for (j in seq_len(n)) {
+        p[j, up[[j]]] &lt;- p[j, up[[j]]] + rho / length(up[[j]])
+    }
+    mu &lt;- s * depth * p
+    phi &lt;- (0.1 + 1 / mu) * rep(e, each = n)
+    matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), n,
+        dimnames = dimnames(p))
+}
+n_per_group &lt;- 10L
+size &lt;- table(ann$family)
+set.seed(20261009)
+fams &lt;- sample(names(size)[size &gt;= n_per_group], 2)
+ff$families[match(fams, ff$families$family), c(&quot;family&quot;, &quot;name&quot;)]</code></pre>
+<div class="kable-table">
+<table>
+<colgroup>
+<col width="5%" />
+<col width="26%" />
+<col width="67%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">family</th>
+<th align="left">name</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">1184</td>
+<td align="left">3.10.105.10/FF/000001</td>
+<td align="left">Oligopeptide ABC transporter, oligopeptide-binding
+protein</td>
+</tr>
+<tr class="even">
+<td align="left">13</td>
+<td align="left">3.40.50.2300/FF/000001</td>
+<td align="left">DNA-binding response regulator PhoB</td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre class="r"><code>pairs &lt;- vapply(fams, function(f) {
+    sample(ann$domain[ann$family == f], n_per_group)
+}, character(n_per_group))
+up &lt;- as.list(c(pairs))
+names(up) &lt;- sprintf(&quot;s%02d&quot;, seq_along(up))
+counts &lt;- nb_counts(up, ann$domain, 0.02, pairs)
+group &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n_per_group))</code></pre>
+</div>
+<div id="distances" class="section level1">
+<h1>Distances</h1>
+<p>On unit-norm TM-Vec embeddings the Euclidean distance is <span
+class="math inline">\(\sqrt{2(1 - \widehat{TM})}\)</span>, a metric in
+the predicted TM-score.</p>
+<ul>
+<li><strong>MMD</strong>: <code>sample_mmd()</code>, the maximum mean
+discrepancy under a Gaussian kernel on the embeddings <span
+class="citation">(<a href="#ref-gretton2012mmd">Gretton et al.
+2012</a>)</span>.</li>
+<li><strong>OT (embedding)</strong>: optimal transport, the exact
+1-Wasserstein distance between the samples’ relative abundances, with
+the Euclidean distance between embeddings as the cost <span
+class="citation">(<a href="#ref-peyre2019cot">Peyré and Cuturi
+2019</a>)</span>, solved by <code>transport::wasserstein()</code> <span
+class="citation">(<a href="#ref-schuhmacher2024transport">Schuhmacher et
+al. 2024</a>)</span>. Under a metric cost only the mass that differs
+needs to move, so each pair is solved on <span class="math inline">\((p
+- q)^+\)</span> against <span class="math inline">\((p -
+q)^-\)</span>.</li>
+<li><strong>OT (MCL graph)</strong>: the same, with the cost read from
+the weighted graph that MCL clusters (<code>protein_similarity()</code>,
+package defaults). An edge costs <span class="math inline">\(1 -
+\widehat{TM}\)</span>, two domains cost their shortest path, and domains
+with no path, or a path longer than 1, cost 1. With no edges every pair
+costs 1 and this is Bray-Curtis on relative abundances.</li>
+<li><strong>Weighted UniFrac (MCL tree)</strong>: the MCL graph is
+compressed into a tree. Each MCL bin (package defaults) becomes one tip,
+and the bins are joined by average linkage (UPGMA) on the mean embedding
+distance between their domains, i.e. UPGMA on the domains started from
+the bins. Weighted UniFrac <span class="citation">(<a
+href="#ref-lozupone2007unifrac">Lozupone et al. 2007</a>)</span> is
+computed on the bin counts with <code>GUniFrac</code> <span
+class="citation">(<a href="#ref-chen2012gunifrac">Chen et al.
+2012</a>)</span>. It is the 1-Wasserstein distance under the tree’s path
+metric <span class="citation">(<a href="#ref-evans2012kr">Evans and
+Matsen 2012</a>)</span>, so it differs from OT only in the ground
+metric.</li>
+</ul>
+<pre class="r"><code>S &lt;- protein_similarity(ff$proteins, n_cores = n_cores)
+bins &lt;- bin_proteins(S)
+Z &lt;- S4Vectors::mcols(ff$proteins)$embedding
+Z &lt;- Z / sqrt(rowSums(Z^2))
+rownames(Z) &lt;- names(ff$proteins)
+C &lt;- as.matrix(dist(Z)) # sqrt(2 (1 - predicted TM))
+g &lt;- bins$membership[rownames(C)]
+sums &lt;- rowsum(t(rowsum(C, g)), g) # bin x bin sums of domain distances
+n &lt;- as.vector(table(g)[rownames(sums)])
+tree &lt;- ape::as.phylo(hclust(as.dist(sums / outer(n, n)), &quot;average&quot;,
+    members = n))
+w1 &lt;- function(a, b, C) {
+    d &lt;- a - b
+    P &lt;- d &gt; 0
+    N &lt;- d &lt; 0
+    m &lt;- sum(d[P])
+    m * transport::wasserstein(d[P] / m, -d[N] / sum(-d[N]),
+        costm = C[P, N, drop = FALSE], p = 1)
+}
+edges &lt;- which(upper.tri(S) &amp; S &gt; 0, arr.ind = TRUE)
+graph &lt;- igraph::graph_from_data_frame(data.frame(rownames(S)[edges[, 1]],
+    rownames(S)[edges[, 2]]), directed = FALSE, vertices = rownames(S))
+C_graph &lt;- pmin(igraph::distances(graph, weights = 1 - S[edges]), 1)
+p &lt;- counts / rowSums(counts)
+ot &lt;- function(C) {
+    ij &lt;- combn(nrow(p), 2)
+    OT &lt;- matrix(0, nrow(p), nrow(p), dimnames = list(rownames(p),
+        rownames(p)))
+    OT[t(ij[2:1, ])] &lt;- apply(ij, 2, function(k) w1(p[k[1], ], p[k[2], ], C))
+    as.dist(OT)
+}
+D &lt;- list(
+    MMD = sample_mmd(counts, ff$proteins),
+    `OT (embedding)` = ot(C),
+    `OT (MCL graph)` = ot(C_graph),
+    `weighted UniFrac (MCL tree)` = as.dist(GUniFrac::GUniFrac(
+        bin_glom(counts, bins), tree, alpha = 1,
+        verbose = FALSE)$unifracs[, , &quot;d_1&quot;])
+)</code></pre>
+</div>
+<div id="pcoa" class="section level1">
+<h1>PCoA</h1>
+<p>Ellipses are 95% ellipses per group (multivariate t).</p>
+<p><img src="simulation_distances_files/figure-html/pcoa-1.png" alt="PCoA of the simulated FunFam contrast under MMD, optimal transport on the embeddings and on the MCL graph, and weighted UniFrac on the MCL tree, coloured by group, with 95% ellipses" width="816" /></p>
+</div>
+<div id="permanova" class="section level1">
+<h1>PERMANOVA</h1>
+<p><code>adonis2()</code>, 999 permutations <span class="citation">(<a
+href="#ref-anderson2001permanova">Anderson 2001</a>; <a
+href="#ref-oksanen2025vegan"><span class="nocase">Oksanen et al.</span>
+2025</a>)</span>.</p>
+<pre class="r"><code>knitr::kable(t(vapply(D, function(d) {
+    set.seed(1)
+    a &lt;- adonis2(d ~ group, data = data.frame(group = group),
+        permutations = 999)
+    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(&gt;F)`[1])
+}, numeric(3))), digits = 3)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">R2</th>
+<th align="right">F</th>
+<th align="right">p</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="right">0.201</td>
+<td align="right">4.538</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="even">
+<td align="left">OT (embedding)</td>
+<td align="right">0.085</td>
+<td align="right">1.678</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="odd">
+<td align="left">OT (MCL graph)</td>
+<td align="right">0.142</td>
+<td align="right">2.969</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="even">
+<td align="left">weighted UniFrac (MCL tree)</td>
+<td align="right">0.172</td>
+<td align="right">3.746</td>
+<td align="right">0.001</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>sessionInfo()
+#&gt; R version 4.5.2 (2025-10-31)
+#&gt; Platform: aarch64-apple-darwin20
+#&gt; Running under: macOS 27.0.1
+#&gt; 
+#&gt; Matrix products: default
+#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+#&gt; 
+#&gt; locale:
+#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt; 
+#&gt; time zone: America/New_York
+#&gt; tzcode source: internal
+#&gt; 
+#&gt; attached base packages:
+#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
+#&gt; 
+#&gt; other attached packages:
+#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
+#&gt; 
+#&gt; loaded via a namespace (and not attached):
+#&gt;  [1] tidyselect_1.2.1    timeDate_4052.112   dplyr_1.2.1        
+#&gt;  [4] farver_2.1.2        Biostrings_2.78.0   S7_0.2.2           
+#&gt;  [7] fastmap_1.2.0       digest_0.6.39       rpart_4.1.27       
+#&gt; [10] transport_0.15-4    lifecycle_1.0.5     cluster_2.1.8.2    
+#&gt; [13] statmod_1.5.2       magrittr_2.0.5      compiler_4.5.2     
+#&gt; [16] rlang_1.3.0         sass_0.4.10         tools_4.5.2        
+#&gt; [19] igraph_2.3.1        yaml_2.3.12         data.table_1.18.4  
+#&gt; [22] knitr_1.51          labeling_0.4.3      statip_0.2.3       
+#&gt; [25] RColorBrewer_1.1-3  BiocParallel_1.44.0 expm_1.0-0         
+#&gt; [28] withr_3.0.3         BiocGenerics_0.56.0 timeSeries_4052.112
+#&gt; [31] fBasics_4052.98     grid_4.5.2          stats4_4.5.2       
+#&gt; [34] stabledist_0.7-2    inline_0.3.21       scales_1.4.0       
+#&gt; [37] iterators_1.0.14    MASS_7.3-65         cli_3.6.6          
+#&gt; [40] rmarkdown_2.31      crayon_1.5.3        GUniFrac_1.9       
+#&gt; [43] generics_0.1.4      otel_0.2.0          ape_5.8-1          
+#&gt; [46] cachem_1.1.0        splines_4.5.2       parallel_4.5.2     
+#&gt; [49] stable_1.1.7        XVector_0.50.0      matrixStats_1.5.0  
+#&gt; [52] vctrs_0.7.3         Matrix_1.7-5        jsonlite_2.0.0     
+#&gt; [55] IRanges_2.44.0      S4Vectors_0.48.1    rmutil_1.1.10      
+#&gt; [58] ggrepel_0.9.8       clue_0.3-68         foreach_1.5.2      
+#&gt; [61] jquerylib_0.1.4     spatial_7.3-18      glue_1.8.1         
+#&gt; [64] codetools_0.2-20    MCL_1.0             gtable_0.3.6       
+#&gt; [67] tibble_3.3.1        pillar_1.11.1       htmltools_0.5.9    
+#&gt; [70] Seqinfo_1.0.0       R6_2.6.1            evaluate_1.0.5     
+#&gt; [73] lattice_0.22-9      modeest_2.4.0       bslib_0.11.0       
+#&gt; [76] Rcpp_1.1.2          nlme_3.1-169        mgcv_1.9-4         
+#&gt; [79] xfun_0.58           pkgconfig_2.0.3</code></pre>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-anderson2001permanova" class="csl-entry">
+Anderson, Marti J. 2001. <span>“A New Method for Non-Parametric
+Multivariate Analysis of Variance.”</span> <em>Austral Ecology</em> 26
+(1): 32–46. <a
+href="https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x">https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x</a>.
+</div>
+<div id="ref-chen2012gunifrac" class="csl-entry">
+Chen, Jun, Kyle Bittinger, Emily S. Charlson, et al. 2012.
+<span>“Associating Microbiome Composition with Environmental Covariates
+Using Generalized <span>UniFrac</span> Distances.”</span>
+<em>Bioinformatics</em> 28 (16): 2106–13. <a
+href="https://doi.org/10.1093/bioinformatics/bts342">https://doi.org/10.1093/bioinformatics/bts342</a>.
+</div>
+<div id="ref-evans2012kr" class="csl-entry">
+Evans, Steven N., and Frederick A. Matsen. 2012. <span>“The Phylogenetic
+<span>Kantorovich</span>–<span>Rubinstein</span> Metric for
+Environmental Sequence Samples.”</span> <em>Journal of the Royal
+Statistical Society: Series B</em> 74 (3): 569–92. <a
+href="https://doi.org/10.1111/j.1467-9868.2011.01018.x">https://doi.org/10.1111/j.1467-9868.2011.01018.x</a>.
+</div>
+<div id="ref-gretton2012mmd" class="csl-entry">
+Gretton, Arthur, Karsten M. Borgwardt, Malte J. Rasch, Bernhard
+Schölkopf, and Alexander Smola. 2012. <span>“A Kernel Two-Sample
+Test.”</span> <em>Journal of Machine Learning Research</em> 13: 723–73.
+</div>
+<div id="ref-lozupone2007unifrac" class="csl-entry">
+Lozupone, Catherine A., Micah Hamady, Scott T. Kelley, and Rob Knight.
+2007. <span>“Quantitative and Qualitative <span
+class="math inline">\(\beta\)</span> Diversity Measures Lead to
+Different Insights into Factors That Structure Microbial
+Communities.”</span> <em>Applied and Environmental Microbiology</em> 73
+(5): 1576–85. <a
+href="https://doi.org/10.1128/AEM.01996-06">https://doi.org/10.1128/AEM.01996-06</a>.
+</div>
+<div id="ref-oksanen2025vegan" class="csl-entry">
+<span class="nocase">Oksanen, Jari, Gavin L. Simpson, F. Guillaume
+Blanchet, et al.</span> 2025. <em>Vegan: Community Ecology Package</em>.
+<a
+href="https://CRAN.R-project.org/package=vegan">https://CRAN.R-project.org/package=vegan</a>.
+</div>
+<div id="ref-peyre2019cot" class="csl-entry">
+Peyré, Gabriel, and Marco Cuturi. 2019. <span>“Computational Optimal
+Transport.”</span> <em>Foundations and Trends in Machine Learning</em>
+11 (5–6): 355–607. <a
+href="https://doi.org/10.1561/2200000073">https://doi.org/10.1561/2200000073</a>.
+</div>
+<div id="ref-schuhmacher2024transport" class="csl-entry">
+Schuhmacher, Dominic, Björn Bähre, Nicolas Bonneel, et al. 2024.
+<em>Transport: Computation of Optimal Transport Plans and
+<span>Wasserstein</span> Distances</em>. <a
+href="https://CRAN.R-project.org/package=transport">https://CRAN.R-project.org/package=transport</a>.
+</div>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
