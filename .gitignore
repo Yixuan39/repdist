@@ -4,7 +4,6 @@ __pycache__/
 
 data/
 *.html
-!vignettes/repdist.html
 .Rproj.user/
 .Rhistory
 .Ruserdata
