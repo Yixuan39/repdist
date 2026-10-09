@@ -1,0 +1,506 @@
+---
+title: "Simulation 2: Sequence-disjoint functional contrasts"
+subtitle: "Enzyme classes carried by different sequence clusters in every sample"
+bibliography: references.bib
+link-citations: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4,
+    message = FALSE, warning = FALSE
+)
+```
+
+**Question.** Can representation-aware analysis recover a condition-level
+functional difference when the proteins carrying each function belong to
+different sequence clusters in every sample?
+
+Two coherent functional states are compared symmetrically: condition A is
+enriched for one EC3, condition B for another, and within a condition no
+50% MMseqs2 sequence cluster is enriched in two samples. An EC3 class spans
+many sequence families and often several folds, so this is harder and
+closer to metaproteomics than the FunFam positive control of
+[Simulation 1](simulation_funfam.html). The page ends with how the MCL bins
+of the same universe group proteins against the EC labels.
+
+```{r libs}
+library(repdist)
+library(ggplot2)
+library(vegan)
+```
+
+# Count model
+
+Twenty samples, two conditions of ten, follow the negative-binomial model of
+[Simulation 1](simulation_funfam.html#count-model), repeated here so this
+page stands on its own. Every protein of the universe is present at baseline
+in every sample; sample $i$ has expected composition
+
+$$
+p_i = (1 - \rho)\,\pi + \rho\, q_i ,
+$$
+
+where $\pi_j \propto \mathrm{LogNormal}(0, 1)$ is the common baseline and
+$q_i$ spreads its mass evenly over sample $i$'s enriched proteins. The signal
+strength $\rho$ is the expected share of abundance on the enriched proteins:
+a defined mass, not a fold change. Counts have mean
+$\mu_{ij} = s_i D p_{ij}$ with depth $D = 2 \times 10^4$ and size factor
+$s_i \sim \mathrm{LogNormal}(0, 0.25)$, and variance $\mu + \phi\mu^2$, with
+a DESeq2-like dispersion trend at each count's own mean,
+$\phi_{ij} = (0.1 + 1/\mu_{ij})\, e_j$, $e_j \sim \mathrm{LogNormal}(0, 0.5)$.
+The $k$-th enriched protein of the second group takes the baseline
+abundance of the $k$-th of the first, so the groups also match on the
+baseline of the proteins that carry the signal.
+
+The representative signal strength is $\rho$ = 2%, fixed before any result:
+in the source study of the [case study](case_study.html), glycoside hydrolases rose from under
+1% to over 2.5% of the metaproteome on the yeast diet
+[@blakeleyruiz2025diet].
+
+```{r count-model}
+depth <- 2e4
+rho_example <- 0.02
+nb_counts <- function(up, ids, rho, pairs) {
+    n <- length(up)
+    pi <- setNames(rlnorm(length(ids)), ids)
+    pi[pairs[, 2]] <- pi[pairs[, 1]] # matched baseline of enriched proteins
+    pi <- pi / sum(pi)
+    s <- rlnorm(n, 0, 0.25)
+    e <- rlnorm(length(ids), 0, 0.5)
+    p <- matrix((1 - rho) * pi, n, length(ids), byrow = TRUE,
+        dimnames = list(names(up), ids))
+    for (j in seq_len(n)) {
+        p[j, up[[j]]] <- p[j, up[[j]]] + rho / length(up[[j]])
+    }
+    mu <- s * depth * p
+    phi <- (0.1 + 1 / mu) * rep(e, each = n)
+    matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), n,
+        dimnames = dimnames(p))
+}
+```
+
+# Distances and tests
+
+- **MMD**: `sample_mmd()`, the maximum mean discrepancy between samples under
+  a Gaussian kernel on the protein embeddings (see the
+  [Reference](reference.html#sample-level-distance-mmd)).
+- **Bray-Curtis (repdist MCL bins)**: `protein_similarity()` →
+  `bin_proteins()` → `bin_glom()`, then Bray-Curtis on the bin counts. The
+  bins depend only on the universe, so they are built once, with package
+  defaults (predicted TM-score ≥ 0.7, coverage ≥ 0.5, inflation 2).
+- **Bray-Curtis (MMseqs2 bins)**: counts summed within 50% MMseqs2 sequence
+  clusters [@steinegger2017mmseqs2], then Bray-Curtis. The same 50%
+  clustering constructs the benchmark (no 50% cluster is enriched twice
+  within a condition), so its failure here is partly by design.
+- **Bray-Curtis (MMseqs2 30% bins)**: the same at 30% identity, a
+  clustering not used in the construction: the more independent sequence
+  comparison.
+- **Bray-Curtis (protein)**: Bray-Curtis on the protein counts.
+
+PERMANOVA (`adonis2()`) [@anderson2001permanova] tests whether the groups
+differ in their distance-based centroids; PERMDISP (`betadisper()` and
+`permutest()`) [@anderson2006permdisp] tests whether they differ in spread.
+Both use 999 permutations in `vegan` [@oksanen2025vegan]; a test detects at
+p ≤ 0.05.
+
+```{r tests}
+group_tests <- function(D, group) {
+    set.seed(1)
+    a <- adonis2(D ~ group, data = data.frame(group = group),
+        permutations = 999)
+    set.seed(1)
+    pd <- permutest(betadisper(D, group), permutations = 999)
+    c(`PERMANOVA R2` = a$R2[1], `PERMANOVA p` = a$`Pr(>F)`[1],
+        `PERMDISP p` = pd$tab[1, "Pr(>F)"])
+}
+test_all <- function(D, group) {
+    t(vapply(D, group_tests, numeric(3), group = group))
+}
+```
+
+```{r pcoa-helper, echo = FALSE}
+pcoa_plot <- function(D, group) {
+    ord <- do.call(rbind, lapply(names(D), function(n) {
+        e <- cmdscale(D[[n]], k = 2, eig = TRUE)
+        rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
+        data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2], group = group,
+            panel = sprintf("%s\nPCo1 %.0f%%, PCo2 %.0f%%", n, rel[1], rel[2]))
+    }))
+    ord$panel <- factor(ord$panel, unique(ord$panel))
+    ggplot(ord, aes(PCo1, PCo2, colour = group)) +
+        geom_point(size = 2) +
+        stat_ellipse(linewidth = 0.4) +
+        facet_wrap(~panel, scales = "free", nrow = 1) +
+        labs(colour = NULL) +
+        theme_bw() +
+        theme(legend.position = "bottom")
+}
+```
+
+# Protein universe
+
+```{r universe}
+u <- readRDS(file.path("curated", "simulation_universe.rds"))
+mm <- readRDS(file.path("curated", "simulation_mmseqs2.rds"))
+# the sequence clusters were computed on this exact universe file
+stopifnot(identical(mm$provenance$universe_md5,
+    unname(tools::md5sum(file.path("curated", "simulation_universe.rds")))))
+ec_proteins <- u$proteins
+ann <- u$annotation
+stopifnot(identical(ann$protein, names(ec_proteins)),
+    identical(mm$clusters$protein, names(ec_proteins)))
+ann$mmseqs50 <- mm$clusters$mmseqs50
+ann$mmseqs30 <- mm$clusters$mmseqs30
+c(proteins = length(ec_proteins), EC3 = length(unique(ann$ec3)),
+    EC4 = length(unique(ann$ec4)))
+u$provenance$steps
+```
+
+The proteins are UniProtKB/Swiss-Prot entries [@uniprot2025] (release
+`r u$provenance$uniprot_release`) from Bacteria and Archaea, non-fragments,
+with an experimentally supported catalytic activity. An entry is kept only
+if every EC number it carries, on any reaction or in its name, is one
+complete four-level number (EC4) and at least one reaction with that number
+has experimental evidence (ECO:0000269). Full-length sequences of 50 to 1000
+residues (the TM-Vec head's training range) without selenocysteine or
+pyrrolysine are kept, one protein per UniRef50 cluster
+[@suzek2015uniref], and embedded with `embed_proteins(model = "tmvec")`
+(`data-raw/simulation_universe.R`).
+
+# Sequence clusters
+
+`data-raw/simulation_mmseqs2.R` clusters the same sequences with MMseqs2
+`r mm$provenance$mmseqs_version`. The primary clustering uses 50% identity,
+the usual protein-family level (as UniRef50); 30% identity is a permissive
+sensitivity analysis. Both require the alignment to cover 80% of both
+sequences (`--cov-mode 0`) and use the most sensitive prefilter (`-s 7.5`):
+
+```{r mmseqs}
+mm$provenance[c("cluster_50", "cluster_30")]
+mm$provenance$n_clusters
+# every 50% cluster lies inside one 30% cluster
+all(tapply(ann$mmseqs30, ann$mmseqs50, function(v) length(unique(v))) == 1)
+```
+
+Because the universe is already one protein per UniRef50 cluster, the 50%
+clustering is close to the proteins themselves.
+
+# Eligible classes and contrasts
+
+Each sample is enriched in two proteins of its condition's EC3, and every
+enriched protein of a condition comes from a different 50% cluster. An EC3
+is eligible if it spans at least 10 × 2 = 20 distinct 50% clusters.
+Eligibility uses only the EC labels and the MMseqs2 clusters, never the
+embeddings, the MCL bins or any result. The eligible EC3s are shuffled with
+a fixed seed and paired in order, so each EC3 enters exactly one contrast.
+
+```{r eligible}
+n_per_group <- 10L
+n_enriched <- 2L
+k <- n_per_group * n_enriched
+clusters_per <- function(level) {
+    tapply(ann$mmseqs50, ann[[level]], function(v) length(unique(v)))
+}
+n50 <- clusters_per("ec3")
+eligible <- sort(names(n50)[n50 >= k])
+c(EC3 = length(n50), eligible = length(eligible),
+    `eligible EC4` = sum(clusters_per("ec4") >= k))
+set.seed(20261008)
+shuffled <- sample(eligible)
+contrasts <- data.frame(A = shuffled[c(TRUE, FALSE)],
+    B = shuffled[c(FALSE, TRUE)])
+nrow(contrasts)
+```
+
+Only `r sum(clusters_per("ec4") >= k)` EC4 classes meet the same rule, too
+few for an EC4 simulation, so EC4 is used to score the bins below.
+
+# Design
+
+For contrast $c$ (seed $c$), condition A draws 20 distinct 50% clusters of
+EC3-A and one protein from each, two per sample. To keep the enrichment from
+collapsing into one enzyme, clusters are taken one per EC4 of the class
+before a second from any EC4, in random order. Condition B does the same in
+EC3-B, excluding any cluster A used. The conditions match on everything in
+the count model; only the class carrying the signal differs.
+
+$\rho$ takes the values 0, 1%, 2%, 5% and 10%. At $\rho = 0$ both
+conditions have the same distribution: a null sanity check. Each contrast has
+one simulated count realisation per $\rho$, so the counts below are shares of
+contrasts detected, not estimates of type-I error or power. A contrast
+uses the same seed at every $\rho$, so its enriched proteins, baseline, size
+factors and dispersions do not change with the signal strength.
+
+```{r ec-design}
+rhos <- c(0, 0.01, 0.02, 0.05, 0.10)
+mm50 <- setNames(ann$mmseqs50, ann$protein)
+mm30 <- setNames(ann$mmseqs30, ann$protein)
+draw_enriched <- function(ec, exclude = character()) {
+    cand <- unique(ann[ann$ec3 == ec & !ann$mmseqs50 %in% exclude,
+        c("mmseqs50", "ec4")])
+    cand <- cand[sample.int(nrow(cand)), ]
+    cand <- cand[!duplicated(cand$mmseqs50), ]
+    # one cluster per EC4 before a second from any EC4
+    cand <- cand[order(ave(seq_len(nrow(cand)), cand$ec4, FUN = seq_along)), ]
+    vapply(seq_len(k), function(r) {
+        p <- ann$protein[ann$mmseqs50 == cand$mmseqs50[r] &
+            ann$ec4 == cand$ec4[r]]
+        p[sample.int(length(p), 1L)]
+    }, "")
+}
+enriched <- function(i) {
+    set.seed(i)
+    a <- draw_enriched(contrasts$A[i])
+    b <- draw_enriched(contrasts$B[i], exclude = mm50[a])
+    # no 50% cluster is enriched twice within a condition
+    stopifnot(!anyDuplicated(mm50[a]), !anyDuplicated(mm50[b]))
+    up <- unname(split(c(a, b), rep(seq_len(2 * n_per_group),
+        each = n_enriched)))
+    names(up) <- sprintf("s%02d", seq_along(up))
+    list(up = up, pairs = cbind(a, b),
+        group = factor(rep(c("A", "B"), each = n_per_group)))
+}
+simulate_ec <- function(i, rho) {
+    d <- enriched(i) # sets the seed; the counts continue the same stream
+    d$counts <- nb_counts(d$up, ann$protein, rho, d$pairs)
+    d
+}
+```
+
+```{r ec-bins}
+S <- protein_similarity(ec_proteins, n_cores = BiocParallel::multicoreWorkers())
+bins <- bin_proteins(S)
+glom <- function(counts, cluster) t(rowsum(t(counts), cluster[colnames(counts)]))
+distances_ec <- function(counts) {
+    list(
+        MMD = sample_mmd(counts, ec_proteins),
+        `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
+            "bray"),
+        `Bray-Curtis (MMseqs2 bins)` = vegdist(glom(counts, mm50), "bray"),
+        `Bray-Curtis (protein)` = vegdist(counts, "bray"),
+        `Bray-Curtis (MMseqs2 30% bins)` = vegdist(glom(counts, mm30), "bray")
+    )
+}
+```
+
+The fifth distance, MMseqs2 bins at 30% identity, is the sensitivity
+analysis; it is reported in the tables but not in the ordination.
+
+# Representative contrast
+
+The first contrast of the seeded pairing, at $\rho$ = 2%; both were fixed
+before any result.
+
+```{r ec-example}
+sim <- simulate_ec(1, rho_example)
+unlist(contrasts[1, ])
+enr <- data.frame(sample = rep(names(sim$up), lengths(sim$up)),
+    condition = rep(sim$group, lengths(sim$up)), protein = unlist(sim$up))
+enr <- cbind(enr, ann[match(enr$protein, ann$protein),
+    c("ec4", "name", "mmseqs50", "mmseqs30")])
+enr$mcl_bin <- bins$membership[enr$protein]
+# distinct labels among each condition's 20 enriched proteins
+t(sapply(split(enr, enr$condition), function(d) c(
+    `50% clusters` = length(unique(d$mmseqs50)),
+    `30% clusters` = length(unique(d$mmseqs30)),
+    `MCL bins` = length(unique(d$mcl_bin)), EC4 = length(unique(d$ec4)))))
+# realised share of each sample's counts on its enriched proteins
+tapply(vapply(seq_along(sim$up), function(i) {
+    sum(sim$counts[i, sim$up[[i]]]) / sum(sim$counts[i, ])
+}, numeric(1)), sim$group, median)
+D <- distances_ec(sim$counts)
+res <- test_all(D, sim$group)
+knitr::kable(res, digits = 3)
+```
+
+Ellipses are 95% ellipses per condition (multivariate t).
+
+```{r ec-pcoa, echo = FALSE, fig.width = 11, fig.height = 3.8, fig.alt = "PCoA of Simulation 2's representative contrast under four distances, coloured by condition, with 95% ellipses"}
+pcoa_plot(D[1:4], factor(paste0(sim$group, ": EC ",
+    unlist(contrasts[1, ])[as.character(sim$group)])))
+```
+
+# All contrasts
+
+The representative is one of `r nrow(contrasts)` contrasts. Every contrast is
+simulated at every $\rho$, so the result can be checked beyond one pair of
+enzyme classes.
+
+```{r ec-benchmark}
+bench2 <- do.call(rbind, lapply(seq_len(nrow(contrasts)), function(i) {
+    do.call(rbind, lapply(rhos, function(rho) {
+        s <- simulate_ec(i, rho)
+        r <- test_all(distances_ec(s$counts), s$group)
+        data.frame(contrast = i, A = contrasts$A[i], B = contrasts$B[i],
+            rho = rho, method = rownames(r), r, row.names = NULL,
+            check.names = FALSE)
+    }))
+}))
+bench2$method <- factor(bench2$method, names(D))
+# the representative contrast is the benchmark's contrast 1 at rho = 2%
+stopifnot(isTRUE(all.equal(unname(res[, "PERMANOVA p"]),
+    bench2$`PERMANOVA p`[bench2$contrast == 1 & bench2$rho == rho_example])))
+```
+
+Contrasts detected by PERMANOVA, out of `r nrow(contrasts)`, with the number
+also significant by PERMDISP in parentheses. The $\rho = 0$ column is the
+null sanity check (one realisation per contrast; about
+`r 0.05 * nrow(contrasts)` detections would be expected by chance at
+α = 0.05).
+
+```{r ec-detection, echo = FALSE}
+count_by <- function(v) tapply(v, list(bench2$method, bench2$rho), sum)
+detect <- count_by(bench2$`PERMANOVA p` <= 0.05)
+disp <- count_by(bench2$`PERMDISP p` <= 0.05)
+rho_names <- sprintf("ρ = %g%%", 100 * rhos)
+knitr::kable(matrix(sprintf("%d (%d)", detect, disp), nrow(detect),
+    dimnames = list(rownames(detect), rho_names)))
+```
+
+# Protein clustering against functional labels
+
+This benchmark is separate from the sample-level contrasts but uses the same
+Swiss-Prot universe. Its MCL bins were built from embeddings and alignments alone;
+EC labels are used only here. The two MMseqs2 clusterings are scored the
+same way for comparison. With $n_k$ members of label $k$ in a group of size
+$n$:
+
+- **Purity** is $\max_k n_k / n$, averaged over groups with at least two
+  members.
+- **Precision** is the share of same-group protein pairs that share the label.
+- **Recall** is the share of same-label protein pairs placed in one group.
+- **F1** is $2PR/(P + R)$.
+
+Purity and precision ignore singletons, so many small, pure groups score
+high on both while splitting each class across groups; recall measures that
+splitting.
+
+```{r grouping-sizes}
+groupings <- list(`repdist MCL bins` = bins$membership,
+    `MMseqs2 50%` = mm50, `MMseqs2 30%` = mm30)
+size_tab <- t(vapply(groupings, function(m) {
+    sizes <- as.vector(table(m))
+    c(groups = length(sizes), `multi-member` = sum(sizes > 1),
+        `singleton proteins (%)` = 100 * sum(sizes == 1) / length(m),
+        table(cut(sizes, c(0, 1, 2, 5, 10, 50, Inf),
+            labels = c("1", "2", "3-5", "6-10", "11-50", ">50"))),
+        largest = max(sizes))
+}, numeric(10)))
+knitr::kable(size_tab, digits = 1)
+```
+
+Columns `1` to `>50` count groups by size.
+
+Pairwise precision, recall and F1 come from `clusterCrit::extCriteria()`
+(F1 is its Czekanowski-Dice index).
+
+```{r ec-scores}
+labels <- list(EC3 = setNames(ann$ec3, ann$protein),
+    EC4 = setNames(ann$ec4, ann$protein))
+scores <- function(m, lab) {
+    lab <- lab[names(m)]
+    tab <- table(m, lab)
+    multi <- rowSums(tab) > 1
+    pr <- clusterCrit::extCriteria(as.integer(factor(lab)),
+        as.integer(factor(m)), c("Precision", "Recall", "Czekanowski_Dice"))
+    c(purity = mean(apply(tab[multi, ], 1, max) / rowSums(tab[multi, ])),
+        precision = pr$precision, recall = pr$recall,
+        F1 = pr$czekanowski_dice)
+}
+ec_scores <- do.call(rbind, lapply(names(labels), function(level) {
+    do.call(rbind, lapply(names(groupings), function(g) {
+        data.frame(level = level, grouping = g,
+            t(scores(groupings[[g]], labels[[level]])))
+    }))
+}))
+knitr::kable(ec_scores, digits = 3, row.names = FALSE)
+```
+
+The three groupings sit in different regimes rather than on one scale:
+
+```{r pr-plot, echo = FALSE, fig.width = 7.5, fig.height = 3.4, fig.alt = "Pairwise precision against recall for repdist MCL bins and MMseqs2 clusters, at EC3 and EC4"}
+ggplot(ec_scores, aes(recall, precision, colour = grouping)) +
+    geom_point(size = 3) +
+    facet_wrap(~level, scales = "free_x") +
+    scale_x_continuous(limits = c(0, NA)) +
+    scale_y_continuous(limits = c(0, 1)) +
+    labs(x = "pairwise recall", y = "pairwise precision", colour = NULL) +
+    theme_bw()
+```
+
+MMseqs2 gives very pure sequence families that split each enzyme class into
+many groups, most of them singletons. The MCL bins group across sequence-family
+boundaries, with far fewer singletons, while keeping high EC3 coherence; their
+EC3 recall is still low in absolute terms. At EC4 the MCL bins recover more
+same-enzyme pairs but join more proteins of different EC4s, so the 30%
+clusters are more precise there and score a higher F1: exact EC4
+reconstruction is better served by sequence clustering in this benchmark.
+repdist MCL bins occupy a middle ground between sequence-family fragmentation
+and broad functional merging. They are representation-aware abundance units,
+not reconstructions of EC classes.
+
+# Summary
+
+```{r summary-values, include = FALSE}
+s2 <- function(m) paste(detect[m, as.character(rhos[-1])], collapse = ", ")
+mmd_miss <- bench2[bench2$method == "MMD" & bench2$rho > 0 &
+    bench2$`PERMANOVA p` > 0.05, ]
+detected <- function(m) {
+    bench2$`PERMANOVA p`[bench2$method == m & bench2$rho > 0] <= 0.05
+}
+gain30 <- sum(detected("Bray-Curtis (MMseqs2 30% bins)") &
+    !(detected("MMD") & detected("Bray-Curtis (repdist MCL bins)")))
+sc <- function(level, g, col) {
+    sprintf("%.3f",
+        ec_scores[ec_scores$level == level & ec_scores$grouping == g, col])
+}
+sing <- function(g) sprintf("%.1f%%", size_tab[g, "singleton proteins (%)"])
+```
+
+- **Contrasts.** At $\rho$ = 1, 2, 5 and 10%, MMD detected `r s2("MMD")`
+  of `r nrow(contrasts)` contrasts; Bray-Curtis on MCL bins
+  `r s2("Bray-Curtis (repdist MCL bins)")`, on MMseqs2 30% bins
+  `r s2("Bray-Curtis (MMseqs2 30% bins)")`, on MMseqs2 50% bins
+  `r s2("Bray-Curtis (MMseqs2 bins)")` and on proteins
+  `r s2("Bray-Curtis (protein)")`. The $\rho = 0$ null sanity check gave
+  `r sum(detect[, "0"])` detections over the five distances. MMD missed
+  `r nrow(mmd_miss)` contrast–$\rho$ combinations, all at
+  $\rho \le$ `r 100 * max(mmd_miss$rho)`% with p between
+  `r sprintf("%.3f", min(mmd_miss$"PERMANOVA p"))` and
+  `r sprintf("%.3f", max(mmd_miss$"PERMANOVA p"))`. PERMDISP was significant for at most
+  `r max(disp[, -1])` of `r nrow(contrasts)` contrasts for any distance and
+  $\rho > 0$, so the detections are shifts in location.
+- **Sequence bins.** The 50% clustering helped construct the benchmark, so
+  the failure of the 50% bins is partly by design, not a general comparison
+  with MMseqs2. The 30% bins, not used in the construction, detected
+  `r gain30` contrast–$\rho$ combinations that MMD or the MCL bins missed.
+- **Protein clustering.** At EC3 the MCL bins keep purity
+  `r sc("EC3", "repdist MCL bins", "purity")` and precision
+  `r sc("EC3", "repdist MCL bins", "precision")` while recovering
+  `r sc("EC3", "repdist MCL bins", "recall")` of same-EC3 pairs, against
+  `r sc("EC3", "MMseqs2 30%", "recall")` for the 30% and
+  `r sc("EC3", "MMseqs2 50%", "recall")` for the 50% clusters, with
+  `r sing("repdist MCL bins")` singleton proteins against
+  `r sing("MMseqs2 30%")` and `r sing("MMseqs2 50%")`. At EC4 the MCL bins
+  recall more (`r sc("EC4", "repdist MCL bins", "recall")` against
+  `r sc("EC4", "MMseqs2 30%", "recall")`) but the 30% clusters are more
+  precise (`r sc("EC4", "MMseqs2 30%", "precision")` against
+  `r sc("EC4", "repdist MCL bins", "precision")`) and score a higher F1
+  (`r sc("EC4", "MMseqs2 30%", "F1")` against
+  `r sc("EC4", "repdist MCL bins", "F1")`).
+
+Under sequence-disjoint functional contrasts, graded representation
+similarity retains relationships that protein identity and hard sequence
+bins may discard, and hard representation bins retain part of them. The
+result is conditional on that regime, built here by construction; it does not
+show that structure is better than sequence. The [case study](case_study.html)
+applies the same tools to a real metaproteomic contrast without known
+functional truth, and [MCL parameters](parameters.html) shows how the graph
+thresholds and inflation move the bins scored above.
+
+```{r session}
+sessionInfo()
+```
+
+# References {-}

@@ -10,16 +10,16 @@ cached.
 
 | Object | Script | Used by |
 | --- | --- | --- |
-| `curated/simulation_universe.rds` | `simulation_universe.R` | `reference.Rmd`, `simulation.Rmd`, `parameters.Rmd` |
-| `curated/simulation_mmseqs2.rds` | `simulation_mmseqs2.R` | `simulation.Rmd` |
-| `curated/simulation_funfam.rds` | `simulation_funfam.R` | `simulation.Rmd` |
-| `curated/diet_yeast.rds` | `diet_yeast.R` | `case_study.Rmd` |
+| `curated/simulation_universe.rds` | `simulation_universe.R` | `reference.Rmd`, `simulation_ec.Rmd`, `parameters.Rmd` |
+| `curated/simulation_mmseqs2.rds` | `simulation_mmseqs2.R` | `simulation_ec.Rmd` |
+| `curated/simulation_funfam.rds` | `simulation_funfam.R` | `simulation_funfam.Rmd` |
+| `curated/diet_series.rds` | `diet_series.R` | `case_study.Rmd` |
 
 ```sh
 Rscript data-raw/simulation_universe.R
 Rscript data-raw/simulation_mmseqs2.R
 Rscript data-raw/simulation_funfam.R
-Rscript data-raw/diet_yeast.R
+Rscript data-raw/diet_series.R
 Rscript -e 'rmarkdown::render_site()'
 ```
 
@@ -53,7 +53,7 @@ length, UniRef50 cluster), `provenance`.
 Source: the sequences of `simulation_universe.rds`, with MMseqs2 (version
 recorded in `provenance$mmseqs_version`) on the `PATH`. Rerun it whenever
 `simulation_universe.rds` changes; `provenance$universe_md5` records the file
-it was computed from, and `simulation.Rmd` stops if they differ.
+it was computed from, and `simulation_ec.Rmd` stops if they differ.
 
 1. `mmseqs easy-cluster` at 50% identity (primary) and at 30% (sensitivity),
    both with 80% coverage of query and target (`-c 0.8 --cov-mode 0`),
@@ -89,7 +89,7 @@ family, UniProt accession, kingdom, organism, length, 50% cluster, FunFam
 name), `families` (superfamily, FunFam number, name, members, DOPS, domains
 before and after the cap), `provenance`.
 
-## `diet_yeast.rds`
+## `diet_series.rds`
 
 Source: Blakeley-Ruiz JA *et al.* (2025) Dietary protein source alters gut
 microbiota composition and function. *ISME J* 19(1): wraf048.
@@ -99,10 +99,11 @@ CC BY 4.0, downloaded from Europe PMC (PMC12066410) into `data/wraf048/` and
 checked against their MD5 sums. Raw spectra: PRIDE PXD041586.
 
 1. Keep `Microbiome` proteins of Data Set 1; blank cells are zero counts.
-2. Parse cage, mouse and diet from the sample names; keep the 20% casein
-   (`20CAS`) and 20% yeast (`20YST`) samples of mice sampled on both (11
-   mice, 22 samples). Sex is fixed by cage (C1, C3 male; C2, C4 female).
-3. Keep proteins with at least one PSM in these samples and at most 1500
+2. Parse cage, mouse and diet from the sample names and keep every sample
+   (12 mice, ten diet periods, 111 samples). Diet is the token of the sample
+   name, ordered by feeding period. Sex is fixed by cage (C1, C3 male; C2, C4
+   female).
+3. Keep proteins with at least one PSM in any sample and at most 1500
    residues (`MAX_AA`).
 4. Join Data Set 6 on `Protein Identifier`, falling back to `Protein
    Identifier with Species Code`, keeping a match only where the residue
@@ -116,5 +117,5 @@ samples × proteins), `samples` (sample, subject, cage, diet, period, sex),
 `annotation` (species code, taxon, lineage, PROKKA description, curated broad
 and detailed function, consensus annotation, KOs, CAZy), `provenance`.
 
-To analyse another diet pair, change `contrast` in `diet_yeast.R` (tokens as
-in the sample names, reference first).
+The case study selects its Yeast–Casein pairs from this object; another diet
+pair needs no rebuild.

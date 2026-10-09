@@ -4,26 +4,20 @@ exclude: ["README.md", "data", "data-raw", "curated", "references.bib"]
 navbar:
   title: "repdist"
   left:
-    - text: "Reference"
-      menu:
-        - text: "Overview"
-          href: reference.html
-        - text: "Protein representations"
-          href: reference.html#protein-representations
-        - text: "Sample-level distance: MMD"
-          href: reference.html#sample-level-distance-mmd
-        - text: "Protein similarity graph and MCL clustering"
-          href: reference.html#protein-similarity-graph-and-mcl-clustering
-        - text: "QC and visualization"
-          href: reference.html#qc-and-visualization
-    - text: "Simulation"
-      href: simulation.html
-    - text: "MCL parameters"
-      href: parameters.html
-    - text: "Case study"
-      href: case_study.html
     - text: "Install"
       href: index.html#installation
+    - text: "Reference"
+      href: reference.html
+    - text: "Case study"
+      href: case_study.html
+    - text: "Simulations"
+      menu:
+        - text: "Hidden coherence"
+          href: simulation_funfam.html
+        - text: "Sequence-disjoint functions"
+          href: simulation_ec.html
+        - text: "MCL parameters"
+          href: parameters.html
   right:
     - icon: fa-github fa-lg
       href: https://github.com/Yixuan39/repdist

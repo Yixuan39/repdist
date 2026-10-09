@@ -342,41 +342,32 @@ div.tocify {
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-        <li class="dropdown">
+        <li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li>
+  <a href="reference.html">Reference</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Reference
+    Simulations
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="reference.html">Overview</a>
+      <a href="simulation_funfam.html">Hidden coherence</a>
     </li>
     <li>
-      <a href="reference.html#protein-representations">Protein representations</a>
+      <a href="simulation_ec.html">Sequence-disjoint functions</a>
     </li>
     <li>
-      <a href="reference.html#sample-level-distance-mmd">Sample-level distance: MMD</a>
-    </li>
-    <li>
-      <a href="reference.html#protein-similarity-graph-and-mcl-clustering">Protein similarity graph and MCL clustering</a>
-    </li>
-    <li>
-      <a href="reference.html#qc-and-visualization">QC and visualization</a>
+      <a href="parameters.html">MCL parameters</a>
     </li>
   </ul>
-</li>
-<li>
-  <a href="simulation.html">Simulation</a>
-</li>
-<li>
-  <a href="parameters.html">MCL parameters</a>
-</li>
-<li>
-  <a href="case_study.html">Case study</a>
-</li>
-<li>
-  <a href="index.html#installation">Install</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -396,8 +387,8 @@ div.tocify {
 
 
 <h1 class="title toc-ignore">Case study</h1>
-<h3 class="subtitle">Mouse gut metaproteome: 20% yeast vs 20% casein
-protein</h3>
+<h3 class="subtitle">Mouse gut metaproteomes across a dietary-protein
+series</h3>
 
 </div>
 
@@ -426,165 +417,183 @@ protein also has at least one protein-unique peptide. Near-identical
 proteins are therefore rare in the table (see <a
 href="#edge-identity">sequence identity of graph edges</a>): the
 relatedness that MMD and the bins add beyond protein identity is mostly
-remote homology. This is consistent with the modest difference between
-MMD and protein-level Bray-Curtis below.</p>
-<p>This page compares two diets of the same protein amount: <strong>20%
-yeast protein (Yeast) against 20% casein (Casein)</strong>, casein being
-the reference protein of the series. Only mice sampled on both diets are
-used (11 pairs), and diet is tested within mouse. The yeast diet came
-three weeks after the casein diet, so diet is confounded with feeding
-period in this serial design.</p>
-<pre class="r"><code>d &lt;- readRDS(file.path(&quot;curated&quot;, &quot;diet_yeast.rds&quot;))
-x &lt;- d$proteins # sequences with TM-Vec embeddings
+remote homology.</p>
+<p><strong>Beta diversity</strong> compares the six dietary protein
+sources (soy, casein, rice, yeast, pea and egg) across the series.
+<strong>The bins and differential abundance</strong> compare two diets
+of the same protein amount, <strong>20% yeast protein (Yeast) against
+20% casein (Casein)</strong>, casein being the reference protein of the
+series, in the 11 mice sampled on both. Diets were fed in a fixed order,
+one week each, so protein source is partly confounded with feeding
+week.</p>
+<pre class="r"><code>d &lt;- readRDS(file.path(&quot;curated&quot;, &quot;diet_series.rds&quot;))
+proteins &lt;- d$proteins # sequences with TM-Vec embeddings
 counts &lt;- d$counts # raw PSM counts, samples x proteins
 samples &lt;- d$samples
 ann &lt;- d$annotation
-d$provenance$contrast
-#&gt;  Casein   Yeast 
-#&gt; &quot;20CAS&quot; &quot;20YST&quot;
-table(samples$diet, samples$sex)
-#&gt;         
-#&gt;          female male
-#&gt;   Casein      6    5
-#&gt;   Yeast       6    5</code></pre>
-<p>The curated object was built by <code>data-raw/diet_yeast.R</code>
+table(samples$diet)
+#&gt; 
+#&gt;    T0 20SOY 20CAS 20RIC 40SOY 20YST 40CAS 20PEA 20EGG   CTL 
+#&gt;    12    12    12    10    11    11    11    11    10    11</code></pre>
+<p>The curated object was built by <code>data-raw/diet_series.R</code>
 from the paper’s supplementary Data Set 1 (PSM counts and sequences) and
 Data Set 6 (annotation): every microbial protein with at least one PSM
-in these 22 samples, its species group and GTDB lineage, the study’s
-curated function, KEGG orthology (KO) assignments and CAZy families, and
-a TM-Vec embedding computed with <code>embed_proteins()</code>.</p>
+in any sample, its species group and GTDB lineage, the study’s curated
+function, KEGG orthology (KO) assignments and CAZy families, and a
+TM-Vec embedding computed with <code>embed_proteins()</code>.</p>
 <p><strong>Protein length.</strong> Proteins longer than
-<code>MAX_AA</code> = 1500 residues were removed before embedding: 162
-of 11205 proteins, carrying 1.9% of the PSMs. This is an analysis
+<code>MAX_AA</code> = 1500 residues were removed before embedding: 424
+of 30103 proteins, carrying 3.2% of the PSMs. This is an analysis
 choice, not a package limit: <code>embed_proteins()</code> embeds
 sequences of any length, but the TM-Vec head was trained on chains of up
 to 1000 residues, so predicted TM-scores for much longer chains are
 extrapolations.</p>
 <pre class="r"><code>c(samples = nrow(counts), proteins = ncol(counts))
 #&gt;  samples proteins 
-#&gt;       22    11043</code></pre>
+#&gt;      111    29679</code></pre>
 </div>
-<div id="beta-diversity" class="section level1">
-<h1>Beta diversity</h1>
-<p>Sequencing depth differs by diet (yeast samples have about twice the
-PSMs of casein samples), and depth changes which proteins are observed.
-Both distances are therefore computed on counts rarefied to the smallest
-sample.</p>
-<pre class="r"><code>tapply(rowSums(counts), samples$diet, range)
-#&gt; $Casein
-#&gt; [1]  6580 18758
-#&gt; 
-#&gt; $Yeast
-#&gt; [1] 19715 30594
+<div id="beta-diversity-across-protein-sources" class="section level1">
+<h1>Beta diversity across protein sources</h1>
+<p>The samples are named by diet token (percentage and protein source).
+The <code>T0</code> baseline on standard chow is left out. The 40% soy
+and 40% casein weeks count under their protein source, and so does the
+<code>CTL</code> re-feeding at the end of the series: 20% soy in cages
+C1 and C2, 20% casein in C3 and C4.</p>
+<pre class="r"><code>token &lt;- as.character(samples$diet)
+protein_source &lt;- unname(c(SOY = &quot;Soy&quot;, CAS = &quot;Casein&quot;, RIC = &quot;Rice&quot;,
+    YST = &quot;Yeast&quot;, PEA = &quot;Pea&quot;, EGG = &quot;Egg&quot;)[sub(&quot;^[0-9]+&quot;, &quot;&quot;, token)])
+ctl &lt;- token == &quot;CTL&quot;
+protein_source[ctl] &lt;- ifelse(samples$cage[ctl] %in% c(&quot;C1&quot;, &quot;C2&quot;), &quot;Soy&quot;,
+    &quot;Casein&quot;)
+md &lt;- data.frame(diet = protein_source,
+    dose = ifelse(startsWith(token, &quot;40&quot;), &quot;40&quot;, &quot;20&quot;),
+    sex = samples$sex, subject = samples$subject,
+    # the stopped chicken-bone week elapsed before CTL
+    week = ifelse(ctl, 10L, samples$period),
+    row.names = samples$sample)[token != &quot;T0&quot;, ]
+md$diet &lt;- factor(md$diet)
+md$dose &lt;- factor(md$dose)
+md &lt;- droplevels(md)
+table(md$diet, md$dose)
+#&gt;         
+#&gt;          20 40
+#&gt;   Casein 17 11
+#&gt;   Egg    10  0
+#&gt;   Pea    11  0
+#&gt;   Rice   10  0
+#&gt;   Soy    18 11
+#&gt;   Yeast  11  0</code></pre>
+<p>Sequencing depth differs between samples, and depth changes which
+proteins are observed. Both distances are therefore computed on counts
+rarefied to the smallest sample.</p>
+<pre class="r"><code>range(rowSums(counts[rownames(md), ]))
+#&gt; [1]  5441 39491
 set.seed(1)
-rarefied &lt;- rrarefy(counts, min(rowSums(counts)))
+rarefied &lt;- rrarefy(counts[rownames(md), ], min(rowSums(counts[rownames(md), ])))
+rarefied &lt;- rarefied[, colSums(rarefied) &gt; 0]
 D &lt;- list(
     `Bray-Curtis (protein)` = vegdist(rarefied, &quot;bray&quot;),
-    MMD = sample_mmd(rarefied, x)
-)
-attr(D$MMD, &quot;sigma&quot;)
-#&gt; [1] 1.145504</code></pre>
+    MMD = sample_mmd(rarefied, proteins)
+)</code></pre>
 <p>PERMANOVA <span class="citation">(<a
-href="#ref-anderson2001permanova">Anderson 2001</a>)</span> and PERMDISP
-<span class="citation">(<a href="#ref-anderson2006permdisp">Anderson
-2006</a>)</span> use 999 permutations restricted to within mouse.</p>
-<pre class="r"><code>perm &lt;- permute::how(blocks = samples$subject, nperm = 999)
+href="#ref-anderson2001permanova">Anderson 2001</a>)</span> tests
+protein source after protein amount, sex and week, and PERMDISP <span
+class="citation">(<a href="#ref-anderson2006permdisp">Anderson
+2006</a>)</span> tests for unequal spread between sources; both use 999
+permutations restricted to within mouse.</p>
+<pre class="r"><code>perm &lt;- permute::how(blocks = md$subject, nperm = 999)
 tests &lt;- t(vapply(D, function(Dk) {
     set.seed(1)
-    a &lt;- adonis2(Dk ~ diet, data = samples, permutations = perm)
-    bd &lt;- betadisper(Dk, samples$diet)
+    a &lt;- adonis2(Dk ~ dose + sex + week + diet, data = md, by = &quot;terms&quot;,
+        permutations = perm)
     set.seed(1)
-    pd &lt;- permutest(bd, permutations = perm)
-    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(&gt;F)`[1],
-        dispersion_Casein = mean(bd$distances[samples$diet == &quot;Casein&quot;]),
-        dispersion_Yeast = mean(bd$distances[samples$diet == &quot;Yeast&quot;]),
-        PERMDISP_p = pd$tab[1, &quot;Pr(&gt;F)&quot;])
-}, numeric(6)))
+    pd &lt;- permutest(betadisper(Dk, md$diet), permutations = perm)
+    c(`PERMANOVA R2` = a[&quot;diet&quot;, &quot;R2&quot;], `PERMANOVA p` = a[&quot;diet&quot;, &quot;Pr(&gt;F)&quot;],
+        `PERMDISP p` = pd$tab[1, &quot;Pr(&gt;F)&quot;])
+}, numeric(3)))
 knitr::kable(tests, digits = 3)</code></pre>
 <table>
-<colgroup>
-<col width="25%" />
-<col width="6%" />
-<col width="8%" />
-<col width="6%" />
-<col width="20%" />
-<col width="19%" />
-<col width="12%" />
-</colgroup>
 <thead>
 <tr class="header">
 <th align="left"></th>
-<th align="right">R2</th>
-<th align="right">F</th>
-<th align="right">p</th>
-<th align="right">dispersion_Casein</th>
-<th align="right">dispersion_Yeast</th>
-<th align="right">PERMDISP_p</th>
+<th align="right">PERMANOVA R2</th>
+<th align="right">PERMANOVA p</th>
+<th align="right">PERMDISP p</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td align="left">Bray-Curtis (protein)</td>
-<td align="right">0.434</td>
-<td align="right">15.346</td>
+<td align="right">0.253</td>
 <td align="right">0.001</td>
-<td align="right">0.436</td>
-<td align="right">0.335</td>
 <td align="right">0.001</td>
 </tr>
 <tr class="even">
 <td align="left">MMD</td>
-<td align="right">0.408</td>
-<td align="right">13.765</td>
+<td align="right">0.324</td>
 <td align="right">0.001</td>
-<td align="right">0.032</td>
-<td align="right">0.040</td>
-<td align="right">0.005</td>
+<td align="right">0.554</td>
 </tr>
 </tbody>
 </table>
+<p>Ellipses are 95% ellipses per protein source (multivariate t).</p>
 <pre class="r"><code>ord &lt;- do.call(rbind, lapply(names(D), function(n) {
     e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
     rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0])
     data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
-        diet = samples$diet, subject = samples$subject,
+        diet = md$diet, sex = md$sex,
         panel = sprintf(&quot;%s\nPCo1 %.0f%%, PCo2 %.0f%%&quot;, n, rel[1], rel[2]))
 }))
 ord$panel &lt;- factor(ord$panel, unique(ord$panel))
-ggplot(ord, aes(PCo1, PCo2)) +
-    geom_line(aes(group = subject), colour = &quot;grey75&quot;) +
-    geom_point(aes(colour = diet), size = 2) +
+ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = sex)) +
+    geom_point(size = 1.8) +
+    stat_ellipse(aes(group = diet), linewidth = 0.4) +
     facet_wrap(~panel, scales = &quot;free&quot;) +
-    labs(colour = NULL) +
-    theme_bw() +
-    theme(legend.position = &quot;bottom&quot;)</code></pre>
-<p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under protein-level Bray-Curtis and MMD; lines join the two samples of each mouse" width="768" /></p>
-<p>Each grey line joins the casein and yeast samples of one mouse.</p>
-<p>Both distances separate the diets with similar effect sizes, and for
-both PERMDISP also detects unequal spread, in opposite directions:
-casein samples are more dispersed under Bray-Curtis, yeast samples under
-MMD. PERMANOVA with equal group sizes is fairly robust to unequal
-dispersion, and the paired samples are displaced along the first axis in
-both ordinations, so the separation is mainly a shift in location, with
-a difference in spread on top. Under Bray-Curtis the second axis
-separates the two mouse groups, which came from different vendor
-rooms.</p>
+    labs(colour = NULL, shape = NULL) +
+    theme_bw()</code></pre>
+<p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by sex, with 95% ellipses" width="864" /></p>
+<p>Both distances detect protein source. MMD attributes more of the
+variation to it than protein-level Bray-Curtis does (R² 0.324 against
+0.253), and only Bray-Curtis also shows unequal spread between sources
+(PERMDISP p 0.001 against 0.554), so the MMD separation is mainly a
+shift in location. In the ordinations, the first Bray-Curtis axis
+separates the female from the male cages (sex is fixed by cage) and the
+yeast and egg samples separate on the second; under MMD the first axis
+separates the yeast and egg samples from the other sources and sex moves
+to the second.</p>
+</div>
+<div id="the-yeastcasein-contrast" class="section level1">
+<h1>The Yeast–Casein contrast</h1>
+<p>From here on the page uses the 11 mice sampled on both 20% casein and
+20% yeast, and the proteins seen in those 22 samples.</p>
+<pre class="r"><code>yc &lt;- samples$diet %in% c(&quot;20CAS&quot;, &quot;20YST&quot;)
+yc &lt;- yc &amp; samples$subject %in% names(which(table(samples$subject[yc]) == 2))
+samples &lt;- droplevels(samples[yc, ])
+samples$diet &lt;- factor(ifelse(samples$diet == &quot;20YST&quot;, &quot;Yeast&quot;, &quot;Casein&quot;),
+    c(&quot;Casein&quot;, &quot;Yeast&quot;))
+counts &lt;- counts[yc, ]
+counts &lt;- counts[, colSums(counts) &gt; 0]
+proteins &lt;- proteins[colnames(counts)]
+ann &lt;- ann[colnames(counts), ]
+c(samples = nrow(counts), proteins = ncol(counts))
+#&gt;  samples proteins 
+#&gt;       22    11043</code></pre>
 </div>
 <div id="representation-space" class="section level1">
 <h1>Representation space</h1>
-<p><code>plot_tsne()</code> maps all proteins by cosine distance (one
-minus the predicted TM-score), coloured by the study’s manually curated
-broad function; proteins without one are grey. The map shows
-neighbourhoods in representation space; it is not evidence of function,
-and t-SNE does not preserve distances between groups.</p>
+<p><code>plot_tsne()</code> maps the contrast’s proteins by cosine
+distance (one minus the predicted TM-score), coloured by the study’s
+manually curated broad function; proteins without one are grey. The map
+shows neighbourhoods in representation space; it is not evidence of
+function, and t-SNE does not preserve distances between groups.</p>
 <pre class="r"><code>set.seed(1)
-plot_tsne(x, color = setNames(ann$broad_function, ann$protein))</code></pre>
+plot_tsne(proteins, color = setNames(ann$broad_function, ann$protein))</code></pre>
 <p><img src="case_study_files/figure-html/tsne-function-1.png" alt="t-SNE of protein embeddings coloured by broad function" width="720" /></p>
 <p>The study assigned a KO to 79% of the proteins. Proteins without a KO
 have fewer close relatives in the catalog: the quartiles of each
 protein’s nearest-neighbour predicted TM-score, by KO status:</p>
 <pre class="r"><code>ko_status &lt;- ifelse(is.na(ann$ko), &quot;no KO&quot;, &quot;KO assigned&quot;)
-Z &lt;- S4Vectors::mcols(x)$embedding
+Z &lt;- S4Vectors::mcols(proteins)$embedding
 Z &lt;- Z / sqrt(rowSums(Z^2))
 sim &lt;- tcrossprod(Z)
 diag(sim) &lt;- NA
@@ -593,28 +602,28 @@ rm(sim)
 tapply(nearest, ko_status, quantile, probs = c(0.25, 0.5, 0.75))
 #&gt; $`KO assigned`
 #&gt;       25%       50%       75% 
-#&gt; 0.9051614 0.9738381 0.9949341 
+#&gt; 0.9051613 0.9738379 0.9949341 
 #&gt; 
 #&gt; $`no KO`
 #&gt;       25%       50%       75% 
-#&gt; 0.7800647 0.8554373 0.9247885</code></pre>
+#&gt; 0.7800650 0.8554373 0.9247886</code></pre>
 </div>
 <div id="protein-bins" class="section level1">
 <h1>Protein bins</h1>
 <p>The similarity graph and MCL bins use the package defaults: an edge
 needs a predicted TM-score of at least 0.7 and a local alignment
 covering at least half of both sequences; MCL inflation is 2.</p>
-<pre class="r"><code>S &lt;- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())
-b &lt;- bin_proteins(S)
-b$graph
+<pre class="r"><code>S &lt;- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
+bins &lt;- bin_proteins(S)
+bins$graph
 #&gt;          proteins             edges          isolated        components 
 #&gt;             11043             85928              1828              2737 
 #&gt; largest_component 
 #&gt;              1292
-sizes &lt;- lengths(b$clusters)
-c(proteins = length(x), bins = length(sizes),
+sizes &lt;- lengths(bins$clusters)
+c(proteins = length(proteins), bins = length(sizes),
     singleton_bins = sum(sizes == 1),
-    singleton_fraction = round(sum(sizes == 1) / length(x), 3))
+    singleton_fraction = round(sum(sizes == 1) / length(proteins), 3))
 #&gt;           proteins               bins     singleton_bins singleton_fraction 
 #&gt;          11043.000           3149.000           1839.000              0.167
 table(cut(sizes, c(0, 1, 2, 5, 10, 50, Inf),
@@ -633,7 +642,7 @@ identity:</p>
 <pre class="r"><code>set.seed(1)
 ij &lt;- which(upper.tri(S) &amp; S &gt; 0, arr.ind = TRUE)
 ij &lt;- ij[sample(nrow(ij), 5000), ]
-seqs &lt;- x
+seqs &lt;- proteins
 S4Vectors::mcols(seqs) &lt;- NULL
 aln &lt;- pwalign::pairwiseAlignment(seqs[ij[, 1]], seqs[ij[, 2]],
     substitutionMatrix = &quot;BLOSUM62&quot;, type = &quot;local&quot;,
@@ -660,8 +669,8 @@ samples of each mouse; size factors use the <code>poscounts</code>
 estimator because no bin is observed in every sample. Fold changes are
 Yeast relative to Casein, shrunk with the <code>normal</code> prior for
 display; p-values are from the Wald test.</p>
-<pre class="r"><code>binned &lt;- bin_glom(counts, b)
-dds &lt;- DESeq2::DESeqDataSetFromMatrix(round(t(binned)), samples,
+<pre class="r"><code>bin_counts &lt;- bin_glom(counts, bins)
+dds &lt;- DESeq2::DESeqDataSetFromMatrix(round(t(bin_counts)), samples,
     design = ~ subject + diet)
 dds &lt;- DESeq2::DESeq(dds, sfType = &quot;poscounts&quot;, quiet = TRUE)
 res &lt;- DESeq2::results(dds, name = &quot;diet_Yeast_vs_Casein&quot;, alpha = 0.05)
@@ -678,17 +687,11 @@ DESeq2::summary(res)
 #&gt; (mean count &lt; 1)
 #&gt; [1] see &#39;cooksCutoff&#39; argument of ?results
 #&gt; [2] see &#39;independentFiltering&#39; argument of ?results</code></pre>
-<pre class="r"><code>volcano &lt;- data.frame(log2FC = lfc$log2FoldChange, p = res$pvalue,
-    significant = !is.na(res$padj) &amp; res$padj &lt; 0.05)
-ggplot(volcano[!is.na(volcano$p), ], aes(log2FC, -log10(p),
-    colour = significant)) +
-    geom_point(size = 1, alpha = 0.6) +
-    scale_colour_manual(values = c(`TRUE` = &quot;firebrick&quot;, `FALSE` = &quot;grey60&quot;),
-        labels = c(`TRUE` = &quot;padj &lt; 0.05&quot;, `FALSE` = &quot;not significant&quot;)) +
-    labs(x = &quot;log2 fold change, Yeast vs Casein (shrunk)&quot;,
-        y = expression(-log[10](p)), colour = NULL) +
-    theme_bw()</code></pre>
-<p><img src="case_study_files/figure-html/volcano-1.png" alt="Volcano plot of bin-level differential abundance, Yeast vs Casein" width="576" /></p>
+<p>DESeq2’s MA plot shows each bin’s shrunk log2 fold change against its
+mean normalised count; bins with adjusted p &lt; 0.05 are coloured.</p>
+<pre class="r"><code>DESeq2::plotMA(lfc, alpha = 0.05,
+    ylab = &quot;log2 fold change, Yeast vs Casein (shrunk)&quot;)</code></pre>
+<p><img src="case_study_files/figure-html/ma-plot-1.png" alt="MA plot of bin-level differential abundance, Yeast vs Casein" width="576" /></p>
 <p>Each bin’s annotation summarises its members. A label shared by every
 annotated member is shown with its count (<code>3/4</code> means three
 of four members carry it, the fourth is unannotated); bins whose
@@ -703,19 +706,19 @@ of distinct labels and the most frequent one.</p>
     if (length(tab) == 1L) top else
         sprintf(&quot;mixed, %d: %s&quot;, length(tab), top)
 }
-bin_table &lt;- function(bins) {
+bin_table &lt;- function(ids) {
     data.frame(
-        bin = bins,
-        proteins = sizes[bins],
-        taxon = vapply(b$clusters[bins],
+        bin = ids,
+        proteins = sizes[ids],
+        taxon = vapply(bins$clusters[ids],
             function(m) summarise_labels(ann[m, &quot;taxon&quot;]), &quot;&quot;),
-        `function` = vapply(b$clusters[bins],
+        `function` = vapply(bins$clusters[ids],
             function(m) summarise_labels(ann[m, &quot;consensus_annotation&quot;]), &quot;&quot;),
-        KO = vapply(b$clusters[bins],
+        KO = vapply(bins$clusters[ids],
             function(m) summarise_labels(ann[m, &quot;ko&quot;]), &quot;&quot;),
-        log2FC = round(lfc[bins, &quot;log2FoldChange&quot;], 2),
-        p = formatC(res[bins, &quot;pvalue&quot;], format = &quot;e&quot;, digits = 1),
-        padj = formatC(res[bins, &quot;padj&quot;], format = &quot;e&quot;, digits = 1),
+        log2FC = round(lfc[ids, &quot;log2FoldChange&quot;], 2),
+        p = formatC(res[ids, &quot;pvalue&quot;], format = &quot;e&quot;, digits = 1),
+        padj = formatC(res[ids, &quot;padj&quot;], format = &quot;e&quot;, digits = 1),
         check.names = FALSE, row.names = NULL
     )
 }
@@ -1001,19 +1004,18 @@ one organism’s protein.</p>
 <div id="inside-a-bin" class="section level1">
 <h1>Inside a bin</h1>
 <p><code>plot_bin_similarity()</code> shows all pairwise predicted
-TM-scores within one bin. A black outline marks a pair that
-<strong>is</strong> an edge of the graph: it passed both thresholds
-(predicted TM-score ≥ 0.7, coverage ≥ 0.5) and keeps its similarity as
-the edge weight. A cell without an outline is not an edge (weight 0 in
-<code>S</code>). MCL clusters along the outlined edges. Shown are the
-most significant bin with 4 to 30 members in each direction, with a
-count of their member pairs: edges, pairs below the similarity
+TM-scores within one bin. An uncrossed cell is an edge of the graph: the
+pair passed both thresholds (predicted TM-score ≥ 0.7, coverage ≥ 0.5)
+and keeps its similarity as the edge weight. A crossed cell is not an
+edge (weight 0 in <code>S</code>). MCL clusters along the edges. Shown
+are the most significant bin with 4 to 30 members in each direction,
+with a count of their member pairs: edges, pairs below the similarity
 threshold, and pairs above it that failed the coverage gate.</p>
-<pre class="r"><code>pick &lt;- function(bins) bins[sizes[bins] &gt;= 4 &amp; sizes[bins] &lt;= 30][1]
+<pre class="r"><code>pick &lt;- function(ids) ids[sizes[ids] &gt;= 4 &amp; sizes[ids] &lt;= 30][1]
 shown &lt;- c(Yeast = pick(sig[lfc[sig, &quot;log2FoldChange&quot;] &gt; 0]),
     Casein = pick(sig[lfc[sig, &quot;log2FoldChange&quot;] &lt; 0]))
 pair_types &lt;- function(bin) {
-    m &lt;- b$clusters[[bin]]
+    m &lt;- bins$clusters[[bin]]
     R &lt;- tcrossprod(Z[m, ])
     E &lt;- S[m, m] &gt; 0
     up &lt;- upper.tri(E)
@@ -1053,9 +1055,9 @@ data.frame(bin = shown, t(vapply(shown, pair_types, numeric(4))))</code></pre>
 </tbody>
 </table>
 </div>
-<pre class="r"><code>plot_bin_similarity(b, shown[[&quot;Yeast&quot;]], S, x)</code></pre>
-<p><img src="case_study_files/figure-html/bin-yeast-1.png" alt="Pairwise predicted TM-scores in the selected yeast-enriched bin; edges outlined" width="672" /></p>
-<pre class="r"><code>m &lt;- b$clusters[[shown[[&quot;Yeast&quot;]]]]
+<pre class="r"><code>plot_bin_similarity(bins, shown[[&quot;Yeast&quot;]], S, proteins)</code></pre>
+<p><img src="case_study_files/figure-html/bin-yeast-1.png" alt="Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges crossed" width="672" /></p>
+<pre class="r"><code>m &lt;- bins$clusters[[shown[[&quot;Yeast&quot;]]]]
 knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot;ko&quot;, &quot;cazy&quot;)],
     row.names = TRUE)</code></pre>
 <table style="width:100%;">
@@ -1162,9 +1164,9 @@ knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot
 </tr>
 </tbody>
 </table>
-<pre class="r"><code>plot_bin_similarity(b, shown[[&quot;Casein&quot;]], S, x)</code></pre>
-<p><img src="case_study_files/figure-html/bin-casein-1.png" alt="Pairwise predicted TM-scores in the selected casein-enriched bin; edges outlined" width="672" /></p>
-<pre class="r"><code>m &lt;- b$clusters[[shown[[&quot;Casein&quot;]]]]
+<pre class="r"><code>plot_bin_similarity(bins, shown[[&quot;Casein&quot;]], S, proteins)</code></pre>
+<p><img src="case_study_files/figure-html/bin-casein-1.png" alt="Pairwise predicted TM-scores in the selected casein-enriched bin; pairs that are not edges crossed" width="672" /></p>
+<pre class="r"><code>m &lt;- bins$clusters[[shown[[&quot;Casein&quot;]]]]
 knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot;ko&quot;, &quot;cazy&quot;)],
     row.names = TRUE)</code></pre>
 <table>
@@ -1268,9 +1270,9 @@ pair.</p>
 <div id="notes" class="section level1">
 <h1>Notes</h1>
 <ul>
-<li>Diet is confounded with feeding period (weeks 2 and 5) in this
-serial design, so the differences cannot be attributed to diet
-alone.</li>
+<li>Diet is confounded with feeding period in this serial design (Casein
+and Yeast were periods 2 and 5), so the differences cannot be attributed
+to diet alone.</li>
 <li>Beta diversity uses rarefied counts; differential abundance uses raw
 counts with DESeq2 size factors.</li>
 <li>A bin is a similarity-network cluster. Agreement among its members’

@@ -320,41 +320,32 @@ div.tocify {
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-        <li class="dropdown">
+        <li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li>
+  <a href="reference.html">Reference</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Reference
+    Simulations
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="reference.html">Overview</a>
+      <a href="simulation_funfam.html">Hidden coherence</a>
     </li>
     <li>
-      <a href="reference.html#protein-representations">Protein representations</a>
+      <a href="simulation_ec.html">Sequence-disjoint functions</a>
     </li>
     <li>
-      <a href="reference.html#sample-level-distance-mmd">Sample-level distance: MMD</a>
-    </li>
-    <li>
-      <a href="reference.html#protein-similarity-graph-and-mcl-clustering">Protein similarity graph and MCL clustering</a>
-    </li>
-    <li>
-      <a href="reference.html#qc-and-visualization">QC and visualization</a>
+      <a href="parameters.html">MCL parameters</a>
     </li>
   </ul>
-</li>
-<li>
-  <a href="simulation.html">Simulation</a>
-</li>
-<li>
-  <a href="parameters.html">MCL parameters</a>
-</li>
-<li>
-  <a href="case_study.html">Case study</a>
-</li>
-<li>
-  <a href="index.html#installation">Install</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -400,36 +391,27 @@ an alignment-coverage threshold. <code>bin_proteins()</code> partitions
 the graph by Markov clustering (MCL), and <code>bin_glom()</code> sums
 protein counts within each bin for count-based analyses such as
 DESeq2.</p>
-<pre><code>sequences ─ embed_proteins() / read_embeddings() ─► embeddings
-                                                       │
-         ┌─────────────────────────────────────────────┴───────────────┐
-         ▼                                                             ▼
-  sample_mmd(counts, x)                                 protein_similarity(x)
-  samples × samples distance                            weighted protein graph
-  (PERMANOVA, PCoA)                                              │
-                                                          bin_proteins(S)  (MCL)
-                                                                 │
-                                                          bin_glom(counts, bins)
-                                                          samples × bins counts</code></pre>
 <div id="documentation" class="section level1">
 <h1>Documentation</h1>
 <p><strong><a href="reference.html">Reference</a></strong>: what each
 function computes and how to call it: embeddings, the MMD distance, the
 similarity graph and MCL bins, and the QC plots.</p>
-<p><strong><a href="simulation.html">Simulation</a></strong>: two
-benchmarks with known truth. A controlled positive benchmark on CATH
-FunFam domains, where one group’s enriched proteins share a hidden
-family and no accession; and sequence-disjoint contrasts between enzyme
-classes (EC3) of experimentally characterised Swiss-Prot enzymes,
-against Bray-Curtis on MCL bins, MMseqs2 bins and proteins. Then how
-completely the MCL bins recover enzyme classes.</p>
-<p><strong><a href="parameters.html">MCL parameters</a></strong>: how
-<code>min_sim</code>, <code>min_coverage</code> and the MCL inflation
-change the bins, scored against the simulation’s enzyme labels.</p>
 <p><strong><a href="case_study.html">Case study</a></strong>: a worked
 metaproteomics analysis of a 20% yeast vs 20% casein diet comparison in
 mice: beta diversity, the representation space, MCL bins and bin-level
 differential abundance with DESeq2.</p>
+<p><strong><a href="simulation_funfam.html">Hidden
+coherence</a></strong>: Simulation 1, a controlled positive benchmark on
+CATH FunFam domains, where one group’s enriched proteins share a hidden
+family but no accession or sequence cluster.</p>
+<p><strong><a href="simulation_ec.html">Sequence-disjoint
+functions</a></strong>: Simulation 2, contrasts between enzyme classes
+(EC3) of experimentally characterised Swiss-Prot enzymes carried by
+different sequence clusters in every sample, and how the MCL bins group
+those enzymes.</p>
+<p><strong><a href="parameters.html">MCL parameters</a></strong>: how
+<code>min_sim</code>, <code>min_coverage</code> and the MCL inflation
+trade fragmentation against functional coherence of the bins.</p>
 </div>
 <div id="installation" class="section level1">
 <h1>Installation</h1>
@@ -443,16 +425,17 @@ that <code>repdist</code> creates and manages itself through
 <code>basilisk</code>; no manual Python setup is needed. Model weights
 are downloaded on first use.</p>
 <pre class="r"><code>library(repdist)
-x &lt;- embed_proteins(&quot;proteins.fasta&quot;)      # default model: &quot;tmvec&quot;
+proteins &lt;- embed_proteins(&quot;proteins.fasta&quot;) # default model: &quot;tmvec&quot;
 
-D &lt;- sample_mmd(counts, x)                 # samples x samples dist
+D &lt;- sample_mmd(counts, proteins)            # samples x samples dist
 vegan::adonis2(D ~ group, data = metadata)
 
-S &lt;- protein_similarity(x)                 # weighted similarity graph
-bins &lt;- bin_proteins(S)                    # MCL bins
-binned &lt;- bin_glom(counts, bins)           # samples x bins counts</code></pre>
-<p><code>counts</code> has samples in rows and proteins in columns,
-named as in <code>x</code>.</p>
+S &lt;- protein_similarity(proteins)            # weighted similarity graph
+bins &lt;- bin_proteins(S)                      # MCL bins
+bin_counts &lt;- bin_glom(counts, bins)         # samples x bins counts</code></pre>
+<p><code>proteins</code> is an <code>AAStringSet</code> of the sequences
+with one embedding per protein; <code>counts</code> has samples in rows
+and proteins in columns, named as in <code>proteins</code>.</p>
 </div>
 <div id="source" class="section level1">
 <h1>Source</h1>

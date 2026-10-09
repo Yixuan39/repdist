@@ -15,14 +15,29 @@ This page explains what each `repdist` function computes, in the order of a
 typical analysis. Full argument lists are in the package help
 (`?sample_mmd`, `?protein_similarity`, ...).
 
+`embed_proteins()` returns an `AAStringSet` containing the protein sequences
+and one learned representation per protein. In the examples below this object
+is called `proteins` (in the help pages it is the argument `x`); the
+embedding matrix is `S4Vectors::mcols(proteins)$embedding`, and $z_i$ is its
+row for protein $i$.
+
+| Name | Holds |
+|---|---|
+| `proteins` | sequences and their representations (`AAStringSet`) |
+| `counts` | samples × proteins counts |
+| `D` | distance between samples (`dist`) |
+| `S` | protein × protein similarity graph (matrix) |
+| `bins` | MCL result of `bin_proteins()` |
+| `bin_counts` | samples × bins counts |
+
 | Step | Function | Input | Output |
 |---|---|---|---|
-| Representations | `embed_proteins()`, `read_embeddings()` | sequences, or a TM-Vec database | `AAStringSet` with `mcols(x)$embedding` |
-| Sample distance | `sample_mmd()` | counts (samples × proteins), `x` | `dist` between samples |
-| Similarity graph | `protein_similarity()` | `x` | protein × protein similarity matrix |
-| Protein bins | `bin_proteins()` | similarity matrix | MCL bins |
-| Aggregation | `bin_glom()` | counts, bins | counts (samples × bins) |
-| QC | `plot_tsne()`, `plot_bin_similarity()` | `x`, bins | ggplot objects |
+| Representations | `embed_proteins()`, `read_embeddings()` | sequences, or a TM-Vec database | `proteins` |
+| Sample distance | `sample_mmd()` | `counts`, `proteins` | `D` |
+| Similarity graph | `protein_similarity()` | `proteins` | `S` |
+| Protein bins | `bin_proteins()` | `S` | `bins` |
+| Aggregation | `bin_glom()` | `counts`, `bins` | `bin_counts` |
+| QC | `plot_tsne()`, `plot_bin_similarity()` | `proteins`, `bins`, `S` | ggplot objects |
 
 ```{r libs}
 library(repdist)
@@ -30,14 +45,14 @@ library(ggplot2)
 ```
 
 The executable examples use the three largest enzyme classes (EC3) of the
-[simulation](simulation.html) universe: experimentally characterised
+[Simulation 2](simulation_ec.html) universe: experimentally characterised
 Swiss-Prot enzymes whose embeddings were computed with `embed_proteins()`.
 
 ```{r example-data}
 u <- readRDS(file.path("curated", "simulation_universe.rds"))
 classes <- names(sort(table(u$annotation$ec3), decreasing = TRUE))[1:3]
 keep <- u$annotation$ec3 %in% classes
-x <- u$proteins[keep]
+proteins <- u$proteins[keep]
 ec3 <- setNames(u$annotation$ec3[keep], u$annotation$protein[keep])
 table(ec3)
 ```
@@ -46,11 +61,11 @@ table(ec3)
 
 Every other function takes the same object: an `AAStringSet` of protein
 sequences, named by accession, with one embedding row per protein in
-`mcols(x)$embedding`. Rows are unit-normalised.
+`mcols(proteins)$embedding`. Rows are unit-normalised.
 
-```{r x}
-x
-dim(S4Vectors::mcols(x)$embedding)
+```{r proteins}
+proteins
+dim(S4Vectors::mcols(proteins)$embedding)
 ```
 
 There are two ways to get it.
@@ -64,8 +79,8 @@ Python. Weights are downloaded on first use and pinned to fixed revisions
 whole; nothing is truncated or dropped.
 
 ```{r embed, eval = FALSE}
-x <- embed_proteins("proteins.fasta") # model = "tmvec"
-x <- embed_proteins(seqs, model = "esm2-650m", device = "cpu")
+proteins <- embed_proteins("proteins.fasta") # model = "tmvec"
+proteins <- embed_proteins(seqs, model = "esm2-650m", device = "cpu")
 ```
 
 **`read_embeddings()`: embeddings computed elsewhere.** TM-Vec users can embed
@@ -76,7 +91,7 @@ protein (datasets `seq` and `emb`) is also read; per-residue embeddings are
 averaged.
 
 ```{r read, eval = FALSE}
-x <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
+proteins <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
 ```
 
 **`known_models()`** lists the registered models. The default, `tmvec`, is a
@@ -102,7 +117,7 @@ recorded for reference and not enforced.
 
 # Sample-level distance: MMD {#sample-level-distance-mmd}
 
-`sample_mmd(counts, x)` treats sample $P$ as a weighted set of protein
+`sample_mmd(counts, proteins)` treats sample $P$ as a weighted set of protein
 embeddings $\{(z_i, p_i)\}$, where $p_i = c_i / \sum_j c_j$ is protein $i$'s
 share of the sample's counts. Two samples are compared by the maximum mean
 discrepancy [@gretton2012mmd; @muandet2017kme]:
@@ -141,13 +156,13 @@ same enzyme class, while `s3` draws on another class:
 
 ```{r mmd-toy}
 pick <- function(class, i) names(ec3)[ec3 == class][i]
-counts <- matrix(0, 3, length(x),
-    dimnames = list(c("s1", "s2", "s3"), names(x)))
+counts <- matrix(0, 3, length(proteins),
+    dimnames = list(c("s1", "s2", "s3"), names(proteins)))
 counts["s1", pick(classes[1], 1:10)] <- 10
 counts["s2", pick(classes[1], 11:20)] <- 10
 counts["s3", pick(classes[2], 1:10)] <- 10
 
-D <- sample_mmd(counts, x)
+D <- sample_mmd(counts, proteins)
 D
 vegan::vegdist(counts, "bray") # 1 for every pair: no shared accession
 ```
@@ -161,14 +176,14 @@ kernel's $1/e$ point at predicted TM-score $t$.
 
 ```{r sigma}
 attr(D, "sigma")
-D2 <- sample_mmd(counts[1:2, ], x, sigma = attr(D, "sigma"))
+D2 <- sample_mmd(counts[1:2, ], proteins, sigma = attr(D, "sigma"))
 ```
 
 `weighted = FALSE` gives every detected protein equal weight (a
 presence/absence version). `sample_mmd()` holds the protein × protein kernel
 in memory, so memory grows with the square of the number of proteins.
 
-# Protein similarity graph and MCL clustering {#protein-similarity-graph-and-mcl-clustering}
+# Protein similarity graph {#protein-similarity-graph}
 
 ```
 protein embeddings
@@ -182,7 +197,7 @@ protein bins ── bin_glom() ──► samples × bins counts
 
 ## `protein_similarity()` {#protein-similarity}
 
-`protein_similarity(x, min_sim = 0.7, min_coverage = 0.5)` returns the
+`protein_similarity(proteins, min_sim = 0.7, min_coverage = 0.5)` returns the
 weighted adjacency matrix
 
 $$
@@ -212,9 +227,11 @@ non-edge), so it can be clustered by other graph algorithms as well;
 `bin_proteins()` is one choice, not a requirement.
 
 ```{r similarity}
-S <- protein_similarity(x)
+S <- protein_similarity(proteins)
 c(proteins = nrow(S), edges = sum(S[upper.tri(S)] > 0))
 ```
+
+# MCL clustering and aggregation {#mcl-clustering-and-aggregation}
 
 ## `bin_proteins()` {#bin-proteins}
 
@@ -230,9 +247,9 @@ each protein's self-loop takes the weight of its heaviest edge (as in the
 inflation gives more, smaller bins.
 
 ```{r bins}
-b <- bin_proteins(S)
-b$graph
-head(lengths(b$clusters))
+bins <- bin_proteins(S)
+bins$graph
+head(lengths(bins$clusters))
 ```
 
 The result lists the members of each bin (`clusters`), each protein's bin
@@ -266,14 +283,15 @@ Sample totals are unchanged and a sparse `Matrix` stays sparse. Give it raw
 counts when the next step is a count model such as DESeq2.
 
 ```{r glom}
-bin_glom(counts, b)[, 1:5]
+bin_counts <- bin_glom(counts, bins)
+bin_counts[, 1:5]
 ```
 
 # QC and visualization {#qc-and-visualization}
 
 ## `plot_tsne()` {#plot-tsne}
 
-`plot_tsne(x, color = NULL)` draws a two-dimensional t-SNE
+`plot_tsne(proteins, color = NULL)` draws a two-dimensional t-SNE
 [@vandermaaten2008tsne] of the embeddings computed on cosine distance,
 $1 - s_{ij}$ (for TM-Vec, one minus the predicted TM-score). `color` takes
 labels named by protein; the 12 most frequent are coloured. t-SNE preserves
@@ -282,25 +300,25 @@ layout depends on the random seed.
 
 ```{r tsne, fig.height = 4.2}
 set.seed(1)
-plot_tsne(x, color = ec3)
+plot_tsne(proteins, color = ec3)
 ```
 
 ## `plot_bin_similarity()` {#plot-bin-similarity}
 
-`plot_bin_similarity(bins, bin, S, x)` shows every pairwise similarity among
-one bin's members. Cell colour is the raw similarity from the embeddings,
-before any threshold; outlined cells are the edges of `S`, the pairs that
-passed both thresholds. Pairs without an outline are in the bin through
-shared neighbours, or passed `min_sim` but failed the coverage gate.
+`plot_bin_similarity(bins, bin, S, proteins)` shows every pairwise similarity
+among one bin's members. Cell colour is the raw similarity from the
+embeddings, before any threshold; a cross marks each pair that is not an edge
+of `S`, that is, did not pass both thresholds. Crossed pairs are in the bin
+through shared neighbours, or passed `min_sim` but failed the coverage gate.
 
 ```{r bin-similarity, fig.width = 6.5, fig.height = 5.5}
-edge_share <- vapply(b$clusters, function(m) {
+edge_share <- vapply(bins$clusters, function(m) {
     E <- S[m, m]
     mean(E[upper.tri(E)] > 0)
 }, numeric(1))
-sizes <- lengths(b$clusters)
+sizes <- lengths(bins$clusters)
 shown <- names(which.min(edge_share[sizes >= 5 & sizes <= 15]))
-plot_bin_similarity(b, shown, S, x)
+plot_bin_similarity(bins, shown, S, proteins)
 ```
 
 The bin shown is the one between 5 and 15 members with the smallest share of

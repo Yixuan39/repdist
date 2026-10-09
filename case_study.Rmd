@@ -1,6 +1,6 @@
 ---
 title: "Case study"
-subtitle: "Mouse gut metaproteome: 20% yeast vs 20% casein protein"
+subtitle: "Mouse gut metaproteomes across a dietary-protein series"
 bibliography: references.bib
 link-citations: true
 ---
@@ -36,30 +36,28 @@ unbinned genes were added only if no binned gene matched them at 90% identity
 identity. Every reported protein also has at least one protein-unique
 peptide. Near-identical proteins are therefore rare in the table (see
 [sequence identity of graph edges](#edge-identity)): the relatedness that MMD
-and the bins add beyond protein identity is mostly remote homology. This is
-consistent with the modest difference between MMD and protein-level
-Bray-Curtis below.
+and the bins add beyond protein identity is mostly remote homology.
 
-This page compares two diets of the same protein amount: **20% yeast protein
+**Beta diversity** compares the six dietary protein sources (soy, casein,
+rice, yeast, pea and egg) across the series. **The bins and differential
+abundance** compare two diets of the same protein amount, **20% yeast protein
 (Yeast) against 20% casein (Casein)**, casein being the reference protein of
-the series. Only mice sampled on both diets are used (11 pairs), and diet is
-tested within mouse. The yeast diet came three weeks after the casein diet,
-so diet is confounded with feeding period in this serial design.
+the series, in the 11 mice sampled on both. Diets were fed in a fixed order,
+one week each, so protein source is partly confounded with feeding week.
 
 ```{r data}
-d <- readRDS(file.path("curated", "diet_yeast.rds"))
-x <- d$proteins # sequences with TM-Vec embeddings
+d <- readRDS(file.path("curated", "diet_series.rds"))
+proteins <- d$proteins # sequences with TM-Vec embeddings
 counts <- d$counts # raw PSM counts, samples x proteins
 samples <- d$samples
 ann <- d$annotation
-d$provenance$contrast
-table(samples$diet, samples$sex)
+table(samples$diet)
 ```
 
-The curated object was built by `data-raw/diet_yeast.R` from the paper's
+The curated object was built by `data-raw/diet_series.R` from the paper's
 supplementary Data Set 1 (PSM counts and sequences) and Data Set 6
-(annotation): every microbial protein with at least one PSM in these 22
-samples, its species group and GTDB lineage, the study's curated function,
+(annotation): every microbial protein with at least one PSM in any sample,
+its species group and GTDB lineage, the study's curated function,
 KEGG orthology (KO) assignments and CAZy families, and a TM-Vec embedding
 computed with `embed_proteins()`.
 
@@ -77,74 +75,118 @@ extrapolations.
 c(samples = nrow(counts), proteins = ncol(counts))
 ```
 
-# Beta diversity
+# Beta diversity across protein sources
 
-Sequencing depth differs by diet (yeast samples have about twice the PSMs of
-casein samples), and depth changes which proteins are observed. Both
-distances are therefore computed on counts rarefied to the smallest sample.
+The samples are named by diet token (percentage and protein source). The
+`T0` baseline on standard chow is left out. The 40% soy and 40% casein weeks
+count under their protein source, and so does the `CTL` re-feeding at the end
+of the series: 20% soy in cages C1 and C2, 20% casein in C3 and C4.
 
-```{r rarefy}
-tapply(rowSums(counts), samples$diet, range)
-set.seed(1)
-rarefied <- rrarefy(counts, min(rowSums(counts)))
-D <- list(
-    `Bray-Curtis (protein)` = vegdist(rarefied, "bray"),
-    MMD = sample_mmd(rarefied, x)
-)
-attr(D$MMD, "sigma")
+```{r sources}
+token <- as.character(samples$diet)
+protein_source <- unname(c(SOY = "Soy", CAS = "Casein", RIC = "Rice",
+    YST = "Yeast", PEA = "Pea", EGG = "Egg")[sub("^[0-9]+", "", token)])
+ctl <- token == "CTL"
+protein_source[ctl] <- ifelse(samples$cage[ctl] %in% c("C1", "C2"), "Soy",
+    "Casein")
+md <- data.frame(diet = protein_source,
+    dose = ifelse(startsWith(token, "40"), "40", "20"),
+    sex = samples$sex, subject = samples$subject,
+    # the stopped chicken-bone week elapsed before CTL
+    week = ifelse(ctl, 10L, samples$period),
+    row.names = samples$sample)[token != "T0", ]
+md$diet <- factor(md$diet)
+md$dose <- factor(md$dose)
+md <- droplevels(md)
+table(md$diet, md$dose)
 ```
 
-PERMANOVA [@anderson2001permanova] and PERMDISP [@anderson2006permdisp] use
-999 permutations restricted to within mouse.
+Sequencing depth differs between samples, and depth changes which proteins
+are observed. Both distances are therefore computed on counts rarefied to the
+smallest sample.
+
+```{r rarefy}
+range(rowSums(counts[rownames(md), ]))
+set.seed(1)
+rarefied <- rrarefy(counts[rownames(md), ], min(rowSums(counts[rownames(md), ])))
+rarefied <- rarefied[, colSums(rarefied) > 0]
+D <- list(
+    `Bray-Curtis (protein)` = vegdist(rarefied, "bray"),
+    MMD = sample_mmd(rarefied, proteins)
+)
+```
+
+PERMANOVA [@anderson2001permanova] tests protein source after protein amount,
+sex and week, and PERMDISP [@anderson2006permdisp] tests for unequal spread
+between sources; both use 999 permutations restricted to within mouse.
 
 ```{r permanova}
-perm <- permute::how(blocks = samples$subject, nperm = 999)
+perm <- permute::how(blocks = md$subject, nperm = 999)
 tests <- t(vapply(D, function(Dk) {
     set.seed(1)
-    a <- adonis2(Dk ~ diet, data = samples, permutations = perm)
-    bd <- betadisper(Dk, samples$diet)
+    a <- adonis2(Dk ~ dose + sex + week + diet, data = md, by = "terms",
+        permutations = perm)
     set.seed(1)
-    pd <- permutest(bd, permutations = perm)
-    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(>F)`[1],
-        dispersion_Casein = mean(bd$distances[samples$diet == "Casein"]),
-        dispersion_Yeast = mean(bd$distances[samples$diet == "Yeast"]),
-        PERMDISP_p = pd$tab[1, "Pr(>F)"])
-}, numeric(6)))
+    pd <- permutest(betadisper(Dk, md$diet), permutations = perm)
+    c(`PERMANOVA R2` = a["diet", "R2"], `PERMANOVA p` = a["diet", "Pr(>F)"],
+        `PERMDISP p` = pd$tab[1, "Pr(>F)"])
+}, numeric(3)))
 knitr::kable(tests, digits = 3)
 ```
 
-```{r pcoa, fig.width = 8, fig.height = 3.8, fig.alt = "PCoA under protein-level Bray-Curtis and MMD; lines join the two samples of each mouse"}
+Ellipses are 95% ellipses per protein source (multivariate t).
+
+```{r pcoa, fig.width = 9, fig.height = 4.2, fig.alt = "PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by sex, with 95% ellipses"}
 ord <- do.call(rbind, lapply(names(D), function(n) {
     e <- cmdscale(D[[n]], k = 2, eig = TRUE)
     rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
     data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
-        diet = samples$diet, subject = samples$subject,
+        diet = md$diet, sex = md$sex,
         panel = sprintf("%s\nPCo1 %.0f%%, PCo2 %.0f%%", n, rel[1], rel[2]))
 }))
 ord$panel <- factor(ord$panel, unique(ord$panel))
-ggplot(ord, aes(PCo1, PCo2)) +
-    geom_line(aes(group = subject), colour = "grey75") +
-    geom_point(aes(colour = diet), size = 2) +
+ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = sex)) +
+    geom_point(size = 1.8) +
+    stat_ellipse(aes(group = diet), linewidth = 0.4) +
     facet_wrap(~panel, scales = "free") +
-    labs(colour = NULL) +
-    theme_bw() +
-    theme(legend.position = "bottom")
+    labs(colour = NULL, shape = NULL) +
+    theme_bw()
 ```
 
-Each grey line joins the casein and yeast samples of one mouse.
+Both distances detect protein source. MMD attributes more of the variation
+to it than protein-level Bray-Curtis does (R²
+`r sprintf("%.3f", tests["MMD", "PERMANOVA R2"])` against
+`r sprintf("%.3f", tests["Bray-Curtis (protein)", "PERMANOVA R2"])`), and
+only Bray-Curtis also shows unequal spread between sources (PERMDISP p
+`r sprintf("%.3f", tests["Bray-Curtis (protein)", "PERMDISP p"])` against
+`r sprintf("%.3f", tests["MMD", "PERMDISP p"])`), so the MMD separation is
+mainly a shift in location. In the ordinations, the first Bray-Curtis axis
+separates the female from the male cages (sex is fixed by cage) and the yeast
+and egg samples separate on the second; under MMD the first axis separates
+the yeast and egg samples from the other sources and sex moves to the
+second.
 
-Both distances separate the diets with similar effect sizes, and for both
-PERMDISP also detects unequal spread, in opposite directions: casein
-samples are more dispersed under Bray-Curtis, yeast samples under MMD.
-PERMANOVA with equal group sizes is fairly robust to unequal dispersion, and
-the paired samples are displaced along the first axis in both ordinations,
-so the separation is mainly a shift in location, with a difference in spread
-on top. Under Bray-Curtis the second axis separates the two mouse groups,
-which came from different vendor rooms.
+# The Yeast–Casein contrast
+
+From here on the page uses the 11 mice sampled on both 20% casein and 20%
+yeast, and the proteins seen in those 22 samples.
+
+```{r contrast}
+yc <- samples$diet %in% c("20CAS", "20YST")
+yc <- yc & samples$subject %in% names(which(table(samples$subject[yc]) == 2))
+samples <- droplevels(samples[yc, ])
+samples$diet <- factor(ifelse(samples$diet == "20YST", "Yeast", "Casein"),
+    c("Casein", "Yeast"))
+counts <- counts[yc, ]
+counts <- counts[, colSums(counts) > 0]
+proteins <- proteins[colnames(counts)]
+ann <- ann[colnames(counts), ]
+c(samples = nrow(counts), proteins = ncol(counts))
+```
 
 # Representation space
 
-`plot_tsne()` maps all proteins by cosine distance (one minus the predicted
+`plot_tsne()` maps the contrast's proteins by cosine distance (one minus the predicted
 TM-score), coloured by the study's manually curated broad function; proteins
 without one are grey. The map shows neighbourhoods in representation space;
 it is not evidence of function, and t-SNE does not preserve distances between
@@ -152,7 +194,7 @@ groups.
 
 ```{r tsne-function, fig.width = 7.5, fig.height = 4.6, fig.alt = "t-SNE of protein embeddings coloured by broad function"}
 set.seed(1)
-plot_tsne(x, color = setNames(ann$broad_function, ann$protein))
+plot_tsne(proteins, color = setNames(ann$broad_function, ann$protein))
 ```
 
 The study assigned a KO to
@@ -162,7 +204,7 @@ protein's nearest-neighbour predicted TM-score, by KO status:
 
 ```{r nearest-neighbour}
 ko_status <- ifelse(is.na(ann$ko), "no KO", "KO assigned")
-Z <- S4Vectors::mcols(x)$embedding
+Z <- S4Vectors::mcols(proteins)$embedding
 Z <- Z / sqrt(rowSums(Z^2))
 sim <- tcrossprod(Z)
 diag(sim) <- NA
@@ -178,20 +220,20 @@ predicted TM-score of at least 0.7 and a local alignment covering at least
 half of both sequences; MCL inflation is 2.
 
 ```{r bins}
-S <- protein_similarity(x, n_cores = BiocParallel::multicoreWorkers())
-b <- bin_proteins(S)
-b$graph
-sizes <- lengths(b$clusters)
-c(proteins = length(x), bins = length(sizes),
+S <- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
+bins <- bin_proteins(S)
+bins$graph
+sizes <- lengths(bins$clusters)
+c(proteins = length(proteins), bins = length(sizes),
     singleton_bins = sum(sizes == 1),
-    singleton_fraction = round(sum(sizes == 1) / length(x), 3))
+    singleton_fraction = round(sum(sizes == 1) / length(proteins), 3))
 table(cut(sizes, c(0, 1, 2, 5, 10, 50, Inf),
     labels = c("1", "2", "3-5", "6-10", "11-50", ">50")))
 ```
 
-The `r b$graph[["proteins"]]` proteins form `r b$graph[["components"]]`
+The `r bins$graph[["proteins"]]` proteins form `r bins$graph[["components"]]`
 connected components, the largest with
-`r b$graph[["largest_component"]]` proteins; MCL splits the components into
+`r bins$graph[["largest_component"]]` proteins; MCL splits the components into
 `r length(sizes)` bins, `r sum(sizes == 1)` of them singletons.
 
 ## Sequence identity of graph edges {#edge-identity}
@@ -203,7 +245,7 @@ A random sample of 5,000 graph edges, aligned as in `protein_similarity()`
 set.seed(1)
 ij <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
 ij <- ij[sample(nrow(ij), 5000), ]
-seqs <- x
+seqs <- proteins
 S4Vectors::mcols(seqs) <- NULL
 aln <- pwalign::pairwiseAlignment(seqs[ij[, 1]], seqs[ij[, 2]],
     substitutionMatrix = "BLOSUM62", type = "local",
@@ -227,8 +269,8 @@ no bin is observed in every sample. Fold changes are Yeast relative to Casein,
 shrunk with the `normal` prior for display; p-values are from the Wald test.
 
 ```{r deseq}
-binned <- bin_glom(counts, b)
-dds <- DESeq2::DESeqDataSetFromMatrix(round(t(binned)), samples,
+bin_counts <- bin_glom(counts, bins)
+dds <- DESeq2::DESeqDataSetFromMatrix(round(t(bin_counts)), samples,
     design = ~ subject + diet)
 dds <- DESeq2::DESeq(dds, sfType = "poscounts", quiet = TRUE)
 res <- DESeq2::results(dds, name = "diet_Yeast_vs_Casein", alpha = 0.05)
@@ -237,17 +279,12 @@ lfc <- DESeq2::lfcShrink(dds, coef = "diet_Yeast_vs_Casein", type = "normal",
 DESeq2::summary(res)
 ```
 
-```{r volcano, fig.width = 6, fig.height = 4, fig.alt = "Volcano plot of bin-level differential abundance, Yeast vs Casein"}
-volcano <- data.frame(log2FC = lfc$log2FoldChange, p = res$pvalue,
-    significant = !is.na(res$padj) & res$padj < 0.05)
-ggplot(volcano[!is.na(volcano$p), ], aes(log2FC, -log10(p),
-    colour = significant)) +
-    geom_point(size = 1, alpha = 0.6) +
-    scale_colour_manual(values = c(`TRUE` = "firebrick", `FALSE` = "grey60"),
-        labels = c(`TRUE` = "padj < 0.05", `FALSE` = "not significant")) +
-    labs(x = "log2 fold change, Yeast vs Casein (shrunk)",
-        y = expression(-log[10](p)), colour = NULL) +
-    theme_bw()
+DESeq2's MA plot shows each bin's shrunk log2 fold change against its mean
+normalised count; bins with adjusted p < 0.05 are coloured.
+
+```{r ma-plot, fig.width = 6, fig.height = 4, fig.alt = "MA plot of bin-level differential abundance, Yeast vs Casein"}
+DESeq2::plotMA(lfc, alpha = 0.05,
+    ylab = "log2 fold change, Yeast vs Casein (shrunk)")
 ```
 
 Each bin's annotation summarises its members. A label shared by every
@@ -266,19 +303,19 @@ summarise_labels <- function(v) {
     if (length(tab) == 1L) top else
         sprintf("mixed, %d: %s", length(tab), top)
 }
-bin_table <- function(bins) {
+bin_table <- function(ids) {
     data.frame(
-        bin = bins,
-        proteins = sizes[bins],
-        taxon = vapply(b$clusters[bins],
+        bin = ids,
+        proteins = sizes[ids],
+        taxon = vapply(bins$clusters[ids],
             function(m) summarise_labels(ann[m, "taxon"]), ""),
-        `function` = vapply(b$clusters[bins],
+        `function` = vapply(bins$clusters[ids],
             function(m) summarise_labels(ann[m, "consensus_annotation"]), ""),
-        KO = vapply(b$clusters[bins],
+        KO = vapply(bins$clusters[ids],
             function(m) summarise_labels(ann[m, "ko"]), ""),
-        log2FC = round(lfc[bins, "log2FoldChange"], 2),
-        p = formatC(res[bins, "pvalue"], format = "e", digits = 1),
-        padj = formatC(res[bins, "padj"], format = "e", digits = 1),
+        log2FC = round(lfc[ids, "log2FoldChange"], 2),
+        p = formatC(res[ids, "pvalue"], format = "e", digits = 1),
+        padj = formatC(res[ids, "padj"], format = "e", digits = 1),
         check.names = FALSE, row.names = NULL
     )
 }
@@ -316,20 +353,20 @@ protein.
 # Inside a bin
 
 `plot_bin_similarity()` shows all pairwise predicted TM-scores within one
-bin. A black outline marks a pair that **is** an edge of the graph: it passed
-both thresholds (predicted TM-score ≥ 0.7, coverage ≥ 0.5) and keeps its
-similarity as the edge weight. A cell without an outline is not an edge
-(weight 0 in `S`). MCL clusters along the outlined edges. Shown are the most
+bin. An uncrossed cell is an edge of the graph: the pair passed both
+thresholds (predicted TM-score ≥ 0.7, coverage ≥ 0.5) and keeps its
+similarity as the edge weight. A crossed cell is not an edge (weight 0 in
+`S`). MCL clusters along the edges. Shown are the most
 significant bin with 4 to 30 members in each direction, with a count of
 their member pairs: edges, pairs below the similarity threshold, and pairs
 above it that failed the coverage gate.
 
 ```{r pick}
-pick <- function(bins) bins[sizes[bins] >= 4 & sizes[bins] <= 30][1]
+pick <- function(ids) ids[sizes[ids] >= 4 & sizes[ids] <= 30][1]
 shown <- c(Yeast = pick(sig[lfc[sig, "log2FoldChange"] > 0]),
     Casein = pick(sig[lfc[sig, "log2FoldChange"] < 0]))
 pair_types <- function(bin) {
-    m <- b$clusters[[bin]]
+    m <- bins$clusters[[bin]]
     R <- tcrossprod(Z[m, ])
     E <- S[m, m] > 0
     up <- upper.tri(E)
@@ -339,22 +376,22 @@ pair_types <- function(bin) {
 data.frame(bin = shown, t(vapply(shown, pair_types, numeric(4))))
 ```
 
-```{r bin-yeast, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected yeast-enriched bin; edges outlined"}
-plot_bin_similarity(b, shown[["Yeast"]], S, x)
+```{r bin-yeast, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges crossed"}
+plot_bin_similarity(bins, shown[["Yeast"]], S, proteins)
 ```
 
 ```{r members-yeast}
-m <- b$clusters[[shown[["Yeast"]]]]
+m <- bins$clusters[[shown[["Yeast"]]]]
 knitr::kable(ann[m, c("taxon", "consensus_annotation", "ko", "cazy")],
     row.names = TRUE)
 ```
 
-```{r bin-casein, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected casein-enriched bin; edges outlined"}
-plot_bin_similarity(b, shown[["Casein"]], S, x)
+```{r bin-casein, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected casein-enriched bin; pairs that are not edges crossed"}
+plot_bin_similarity(bins, shown[["Casein"]], S, proteins)
 ```
 
 ```{r members-casein}
-m <- b$clusters[[shown[["Casein"]]]]
+m <- bins$clusters[[shown[["Casein"]]]]
 knitr::kable(ann[m, c("taxon", "consensus_annotation", "ko", "cazy")],
     row.names = TRUE)
 ```
@@ -369,8 +406,9 @@ every pair.
 
 # Notes
 
-- Diet is confounded with feeding period (weeks 2 and 5) in this serial
-  design, so the differences cannot be attributed to diet alone.
+- Diet is confounded with feeding period in this serial design (Casein and
+  Yeast were periods 2 and 5), so the differences cannot be attributed to
+  diet alone.
 - Beta diversity uses rarefied counts; differential abundance uses raw
   counts with DESeq2 size factors.
 - A bin is a similarity-network cluster. Agreement among its members'

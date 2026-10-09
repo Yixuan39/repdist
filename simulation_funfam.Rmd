@@ -1,0 +1,358 @@
+---
+title: "Simulation 1: Hidden coherence across distinct proteins"
+subtitle: "A controlled positive benchmark on CATH FunFam domains"
+bibliography: references.bib
+link-citations: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4,
+    message = FALSE, warning = FALSE
+)
+```
+
+**Question.** Can repdist detect hidden shared coherence when every sample
+enriches a different protein and a different sequence cluster?
+
+- **Coherent group:** the ten samples' enriched domains all belong to one
+  FunFam, but no two samples enrich the same domain, UniProt accession or 50%
+  sequence cluster.
+- **Matched-null group:** the ten enriched domains come from ten different
+  FunFams; no shared family is imposed.
+
+At the accession level both groups look equally heterogeneous. Only the
+coherent group hides a shared family, so its samples should be closer to one
+another than the null group's: **reduced dispersion of the coherent group is
+the signal**, measured by PERMDISP's dispersion ratio. This is a positive
+control, not a symmetric biological comparison.
+[Simulation 2](simulation_ec.html) compares two functional states
+symmetrically.
+
+```{r libs}
+library(repdist)
+library(ggplot2)
+library(vegan)
+```
+
+# Count model
+
+Twenty samples, two groups of ten, follow a negative-binomial model. Every
+protein of the universe is present at baseline in every sample; sample $i$
+has expected composition
+
+$$
+p_i = (1 - \rho)\,\pi + \rho\, q_i ,
+$$
+
+where $\pi_j \propto \mathrm{LogNormal}(0, 1)$ is the common baseline and
+$q_i$ spreads its mass evenly over sample $i$'s enriched proteins. The signal
+strength $\rho$ is the expected share of abundance on the enriched proteins:
+a defined mass, not a fold change. Counts have mean
+$\mu_{ij} = s_i D p_{ij}$ with depth $D = 2 \times 10^4$ and size factor
+$s_i \sim \mathrm{LogNormal}(0, 0.25)$, and variance $\mu + \phi\mu^2$, with
+a DESeq2-like dispersion trend at each count's own mean,
+$\phi_{ij} = (0.1 + 1/\mu_{ij})\, e_j$, $e_j \sim \mathrm{LogNormal}(0, 0.5)$.
+The $k$-th enriched protein of the second group takes the baseline
+abundance of the $k$-th of the first, so the groups also match on the
+baseline of the proteins that carry the signal.
+
+The signal strength is $\rho$ = 2%, fixed before any result: in the source
+study of the [case study](case_study.html), glycoside hydrolases rose from
+under 1% to over 2.5% of the metaproteome on the yeast diet
+[@blakeleyruiz2025diet]. The same model is used in
+[Simulation 2](simulation_ec.html).
+
+```{r count-model}
+depth <- 2e4
+rho <- 0.02
+nb_counts <- function(up, ids, rho, pairs) {
+    n <- length(up)
+    pi <- setNames(rlnorm(length(ids)), ids)
+    pi[pairs[, 2]] <- pi[pairs[, 1]] # matched baseline of enriched proteins
+    pi <- pi / sum(pi)
+    s <- rlnorm(n, 0, 0.25)
+    e <- rlnorm(length(ids), 0, 0.5)
+    p <- matrix((1 - rho) * pi, n, length(ids), byrow = TRUE,
+        dimnames = list(names(up), ids))
+    for (j in seq_len(n)) {
+        p[j, up[[j]]] <- p[j, up[[j]]] + rho / length(up[[j]])
+    }
+    mu <- s * depth * p
+    phi <- (0.1 + 1 / mu) * rep(e, each = n)
+    matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), n,
+        dimnames = dimnames(p))
+}
+```
+
+# Distances and statistics
+
+- **MMD**: `sample_mmd()`, the maximum mean discrepancy between samples under
+  a Gaussian kernel on the protein embeddings (see the
+  [Reference](reference.html#sample-level-distance-mmd)).
+- **Bray-Curtis (repdist MCL bins)**: `protein_similarity()` →
+  `bin_proteins()` → `bin_glom()`, then Bray-Curtis on the bin counts. The
+  bins depend only on the universe, so they are built once, with package
+  defaults (predicted TM-score ≥ 0.7, coverage ≥ 0.5, inflation 2).
+- **Bray-Curtis (protein)**: Bray-Curtis on the protein counts.
+
+**Coherence.** `vegan::betadisper()` measures each group's dispersion, the
+mean distance of its samples to the group centroid, and PERMDISP
+(`permutest()`, 999 permutations of the sample labels) tests the difference
+[@anderson2006permdisp; @oksanen2025vegan]. The **dispersion ratio**
+(coherent / null) is below 1 when the coherent samples are closer together.
+
+**PERMANOVA** (`adonis2()`, 999 permutations) [@anderson2001permanova] tests
+for a difference in centroids. Here the coherent group is expected to be
+tighter, so a significant PERMDISP is part of the signal, not an artefact,
+and PERMANOVA reflects spread as well as location.
+
+```{r tests}
+group_tests <- function(D, group) {
+    set.seed(1)
+    a <- adonis2(D ~ group, data = data.frame(group = group),
+        permutations = 999)
+    bd <- betadisper(D, group)
+    set.seed(1)
+    c(`PERMANOVA R2` = a$R2[1], `PERMANOVA p` = a$`Pr(>F)`[1],
+        `dispersion ratio` = bd$group.distances[["coherent"]] /
+            bd$group.distances[["null"]],
+        `PERMDISP p` = permutest(bd, permutations = 999)$tab[1, "Pr(>F)"])
+}
+test_all <- function(D, group) {
+    t(vapply(D, group_tests, numeric(4), group = group))
+}
+```
+
+```{r pcoa-helper, echo = FALSE}
+pcoa_plot <- function(D, group) {
+    ord <- do.call(rbind, lapply(names(D), function(n) {
+        e <- cmdscale(D[[n]], k = 2, eig = TRUE)
+        rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
+        data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2], group = group,
+            panel = sprintf("%s\nPCo1 %.0f%%, PCo2 %.0f%%", n, rel[1], rel[2]))
+    }))
+    ord$panel <- factor(ord$panel, unique(ord$panel))
+    ggplot(ord, aes(PCo1, PCo2, colour = group)) +
+        geom_point(size = 2) +
+        stat_ellipse(linewidth = 0.4) +
+        facet_wrap(~panel, scales = "free", nrow = 1) +
+        labs(colour = NULL) +
+        theme_bw() +
+        theme(legend.position = "bottom")
+}
+```
+
+# Domain universe
+
+```{r ff-universe}
+ff <- readRDS(file.path("curated", "simulation_funfam.rds"))
+funfam_proteins <- ff$proteins
+ann <- ff$annotation
+# every domain has its own 50% cluster and its own UniProt accession
+stopifnot(identical(ann$domain, names(funfam_proteins)),
+    !anyDuplicated(ann$mmseqs50), !anyDuplicated(ann$accession))
+c(FunFams = nrow(ff$families), domains = length(funfam_proteins))
+ff$provenance$steps
+```
+
+FunFams are the functional sub-classification of CATH superfamilies
+[@das2015funfam]: functionally coherent subfamilies of domain sequences
+within one structural superfamily [@sillitoe2021cath]. They are domain-level
+families, so the universe holds domain sequences, not full-length proteins.
+`data-raw/simulation_funfam.R` takes, in each of the
+`r ff$provenance$rules$n_superfamilies` CATH v4.3 superfamilies with the most
+S35 representatives, the largest FunFam whose seed alignment has DOPS ≥ 70.
+Its Bacteria and Archaea members of 50 to 1000 residues, with standard
+residues only, are clustered with MMseqs2 at 50% identity and 80% coverage of
+both sequences, and one domain is kept per cluster (clusters spanning two
+FunFams are dropped), then one per UniProt accession, at most
+`r ff$provenance$rules$max_members` per FunFam (the largest has
+`r max(table(ann$family))`). In this universe FunFam members are also close
+in sequence: the `r ff$provenance$steps[["unique_sequences"]]` unique
+prokaryotic domain sequences fall into
+`r ff$provenance$steps[["one_per_50pct_cluster"]]` clusters at 50% identity,
+so only broad FunFams can supply ten sequence-disjoint domains. Every domain was embedded with
+`embed_proteins(model = "tmvec")`. One FunFam per superfamily keeps
+different FunFams structurally distinct.
+
+FunFam is a deliberately structure- and function-aligned positive control:
+its members share fold and function by construction. It is not evidence that
+every functional class is structurally compact; Simulation 2 uses enzyme
+classes, which often span several folds.
+
+A FunFam is a target if it has at least ten domains, so its ten enriched
+domains come from ten different 50% clusters and ten different proteins.
+Eligibility uses only FunFam membership and the clusters, never the
+embeddings or any result; every FunFam stays in the universe as background.
+
+```{r ff-targets}
+n_per_group <- 10L
+targets <- sort(names(which(table(ann$family) >= n_per_group)))
+length(targets)
+```
+
+# Design
+
+For target $t$ (seed $t$): the coherent group's ten samples each enrich one
+domain of the target FunFam, drawn without replacement. Each null sample
+enriches one domain from a different non-target FunFam, so the ten null
+domains come from ten FunFams of ten other superfamilies; each is the domain
+closest in length to one coherent domain (ties at random), and takes that
+domain's baseline abundance. Both groups use the same $\rho$, depth, size
+factors and dispersion model.
+
+```{r ff-design}
+draw_ff <- function(i) {
+    set.seed(i)
+    coherent <- ann$domain[ann$family == targets[i]]
+    coherent <- coherent[sample.int(length(coherent), n_per_group)]
+    pool <- ann[ann$family != targets[i], ]
+    null <- character(n_per_group)
+    for (j in sample.int(n_per_group)) {
+        gap <- abs(pool$length - ann$length[match(coherent[j], ann$domain)])
+        best <- which(gap == min(gap))
+        best <- best[sample.int(length(best), 1L)]
+        null[j] <- pool$domain[best]
+        pool <- pool[pool$family != pool$family[best], ]
+    }
+    up <- as.list(c(null, coherent))
+    names(up) <- sprintf("s%02d", seq_along(up))
+    list(up = up, pairs = cbind(coherent, null),
+        group = factor(rep(c("null", "coherent"), each = n_per_group),
+            c("null", "coherent")))
+}
+simulate_ff <- function(i) {
+    d <- draw_ff(i) # sets the seed; the counts continue the same stream
+    d$counts <- nb_counts(d$up, ann$domain, rho, d$pairs)
+    d
+}
+```
+
+```{r ff-bins}
+S <- protein_similarity(funfam_proteins,
+    n_cores = BiocParallel::multicoreWorkers())
+bins <- bin_proteins(S)
+distances_ff <- function(counts) {
+    list(
+        MMD = sample_mmd(counts, funfam_proteins),
+        `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
+            "bray"),
+        `Bray-Curtis (protein)` = vegdist(counts, "bray")
+    )
+}
+```
+
+# Representative FunFam
+
+The representative target is drawn with a fixed seed before any simulation
+is run.
+
+```{r ff-example}
+set.seed(20261008)
+ex <- sample(length(targets), 1)
+sim <- simulate_ff(ex)
+ff$families[ff$families$family == targets[ex], c("family", "name")]
+# no accession or 50% cluster repeats; lengths are matched
+stopifnot(!anyDuplicated(unlist(sim$up)),
+    !anyDuplicated(ann$mmseqs50[match(unlist(sim$up), ann$domain)]))
+sapply(list(coherent = sim$pairs[, 1], null = sim$pairs[, 2]),
+    function(d) summary(ann$length[match(d, ann$domain)]))
+D <- distances_ff(sim$counts)
+knitr::kable(test_all(D, sim$group), digits = 3)
+```
+
+Ellipses are 95% ellipses per group (multivariate t).
+
+```{r ff-pcoa, echo = FALSE, fig.width = 10, fig.height = 3.8, fig.alt = "PCoA of the representative target under three distances, coloured by group, with 95% ellipses"}
+pcoa_plot(D, sim$group)
+pc1_group <- vapply(D, function(Dk) {
+    abs(cor(cmdscale(Dk, k = 1), as.numeric(sim$group == "coherent")))
+}, numeric(1))
+```
+
+The share of variance on the first axis says how concentrated the variation
+is, not how well the groups separate. Under Bray-Curtis on MCL bins the first
+axis follows a few samples whose enriched domain fell in a small bin, and
+correlates `r sprintf("%.2f", pc1_group[["Bray-Curtis (repdist MCL bins)"]])`
+with the grouping; under MMD it correlates
+`r sprintf("%.2f", pc1_group[["MMD"]])`.
+
+# Across all eligible FunFams
+
+The representative is one of `r length(targets)` eligible targets. Repeating
+the simulation with each target FunFam in turn (seed = target index) shows
+whether the result holds beyond one family. Per distance, the number of
+targets whose coherent group is tighter (dispersion ratio < 1), the median
+ratio, and the number significant by PERMDISP and by PERMANOVA:
+
+```{r ff-all}
+bench <- do.call(rbind, lapply(seq_along(targets), function(i) {
+    s <- simulate_ff(i)
+    r <- test_all(distances_ff(s$counts), s$group)
+    data.frame(method = factor(rownames(r), names(D)), r, row.names = NULL,
+        check.names = FALSE)
+}))
+summ <- do.call(rbind, lapply(split(bench, bench$method), function(d) {
+    data.frame(method = d$method[1],
+        `coherent tighter` = sum(d$`dispersion ratio` < 1),
+        `median dispersion ratio` = median(d$`dispersion ratio`),
+        `PERMDISP p ≤ 0.05` = sum(d$`PERMDISP p` <= 0.05),
+        `PERMANOVA p ≤ 0.05` = sum(d$`PERMANOVA p` <= 0.05),
+        check.names = FALSE)
+}))
+knitr::kable(summ, digits = 3, row.names = FALSE)
+```
+
+```{r ff-bins-per-target, include = FALSE}
+bins_per_target <- vapply(targets, function(t) {
+    length(unique(bins$membership[ann$domain[ann$family == t]]))
+}, integer(1))
+```
+
+MCL places `r sum(bins_per_target == 1)` of the `r length(targets)` target
+FunFams in a single bin (of `r length(bins$clusters)`).
+
+# Summary
+
+```{r summary-values, include = FALSE}
+s <- function(m, col) summ[summ$method == m, col]
+mcl <- "Bray-Curtis (repdist MCL bins)"
+prot <- "Bray-Curtis (protein)"
+f3 <- function(v) sprintf("%.3f", v)
+```
+
+- **Coherence.** Under MMD the coherent group was tighter for
+  `r s("MMD", "coherent tighter")` of `r length(targets)` target FunFams
+  (median dispersion ratio `r f3(s("MMD", "median dispersion ratio"))`),
+  significantly by PERMDISP for `r s("MMD", "PERMDISP p ≤ 0.05")`. Under
+  Bray-Curtis on MCL bins it was tighter for `r s(mcl, "coherent tighter")`
+  (median `r f3(s(mcl, "median dispersion ratio"))`,
+  `r s(mcl, "PERMDISP p ≤ 0.05")` significant), and under protein-level
+  Bray-Curtis for `r s(prot, "coherent tighter")` (median
+  `r f3(s(prot, "median dispersion ratio"))`,
+  `r s(prot, "PERMDISP p ≤ 0.05")` significant): with no shared accession,
+  protein identity sees no coherence.
+- **PERMANOVA** detected `r s("MMD", "PERMANOVA p ≤ 0.05")` targets under
+  MMD, `r s(mcl, "PERMANOVA p ≤ 0.05")` under MCL bins and
+  `r s(prot, "PERMANOVA p ≤ 0.05")` under proteins. Under MMD it detects
+  more targets than PERMDISP because it pools the shift in location with the
+  difference in spread.
+- **MCL bins.** MCL holds `r sum(bins_per_target == 1)` of
+  `r length(targets)` target FunFams in one bin: it captures each family as a
+  discrete group. Bray-Curtis on those bins is nevertheless insensitive to a
+  2% perturbation, because the shift in one of `r length(bins$clusters)` bins
+  is small against the sampling noise summed over all of them. MMD is more
+  sensitive for sample-level comparison because it uses the graded
+  similarity between the enriched domains directly.
+
+FunFam is a favourable case, chosen as a positive control.
+[Simulation 2](simulation_ec.html) asks the harder question, a symmetric
+contrast between enzyme classes that span many sequence families and often
+several folds.
+
+```{r session}
+sessionInfo()
+```
+
+# References {-}

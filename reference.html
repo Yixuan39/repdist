@@ -342,41 +342,32 @@ div.tocify {
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-        <li class="dropdown">
+        <li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li>
+  <a href="reference.html">Reference</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Reference
+    Simulations
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="reference.html">Overview</a>
+      <a href="simulation_funfam.html">Hidden coherence</a>
     </li>
     <li>
-      <a href="reference.html#protein-representations">Protein representations</a>
+      <a href="simulation_ec.html">Sequence-disjoint functions</a>
     </li>
     <li>
-      <a href="reference.html#sample-level-distance-mmd">Sample-level distance: MMD</a>
-    </li>
-    <li>
-      <a href="reference.html#protein-similarity-graph-and-mcl-clustering">Protein similarity graph and MCL clustering</a>
-    </li>
-    <li>
-      <a href="reference.html#qc-and-visualization">QC and visualization</a>
+      <a href="parameters.html">MCL parameters</a>
     </li>
   </ul>
-</li>
-<li>
-  <a href="simulation.html">Simulation</a>
-</li>
-<li>
-  <a href="parameters.html">MCL parameters</a>
-</li>
-<li>
-  <a href="case_study.html">Case study</a>
-</li>
-<li>
-  <a href="index.html#installation">Install</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -404,6 +395,48 @@ div.tocify {
 in the order of a typical analysis. Full argument lists are in the
 package help (<code>?sample_mmd</code>,
 <code>?protein_similarity</code>, …).</p>
+<p><code>embed_proteins()</code> returns an <code>AAStringSet</code>
+containing the protein sequences and one learned representation per
+protein. In the examples below this object is called
+<code>proteins</code> (in the help pages it is the argument
+<code>x</code>); the embedding matrix is
+<code>S4Vectors::mcols(proteins)$embedding</code>, and <span
+class="math inline">\(z_i\)</span> is its row for protein <span
+class="math inline">\(i\)</span>.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>proteins</code></td>
+<td>sequences and their representations (<code>AAStringSet</code>)</td>
+</tr>
+<tr class="even">
+<td><code>counts</code></td>
+<td>samples × proteins counts</td>
+</tr>
+<tr class="odd">
+<td><code>D</code></td>
+<td>distance between samples (<code>dist</code>)</td>
+</tr>
+<tr class="even">
+<td><code>S</code></td>
+<td>protein × protein similarity graph (matrix)</td>
+</tr>
+<tr class="odd">
+<td><code>bins</code></td>
+<td>MCL result of <code>bin_proteins()</code></td>
+</tr>
+<tr class="even">
+<td><code>bin_counts</code></td>
+<td>samples × bins counts</td>
+</tr>
+</tbody>
+</table>
 <table>
 <colgroup>
 <col width="25%" />
@@ -424,36 +457,36 @@ package help (<code>?sample_mmd</code>,
 <td>Representations</td>
 <td><code>embed_proteins()</code>, <code>read_embeddings()</code></td>
 <td>sequences, or a TM-Vec database</td>
-<td><code>AAStringSet</code> with <code>mcols(x)$embedding</code></td>
+<td><code>proteins</code></td>
 </tr>
 <tr class="even">
 <td>Sample distance</td>
 <td><code>sample_mmd()</code></td>
-<td>counts (samples × proteins), <code>x</code></td>
-<td><code>dist</code> between samples</td>
+<td><code>counts</code>, <code>proteins</code></td>
+<td><code>D</code></td>
 </tr>
 <tr class="odd">
 <td>Similarity graph</td>
 <td><code>protein_similarity()</code></td>
-<td><code>x</code></td>
-<td>protein × protein similarity matrix</td>
+<td><code>proteins</code></td>
+<td><code>S</code></td>
 </tr>
 <tr class="even">
 <td>Protein bins</td>
 <td><code>bin_proteins()</code></td>
-<td>similarity matrix</td>
-<td>MCL bins</td>
+<td><code>S</code></td>
+<td><code>bins</code></td>
 </tr>
 <tr class="odd">
 <td>Aggregation</td>
 <td><code>bin_glom()</code></td>
-<td>counts, bins</td>
-<td>counts (samples × bins)</td>
+<td><code>counts</code>, <code>bins</code></td>
+<td><code>bin_counts</code></td>
 </tr>
 <tr class="even">
 <td>QC</td>
 <td><code>plot_tsne()</code>, <code>plot_bin_similarity()</code></td>
-<td><code>x</code>, bins</td>
+<td><code>proteins</code>, <code>bins</code>, <code>S</code></td>
 <td>ggplot objects</td>
 </tr>
 </tbody>
@@ -461,13 +494,13 @@ package help (<code>?sample_mmd</code>,
 <pre class="r"><code>library(repdist)
 library(ggplot2)</code></pre>
 <p>The executable examples use the three largest enzyme classes (EC3) of
-the <a href="simulation.html">simulation</a> universe: experimentally
-characterised Swiss-Prot enzymes whose embeddings were computed with
-<code>embed_proteins()</code>.</p>
+the <a href="simulation_ec.html">Simulation 2</a> universe:
+experimentally characterised Swiss-Prot enzymes whose embeddings were
+computed with <code>embed_proteins()</code>.</p>
 <pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
 classes &lt;- names(sort(table(u$annotation$ec3), decreasing = TRUE))[1:3]
 keep &lt;- u$annotation$ec3 %in% classes
-x &lt;- u$proteins[keep]
+proteins &lt;- u$proteins[keep]
 ec3 &lt;- setNames(u$annotation$ec3[keep], u$annotation$protein[keep])
 table(ec3)
 #&gt; ec3
@@ -477,9 +510,9 @@ table(ec3)
 <h1>Protein representations</h1>
 <p>Every other function takes the same object: an
 <code>AAStringSet</code> of protein sequences, named by accession, with
-one embedding row per protein in <code>mcols(x)$embedding</code>. Rows
-are unit-normalised.</p>
-<pre class="r"><code>x
+one embedding row per protein in <code>mcols(proteins)$embedding</code>.
+Rows are unit-normalised.</p>
+<pre class="r"><code>proteins
 #&gt; AAStringSet object of length 667:
 #&gt;       width seq                                             names               
 #&gt;   [1]   270 MDNIREGVRQKYAFAIANRGQG...DGEIKEFQGAMVSCFIRAAKPA A0A0D3MJQ5
@@ -493,7 +526,7 @@ are unit-normalised.</p>
 #&gt; [665]   305 MPINIPDDLPAASILESEKIFV...SNWLNYYVYQQTPYDLLKIGRS R9T6W8
 #&gt; [666]   346 MHESVQNYYGKVLQNSSDLKTS...EGCGGGLPYDRQAAVTAATSCC U2ZU49
 #&gt; [667]   161 MNDTKNEVKIIAYEPQYKEAFK...HTPIGKAEYDRADVRMELIFNK W0SLW8
-dim(S4Vectors::mcols(x)$embedding)
+dim(S4Vectors::mcols(proteins)$embedding)
 #&gt; [1] 667 512</code></pre>
 <p>There are two ways to get it.</p>
 <p><strong><code>embed_proteins()</code>: sequences to embeddings inside
@@ -505,8 +538,8 @@ that <code>repdist</code> builds and pins itself through
 Weights are downloaded on first use and pinned to fixed revisions
 (HuggingFace commits, or a SHA-256-checked file). Every sequence is
 embedded whole; nothing is truncated or dropped.</p>
-<pre class="r"><code>x &lt;- embed_proteins(&quot;proteins.fasta&quot;) # model = &quot;tmvec&quot;
-x &lt;- embed_proteins(seqs, model = &quot;esm2-650m&quot;, device = &quot;cpu&quot;)</code></pre>
+<pre class="r"><code>proteins &lt;- embed_proteins(&quot;proteins.fasta&quot;) # model = &quot;tmvec&quot;
+proteins &lt;- embed_proteins(seqs, model = &quot;esm2-650m&quot;, device = &quot;cpu&quot;)</code></pre>
 <p><strong><code>read_embeddings()</code>: embeddings computed
 elsewhere.</strong> TM-Vec users can embed outside R with the
 <code>tmvec</code> command-line tool (<a
@@ -516,7 +549,7 @@ class="uri">https://github.com/valentynbez/tmvec</a>) and import its
 was built from. An HDF5 file with one group per protein (datasets
 <code>seq</code> and <code>emb</code>) is also read; per-residue
 embeddings are averaged.</p>
-<pre class="r"><code>x &lt;- read_embeddings(&quot;db/proteins.npz&quot;, seqs = &quot;proteins.fasta&quot;)</code></pre>
+<pre class="r"><code>proteins &lt;- read_embeddings(&quot;db/proteins.npz&quot;, seqs = &quot;proteins.fasta&quot;)</code></pre>
 <p><strong><code>known_models()</code></strong> lists the registered
 models. The default, <code>tmvec</code>, is a TM-Vec head <span
 class="citation">(<a href="#ref-hamamsy2024tmvec">Hamamsy et al.
@@ -578,7 +611,7 @@ training data. It is recorded for reference and not enforced.</p>
 </div>
 <div id="sample-level-distance-mmd" class="section level1">
 <h1>Sample-level distance: MMD</h1>
-<p><code>sample_mmd(counts, x)</code> treats sample <span
+<p><code>sample_mmd(counts, proteins)</code> treats sample <span
 class="math inline">\(P\)</span> as a weighted set of protein embeddings
 <span class="math inline">\(\{(z_i, p_i)\}\)</span>, where <span
 class="math inline">\(p_i = c_i / \sum_j c_j\)</span> is protein <span
@@ -620,13 +653,13 @@ be used.</p>
 accession but draw on the same enzyme class, while <code>s3</code> draws
 on another class:</p>
 <pre class="r"><code>pick &lt;- function(class, i) names(ec3)[ec3 == class][i]
-counts &lt;- matrix(0, 3, length(x),
-    dimnames = list(c(&quot;s1&quot;, &quot;s2&quot;, &quot;s3&quot;), names(x)))
+counts &lt;- matrix(0, 3, length(proteins),
+    dimnames = list(c(&quot;s1&quot;, &quot;s2&quot;, &quot;s3&quot;), names(proteins)))
 counts[&quot;s1&quot;, pick(classes[1], 1:10)] &lt;- 10
 counts[&quot;s2&quot;, pick(classes[1], 11:20)] &lt;- 10
 counts[&quot;s3&quot;, pick(classes[2], 1:10)] &lt;- 10
 
-D &lt;- sample_mmd(counts, x)
+D &lt;- sample_mmd(counts, proteins)
 D
 #&gt;           s1        s2
 #&gt; s2 0.2818163          
@@ -646,15 +679,14 @@ class="math inline">\(1/e\)</span> point at predicted TM-score <span
 class="math inline">\(t\)</span>.</p>
 <pre class="r"><code>attr(D, &quot;sigma&quot;)
 #&gt; [1] 1.058571
-D2 &lt;- sample_mmd(counts[1:2, ], x, sigma = attr(D, &quot;sigma&quot;))</code></pre>
+D2 &lt;- sample_mmd(counts[1:2, ], proteins, sigma = attr(D, &quot;sigma&quot;))</code></pre>
 <p><code>weighted = FALSE</code> gives every detected protein equal
 weight (a presence/absence version). <code>sample_mmd()</code> holds the
 protein × protein kernel in memory, so memory grows with the square of
 the number of proteins.</p>
 </div>
-<div id="protein-similarity-graph-and-mcl-clustering"
-class="section level1">
-<h1>Protein similarity graph and MCL clustering</h1>
+<div id="protein-similarity-graph" class="section level1">
+<h1>Protein similarity graph</h1>
 <pre><code>protein embeddings
         │  cosine similarity
 pairwise similarity s_ij
@@ -664,7 +696,7 @@ weighted sparse graph W
 protein bins ── bin_glom() ──► samples × bins counts</code></pre>
 <div id="protein-similarity" class="section level2">
 <h2><code>protein_similarity()</code></h2>
-<p><code>protein_similarity(x, min_sim = 0.7, min_coverage = 0.5)</code>
+<p><code>protein_similarity(proteins, min_sim = 0.7, min_coverage = 0.5)</code>
 returns the weighted adjacency matrix</p>
 <p><span class="math display">\[
 W_{ij} =
@@ -696,11 +728,14 @@ the alignments; <code>n_cores</code> runs them in parallel.</p>
 <p>The result is an ordinary symmetric matrix (1 on the diagonal, 0 for
 every non-edge), so it can be clustered by other graph algorithms as
 well; <code>bin_proteins()</code> is one choice, not a requirement.</p>
-<pre class="r"><code>S &lt;- protein_similarity(x)
+<pre class="r"><code>S &lt;- protein_similarity(proteins)
 c(proteins = nrow(S), edges = sum(S[upper.tri(S)] &gt; 0))
 #&gt; proteins    edges 
 #&gt;      667     3058</code></pre>
 </div>
+</div>
+<div id="mcl-clustering-and-aggregation" class="section level1">
+<h1>MCL clustering and aggregation</h1>
 <div id="bin-proteins" class="section level2">
 <h2><code>bin_proteins()</code></h2>
 <p><code>bin_proteins(S, inflation = 2)</code> partitions the graph by
@@ -717,13 +752,13 @@ OrthoMCL <span class="citation">(<a href="#ref-li2003orthomcl">Li et al.
 separately, each protein’s self-loop takes the weight of its heaviest
 edge (as in the <code>mcl</code> program), and proteins without edges
 become singleton bins. Higher inflation gives more, smaller bins.</p>
-<pre class="r"><code>b &lt;- bin_proteins(S)
-b$graph
+<pre class="r"><code>bins &lt;- bin_proteins(S)
+bins$graph
 #&gt;          proteins             edges          isolated        components 
 #&gt;               667              3058                87               165 
 #&gt; largest_component 
 #&gt;                70
-head(lengths(b$clusters))
+head(lengths(bins$clusters))
 #&gt; bin1 bin2 bin3 bin4 bin5 bin6 
 #&gt;   48   25   23   22   19   19</code></pre>
 <p>The result lists the members of each bin (<code>clusters</code>),
@@ -757,7 +792,8 @@ members:</p>
 <p>Sample totals are unchanged and a sparse <code>Matrix</code> stays
 sparse. Give it raw counts when the next step is a count model such as
 DESeq2.</p>
-<pre class="r"><code>bin_glom(counts, b)[, 1:5]
+<pre class="r"><code>bin_counts &lt;- bin_glom(counts, bins)
+bin_counts[, 1:5]
 #&gt;    bin1 bin2 bin3 bin4 bin5
 #&gt; s1   10    0    0    0   20
 #&gt; s2   50    0    0    0   10
@@ -768,34 +804,34 @@ DESeq2.</p>
 <h1>QC and visualization</h1>
 <div id="plot-tsne" class="section level2">
 <h2><code>plot_tsne()</code></h2>
-<p><code>plot_tsne(x, color = NULL)</code> draws a two-dimensional t-SNE
-<span class="citation">(<a href="#ref-vandermaaten2008tsne"><span
-class="nocase">van der Maaten and Hinton</span> 2008</a>)</span> of the
-embeddings computed on cosine distance, <span class="math inline">\(1 -
-s_{ij}\)</span> (for TM-Vec, one minus the predicted TM-score).
-<code>color</code> takes labels named by protein; the 12 most frequent
-are coloured. t-SNE preserves local neighbourhoods, not distances
-between clusters or their sizes, and the layout depends on the random
-seed.</p>
+<p><code>plot_tsne(proteins, color = NULL)</code> draws a
+two-dimensional t-SNE <span class="citation">(<a
+href="#ref-vandermaaten2008tsne"><span class="nocase">van der Maaten and
+Hinton</span> 2008</a>)</span> of the embeddings computed on cosine
+distance, <span class="math inline">\(1 - s_{ij}\)</span> (for TM-Vec,
+one minus the predicted TM-score). <code>color</code> takes labels named
+by protein; the 12 most frequent are coloured. t-SNE preserves local
+neighbourhoods, not distances between clusters or their sizes, and the
+layout depends on the random seed.</p>
 <pre class="r"><code>set.seed(1)
-plot_tsne(x, color = ec3)</code></pre>
+plot_tsne(proteins, color = ec3)</code></pre>
 <p><img src="reference_files/figure-html/tsne-1.png" alt="" width="576" /></p>
 </div>
 <div id="plot-bin-similarity" class="section level2">
 <h2><code>plot_bin_similarity()</code></h2>
-<p><code>plot_bin_similarity(bins, bin, S, x)</code> shows every
+<p><code>plot_bin_similarity(bins, bin, S, proteins)</code> shows every
 pairwise similarity among one bin’s members. Cell colour is the raw
-similarity from the embeddings, before any threshold; outlined cells are
-the edges of <code>S</code>, the pairs that passed both thresholds.
-Pairs without an outline are in the bin through shared neighbours, or
+similarity from the embeddings, before any threshold; a cross marks each
+pair that is not an edge of <code>S</code>, that is, did not pass both
+thresholds. Crossed pairs are in the bin through shared neighbours, or
 passed <code>min_sim</code> but failed the coverage gate.</p>
-<pre class="r"><code>edge_share &lt;- vapply(b$clusters, function(m) {
+<pre class="r"><code>edge_share &lt;- vapply(bins$clusters, function(m) {
     E &lt;- S[m, m]
     mean(E[upper.tri(E)] &gt; 0)
 }, numeric(1))
-sizes &lt;- lengths(b$clusters)
+sizes &lt;- lengths(bins$clusters)
 shown &lt;- names(which.min(edge_share[sizes &gt;= 5 &amp; sizes &lt;= 15]))
-plot_bin_similarity(b, shown, S, x)</code></pre>
+plot_bin_similarity(bins, shown, S, proteins)</code></pre>
 <p><img src="reference_files/figure-html/bin-similarity-1.png" alt="" width="624" /></p>
 <p>The bin shown is the one between 5 and 15 members with the smallest
 share of pairs that are edges.</p>

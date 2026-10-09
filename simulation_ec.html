@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Simulation 2: Sequence-disjoint functional contrasts</title>
+
+<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+<style type="text/css">
+/* for pandoc --citeproc since 2.11 */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">repdist</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li>
+  <a href="reference.html">Reference</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Simulations
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="simulation_funfam.html">Hidden coherence</a>
+    </li>
+    <li>
+      <a href="simulation_ec.html">Sequence-disjoint functions</a>
+    </li>
+    <li>
+      <a href="parameters.html">MCL parameters</a>
+    </li>
+  </ul>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Yixuan39/repdist">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Simulation 2: Sequence-disjoint functional
+contrasts</h1>
+<h3 class="subtitle">Enzyme classes carried by different sequence
+clusters in every sample</h3>
+
+</div>
+
+
+<p><strong>Question.</strong> Can representation-aware analysis recover
+a condition-level functional difference when the proteins carrying each
+function belong to different sequence clusters in every sample?</p>
+<p>Two coherent functional states are compared symmetrically: condition
+A is enriched for one EC3, condition B for another, and within a
+condition no 50% MMseqs2 sequence cluster is enriched in two samples. An
+EC3 class spans many sequence families and often several folds, so this
+is harder and closer to metaproteomics than the FunFam positive control
+of <a href="simulation_funfam.html">Simulation 1</a>. The page ends with
+how the MCL bins of the same universe group proteins against the EC
+labels.</p>
+<pre class="r"><code>library(repdist)
+library(ggplot2)
+library(vegan)</code></pre>
+<div id="count-model" class="section level1">
+<h1>Count model</h1>
+<p>Twenty samples, two conditions of ten, follow the negative-binomial
+model of <a href="simulation_funfam.html#count-model">Simulation 1</a>,
+repeated here so this page stands on its own. Every protein of the
+universe is present at baseline in every sample; sample <span
+class="math inline">\(i\)</span> has expected composition</p>
+<p><span class="math display">\[
+p_i = (1 - \rho)\,\pi + \rho\, q_i ,
+\]</span></p>
+<p>where <span class="math inline">\(\pi_j \propto \mathrm{LogNormal}(0,
+1)\)</span> is the common baseline and <span
+class="math inline">\(q_i\)</span> spreads its mass evenly over sample
+<span class="math inline">\(i\)</span>’s enriched proteins. The signal
+strength <span class="math inline">\(\rho\)</span> is the expected share
+of abundance on the enriched proteins: a defined mass, not a fold
+change. Counts have mean <span class="math inline">\(\mu_{ij} = s_i D
+p_{ij}\)</span> with depth <span class="math inline">\(D = 2 \times
+10^4\)</span> and size factor <span class="math inline">\(s_i \sim
+\mathrm{LogNormal}(0, 0.25)\)</span>, and variance <span
+class="math inline">\(\mu + \phi\mu^2\)</span>, with a DESeq2-like
+dispersion trend at each count’s own mean, <span
+class="math inline">\(\phi_{ij} = (0.1 + 1/\mu_{ij})\, e_j\)</span>,
+<span class="math inline">\(e_j \sim \mathrm{LogNormal}(0,
+0.5)\)</span>. The <span class="math inline">\(k\)</span>-th enriched
+protein of the second group takes the baseline abundance of the <span
+class="math inline">\(k\)</span>-th of the first, so the groups also
+match on the baseline of the proteins that carry the signal.</p>
+<p>The representative signal strength is <span
+class="math inline">\(\rho\)</span> = 2%, fixed before any result: in
+the source study of the <a href="case_study.html">case study</a>,
+glycoside hydrolases rose from under 1% to over 2.5% of the metaproteome
+on the yeast diet <span class="citation">(<a
+href="#ref-blakeleyruiz2025diet">Blakeley-Ruiz et al.
+2025</a>)</span>.</p>
+<pre class="r"><code>depth &lt;- 2e4
+rho_example &lt;- 0.02
+nb_counts &lt;- function(up, ids, rho, pairs) {
+    n &lt;- length(up)
+    pi &lt;- setNames(rlnorm(length(ids)), ids)
+    pi[pairs[, 2]] &lt;- pi[pairs[, 1]] # matched baseline of enriched proteins
+    pi &lt;- pi / sum(pi)
+    s &lt;- rlnorm(n, 0, 0.25)
+    e &lt;- rlnorm(length(ids), 0, 0.5)
+    p &lt;- matrix((1 - rho) * pi, n, length(ids), byrow = TRUE,
+        dimnames = list(names(up), ids))
+    for (j in seq_len(n)) {
+        p[j, up[[j]]] &lt;- p[j, up[[j]]] + rho / length(up[[j]])
+    }
+    mu &lt;- s * depth * p
+    phi &lt;- (0.1 + 1 / mu) * rep(e, each = n)
+    matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), n,
+        dimnames = dimnames(p))
+}</code></pre>
+</div>
+<div id="distances-and-tests" class="section level1">
+<h1>Distances and tests</h1>
+<ul>
+<li><strong>MMD</strong>: <code>sample_mmd()</code>, the maximum mean
+discrepancy between samples under a Gaussian kernel on the protein
+embeddings (see the <a
+href="reference.html#sample-level-distance-mmd">Reference</a>).</li>
+<li><strong>Bray-Curtis (repdist MCL bins)</strong>:
+<code>protein_similarity()</code> → <code>bin_proteins()</code> →
+<code>bin_glom()</code>, then Bray-Curtis on the bin counts. The bins
+depend only on the universe, so they are built once, with package
+defaults (predicted TM-score ≥ 0.7, coverage ≥ 0.5, inflation 2).</li>
+<li><strong>Bray-Curtis (MMseqs2 bins)</strong>: counts summed within
+50% MMseqs2 sequence clusters <span class="citation">(<a
+href="#ref-steinegger2017mmseqs2">Steinegger and Söding
+2017</a>)</span>, then Bray-Curtis. The same 50% clustering constructs
+the benchmark (no 50% cluster is enriched twice within a condition), so
+its failure here is partly by design.</li>
+<li><strong>Bray-Curtis (MMseqs2 30% bins)</strong>: the same at 30%
+identity, a clustering not used in the construction: the more
+independent sequence comparison.</li>
+<li><strong>Bray-Curtis (protein)</strong>: Bray-Curtis on the protein
+counts.</li>
+</ul>
+<p>PERMANOVA (<code>adonis2()</code>) <span class="citation">(<a
+href="#ref-anderson2001permanova">Anderson 2001</a>)</span> tests
+whether the groups differ in their distance-based centroids; PERMDISP
+(<code>betadisper()</code> and <code>permutest()</code>) <span
+class="citation">(<a href="#ref-anderson2006permdisp">Anderson
+2006</a>)</span> tests whether they differ in spread. Both use 999
+permutations in <code>vegan</code> <span class="citation">(<a
+href="#ref-oksanen2025vegan"><span class="nocase">Oksanen et al.</span>
+2025</a>)</span>; a test detects at p ≤ 0.05.</p>
+<pre class="r"><code>group_tests &lt;- function(D, group) {
+    set.seed(1)
+    a &lt;- adonis2(D ~ group, data = data.frame(group = group),
+        permutations = 999)
+    set.seed(1)
+    pd &lt;- permutest(betadisper(D, group), permutations = 999)
+    c(`PERMANOVA R2` = a$R2[1], `PERMANOVA p` = a$`Pr(&gt;F)`[1],
+        `PERMDISP p` = pd$tab[1, &quot;Pr(&gt;F)&quot;])
+}
+test_all &lt;- function(D, group) {
+    t(vapply(D, group_tests, numeric(3), group = group))
+}</code></pre>
+</div>
+<div id="protein-universe" class="section level1">
+<h1>Protein universe</h1>
+<pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
+mm &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_mmseqs2.rds&quot;))
+# the sequence clusters were computed on this exact universe file
+stopifnot(identical(mm$provenance$universe_md5,
+    unname(tools::md5sum(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;)))))
+ec_proteins &lt;- u$proteins
+ann &lt;- u$annotation
+stopifnot(identical(ann$protein, names(ec_proteins)),
+    identical(mm$clusters$protein, names(ec_proteins)))
+ann$mmseqs50 &lt;- mm$clusters$mmseqs50
+ann$mmseqs30 &lt;- mm$clusters$mmseqs30
+c(proteins = length(ec_proteins), EC3 = length(unique(ann$ec3)),
+    EC4 = length(unique(ann$ec4)))
+#&gt; proteins      EC3      EC4 
+#&gt;     4920      229     2679
+u$provenance$steps
+#&gt;               candidates      single_complete_ec4           length_50_1000 
+#&gt;                    18779                     5903                     5794 
+#&gt;                no_U_or_O uniref50_representatives 
+#&gt;                     5786                     4920</code></pre>
+<p>The proteins are UniProtKB/Swiss-Prot entries <span
+class="citation">(<a href="#ref-uniprot2025">The UniProt Consortium
+2025</a>)</span> (release 2026_03) from Bacteria and Archaea,
+non-fragments, with an experimentally supported catalytic activity. An
+entry is kept only if every EC number it carries, on any reaction or in
+its name, is one complete four-level number (EC4) and at least one
+reaction with that number has experimental evidence (ECO:0000269).
+Full-length sequences of 50 to 1000 residues (the TM-Vec head’s training
+range) without selenocysteine or pyrrolysine are kept, one protein per
+UniRef50 cluster <span class="citation">(<a
+href="#ref-suzek2015uniref"><span class="nocase">Suzek et al.</span>
+2015</a>)</span>, and embedded with
+<code>embed_proteins(model = "tmvec")</code>
+(<code>data-raw/simulation_universe.R</code>).</p>
+</div>
+<div id="sequence-clusters" class="section level1">
+<h1>Sequence clusters</h1>
+<p><code>data-raw/simulation_mmseqs2.R</code> clusters the same
+sequences with MMseqs2 18.8cc5c. The primary clustering uses 50%
+identity, the usual protein-family level (as UniRef50); 30% identity is
+a permissive sensitivity analysis. Both require the alignment to cover
+80% of both sequences (<code>--cov-mode 0</code>) and use the most
+sensitive prefilter (<code>-s 7.5</code>):</p>
+<pre class="r"><code>mm$provenance[c(&quot;cluster_50&quot;, &quot;cluster_30&quot;)]
+#&gt; $cluster_50
+#&gt; [1] &quot;mmseqs easy-cluster &lt;tmp&gt;/universe.fasta &lt;tmp&gt;/c0.5 &lt;tmp&gt;/work --min-seq-id 0.5 -c 0.8 --cov-mode 0 --cluster-mode 0 -s 7.5&quot;
+#&gt; 
+#&gt; $cluster_30
+#&gt; [1] &quot;mmseqs easy-cluster &lt;tmp&gt;/universe.fasta &lt;tmp&gt;/c0.3 &lt;tmp&gt;/work --min-seq-id 0.3 -c 0.8 --cov-mode 0 --cluster-mode 0 -s 7.5&quot;
+mm$provenance$n_clusters
+#&gt; mmseqs50 mmseqs30 
+#&gt;     4454     2945
+# every 50% cluster lies inside one 30% cluster
+all(tapply(ann$mmseqs30, ann$mmseqs50, function(v) length(unique(v))) == 1)
+#&gt; [1] TRUE</code></pre>
+<p>Because the universe is already one protein per UniRef50 cluster, the
+50% clustering is close to the proteins themselves.</p>
+</div>
+<div id="eligible-classes-and-contrasts" class="section level1">
+<h1>Eligible classes and contrasts</h1>
+<p>Each sample is enriched in two proteins of its condition’s EC3, and
+every enriched protein of a condition comes from a different 50%
+cluster. An EC3 is eligible if it spans at least 10 × 2 = 20 distinct
+50% clusters. Eligibility uses only the EC labels and the MMseqs2
+clusters, never the embeddings, the MCL bins or any result. The eligible
+EC3s are shuffled with a fixed seed and paired in order, so each EC3
+enters exactly one contrast.</p>
+<pre class="r"><code>n_per_group &lt;- 10L
+n_enriched &lt;- 2L
+k &lt;- n_per_group * n_enriched
+clusters_per &lt;- function(level) {
+    tapply(ann$mmseqs50, ann[[level]], function(v) length(unique(v)))
+}
+n50 &lt;- clusters_per(&quot;ec3&quot;)
+eligible &lt;- sort(names(n50)[n50 &gt;= k])
+c(EC3 = length(n50), eligible = length(eligible),
+    `eligible EC4` = sum(clusters_per(&quot;ec4&quot;) &gt;= k))
+#&gt;          EC3     eligible eligible EC4 
+#&gt;          229           56            5
+set.seed(20261008)
+shuffled &lt;- sample(eligible)
+contrasts &lt;- data.frame(A = shuffled[c(TRUE, FALSE)],
+    B = shuffled[c(FALSE, TRUE)])
+nrow(contrasts)
+#&gt; [1] 28</code></pre>
+<p>Only 5 EC4 classes meet the same rule, too few for an EC4 simulation,
+so EC4 is used to score the bins below.</p>
+</div>
+<div id="design" class="section level1">
+<h1>Design</h1>
+<p>For contrast <span class="math inline">\(c\)</span> (seed <span
+class="math inline">\(c\)</span>), condition A draws 20 distinct 50%
+clusters of EC3-A and one protein from each, two per sample. To keep the
+enrichment from collapsing into one enzyme, clusters are taken one per
+EC4 of the class before a second from any EC4, in random order.
+Condition B does the same in EC3-B, excluding any cluster A used. The
+conditions match on everything in the count model; only the class
+carrying the signal differs.</p>
+<p><span class="math inline">\(\rho\)</span> takes the values 0, 1%, 2%,
+5% and 10%. At <span class="math inline">\(\rho = 0\)</span> both
+conditions have the same distribution: a null sanity check. Each
+contrast has one simulated count realisation per <span
+class="math inline">\(\rho\)</span>, so the counts below are shares of
+contrasts detected, not estimates of type-I error or power. A contrast
+uses the same seed at every <span class="math inline">\(\rho\)</span>,
+so its enriched proteins, baseline, size factors and dispersions do not
+change with the signal strength.</p>
+<pre class="r"><code>rhos &lt;- c(0, 0.01, 0.02, 0.05, 0.10)
+mm50 &lt;- setNames(ann$mmseqs50, ann$protein)
+mm30 &lt;- setNames(ann$mmseqs30, ann$protein)
+draw_enriched &lt;- function(ec, exclude = character()) {
+    cand &lt;- unique(ann[ann$ec3 == ec &amp; !ann$mmseqs50 %in% exclude,
+        c(&quot;mmseqs50&quot;, &quot;ec4&quot;)])
+    cand &lt;- cand[sample.int(nrow(cand)), ]
+    cand &lt;- cand[!duplicated(cand$mmseqs50), ]
+    # one cluster per EC4 before a second from any EC4
+    cand &lt;- cand[order(ave(seq_len(nrow(cand)), cand$ec4, FUN = seq_along)), ]
+    vapply(seq_len(k), function(r) {
+        p &lt;- ann$protein[ann$mmseqs50 == cand$mmseqs50[r] &amp;
+            ann$ec4 == cand$ec4[r]]
+        p[sample.int(length(p), 1L)]
+    }, &quot;&quot;)
+}
+enriched &lt;- function(i) {
+    set.seed(i)
+    a &lt;- draw_enriched(contrasts$A[i])
+    b &lt;- draw_enriched(contrasts$B[i], exclude = mm50[a])
+    # no 50% cluster is enriched twice within a condition
+    stopifnot(!anyDuplicated(mm50[a]), !anyDuplicated(mm50[b]))
+    up &lt;- unname(split(c(a, b), rep(seq_len(2 * n_per_group),
+        each = n_enriched)))
+    names(up) &lt;- sprintf(&quot;s%02d&quot;, seq_along(up))
+    list(up = up, pairs = cbind(a, b),
+        group = factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n_per_group)))
+}
+simulate_ec &lt;- function(i, rho) {
+    d &lt;- enriched(i) # sets the seed; the counts continue the same stream
+    d$counts &lt;- nb_counts(d$up, ann$protein, rho, d$pairs)
+    d
+}</code></pre>
+<pre class="r"><code>S &lt;- protein_similarity(ec_proteins, n_cores = BiocParallel::multicoreWorkers())
+bins &lt;- bin_proteins(S)
+glom &lt;- function(counts, cluster) t(rowsum(t(counts), cluster[colnames(counts)]))
+distances_ec &lt;- function(counts) {
+    list(
+        MMD = sample_mmd(counts, ec_proteins),
+        `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
+            &quot;bray&quot;),
+        `Bray-Curtis (MMseqs2 bins)` = vegdist(glom(counts, mm50), &quot;bray&quot;),
+        `Bray-Curtis (protein)` = vegdist(counts, &quot;bray&quot;),
+        `Bray-Curtis (MMseqs2 30% bins)` = vegdist(glom(counts, mm30), &quot;bray&quot;)
+    )
+}</code></pre>
+<p>The fifth distance, MMseqs2 bins at 30% identity, is the sensitivity
+analysis; it is reported in the tables but not in the ordination.</p>
+</div>
+<div id="representative-contrast" class="section level1">
+<h1>Representative contrast</h1>
+<p>The first contrast of the seeded pairing, at <span
+class="math inline">\(\rho\)</span> = 2%; both were fixed before any
+result.</p>
+<pre class="r"><code>sim &lt;- simulate_ec(1, rho_example)
+unlist(contrasts[1, ])
+#&gt;       A       B 
+#&gt; &quot;2.7.7&quot; &quot;2.3.2&quot;
+enr &lt;- data.frame(sample = rep(names(sim$up), lengths(sim$up)),
+    condition = rep(sim$group, lengths(sim$up)), protein = unlist(sim$up))
+enr &lt;- cbind(enr, ann[match(enr$protein, ann$protein),
+    c(&quot;ec4&quot;, &quot;name&quot;, &quot;mmseqs50&quot;, &quot;mmseqs30&quot;)])
+enr$mcl_bin &lt;- bins$membership[enr$protein]
+# distinct labels among each condition&#39;s 20 enriched proteins
+t(sapply(split(enr, enr$condition), function(d) c(
+    `50% clusters` = length(unique(d$mmseqs50)),
+    `30% clusters` = length(unique(d$mmseqs30)),
+    `MCL bins` = length(unique(d$mcl_bin)), EC4 = length(unique(d$ec4)))))
+#&gt;   50% clusters 30% clusters MCL bins EC4
+#&gt; A           20           20       17  20
+#&gt; B           20           17       12  16
+# realised share of each sample&#39;s counts on its enriched proteins
+tapply(vapply(seq_along(sim$up), function(i) {
+    sum(sim$counts[i, sim$up[[i]]]) / sum(sim$counts[i, ])
+}, numeric(1)), sim$group, median)
+#&gt;          A          B 
+#&gt; 0.02200388 0.02131370
+D &lt;- distances_ec(sim$counts)
+res &lt;- test_all(D, sim$group)
+knitr::kable(res, digits = 3)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">PERMANOVA R2</th>
+<th align="right">PERMANOVA p</th>
+<th align="right">PERMDISP p</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="right">0.115</td>
+<td align="right">0.001</td>
+<td align="right">0.704</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (repdist MCL bins)</td>
+<td align="right">0.061</td>
+<td align="right">0.207</td>
+<td align="right">0.220</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 bins)</td>
+<td align="right">0.054</td>
+<td align="right">0.263</td>
+<td align="right">0.487</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="right">0.055</td>
+<td align="right">0.222</td>
+<td align="right">0.549</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 30% bins)</td>
+<td align="right">0.057</td>
+<td align="right">0.220</td>
+<td align="right">0.314</td>
+</tr>
+</tbody>
+</table>
+<p>Ellipses are 95% ellipses per condition (multivariate t).</p>
+<p><img src="simulation_ec_files/figure-html/ec-pcoa-1.png" alt="PCoA of Simulation 2's representative contrast under four distances, coloured by condition, with 95% ellipses" width="1056" /></p>
+</div>
+<div id="all-contrasts" class="section level1">
+<h1>All contrasts</h1>
+<p>The representative is one of 28 contrasts. Every contrast is
+simulated at every <span class="math inline">\(\rho\)</span>, so the
+result can be checked beyond one pair of enzyme classes.</p>
+<pre class="r"><code>bench2 &lt;- do.call(rbind, lapply(seq_len(nrow(contrasts)), function(i) {
+    do.call(rbind, lapply(rhos, function(rho) {
+        s &lt;- simulate_ec(i, rho)
+        r &lt;- test_all(distances_ec(s$counts), s$group)
+        data.frame(contrast = i, A = contrasts$A[i], B = contrasts$B[i],
+            rho = rho, method = rownames(r), r, row.names = NULL,
+            check.names = FALSE)
+    }))
+}))
+bench2$method &lt;- factor(bench2$method, names(D))
+# the representative contrast is the benchmark&#39;s contrast 1 at rho = 2%
+stopifnot(isTRUE(all.equal(unname(res[, &quot;PERMANOVA p&quot;]),
+    bench2$`PERMANOVA p`[bench2$contrast == 1 &amp; bench2$rho == rho_example])))</code></pre>
+<p>Contrasts detected by PERMANOVA, out of 28, with the number also
+significant by PERMDISP in parentheses. The <span
+class="math inline">\(\rho = 0\)</span> column is the null sanity check
+(one realisation per contrast; about 1.4 detections would be expected by
+chance at α = 0.05).</p>
+<table style="width:100%;">
+<colgroup>
+<col width="46%" />
+<col width="10%" />
+<col width="10%" />
+<col width="10%" />
+<col width="10%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">ρ = 0%</th>
+<th align="left">ρ = 1%</th>
+<th align="left">ρ = 2%</th>
+<th align="left">ρ = 5%</th>
+<th align="left">ρ = 10%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">MMD</td>
+<td align="left">0 (1)</td>
+<td align="left">26 (4)</td>
+<td align="left">27 (2)</td>
+<td align="left">28 (6)</td>
+<td align="left">28 (3)</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (repdist MCL bins)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">4 (1)</td>
+<td align="left">12 (2)</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 bins)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+</tr>
+<tr class="even">
+<td align="left">Bray-Curtis (protein)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (MMseqs2 30% bins)</td>
+<td align="left">0 (0)</td>
+<td align="left">0 (1)</td>
+<td align="left">0 (2)</td>
+<td align="left">1 (1)</td>
+<td align="left">3 (1)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="protein-clustering-against-functional-labels"
+class="section level1">
+<h1>Protein clustering against functional labels</h1>
+<p>This benchmark is separate from the sample-level contrasts but uses
+the same Swiss-Prot universe. Its MCL bins were built from embeddings
+and alignments alone; EC labels are used only here. The two MMseqs2
+clusterings are scored the same way for comparison. With <span
+class="math inline">\(n_k\)</span> members of label <span
+class="math inline">\(k\)</span> in a group of size <span
+class="math inline">\(n\)</span>:</p>
+<ul>
+<li><strong>Purity</strong> is <span class="math inline">\(\max_k n_k /
+n\)</span>, averaged over groups with at least two members.</li>
+<li><strong>Precision</strong> is the share of same-group protein pairs
+that share the label.</li>
+<li><strong>Recall</strong> is the share of same-label protein pairs
+placed in one group.</li>
+<li><strong>F1</strong> is <span class="math inline">\(2PR/(P +
+R)\)</span>.</li>
+</ul>
+<p>Purity and precision ignore singletons, so many small, pure groups
+score high on both while splitting each class across groups; recall
+measures that splitting.</p>
+<pre class="r"><code>groupings &lt;- list(`repdist MCL bins` = bins$membership,
+    `MMseqs2 50%` = mm50, `MMseqs2 30%` = mm30)
+size_tab &lt;- t(vapply(groupings, function(m) {
+    sizes &lt;- as.vector(table(m))
+    c(groups = length(sizes), `multi-member` = sum(sizes &gt; 1),
+        `singleton proteins (%)` = 100 * sum(sizes == 1) / length(m),
+        table(cut(sizes, c(0, 1, 2, 5, 10, 50, Inf),
+            labels = c(&quot;1&quot;, &quot;2&quot;, &quot;3-5&quot;, &quot;6-10&quot;, &quot;11-50&quot;, &quot;&gt;50&quot;))),
+        largest = max(sizes))
+}, numeric(10)))
+knitr::kable(size_tab, digits = 1)</code></pre>
+<table>
+<colgroup>
+<col width="17%" />
+<col width="7%" />
+<col width="13%" />
+<col width="23%" />
+<col width="5%" />
+<col width="4%" />
+<col width="4%" />
+<col width="5%" />
+<col width="6%" />
+<col width="4%" />
+<col width="8%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">groups</th>
+<th align="right">multi-member</th>
+<th align="right">singleton proteins (%)</th>
+<th align="right">1</th>
+<th align="right">2</th>
+<th align="right">3-5</th>
+<th align="right">6-10</th>
+<th align="right">11-50</th>
+<th align="right">&gt;50</th>
+<th align="right">largest</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">repdist MCL bins</td>
+<td align="right">1662</td>
+<td align="right">842</td>
+<td align="right">16.7</td>
+<td align="right">820</td>
+<td align="right">342</td>
+<td align="right">305</td>
+<td align="right">120</td>
+<td align="right">74</td>
+<td align="right">1</td>
+<td align="right">59</td>
+</tr>
+<tr class="even">
+<td align="left">MMseqs2 50%</td>
+<td align="right">4454</td>
+<td align="right">359</td>
+<td align="right">83.2</td>
+<td align="right">4095</td>
+<td align="right">290</td>
+<td align="right">66</td>
+<td align="right">3</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">8</td>
+</tr>
+<tr class="odd">
+<td align="left">MMseqs2 30%</td>
+<td align="right">2945</td>
+<td align="right">941</td>
+<td align="right">40.7</td>
+<td align="right">2004</td>
+<td align="right">523</td>
+<td align="right">343</td>
+<td align="right">59</td>
+<td align="right">16</td>
+<td align="right">0</td>
+<td align="right">39</td>
+</tr>
+</tbody>
+</table>
+<p>Columns <code>1</code> to <code>&gt;50</code> count groups by
+size.</p>
+<p>Pairwise precision, recall and F1 come from
+<code>clusterCrit::extCriteria()</code> (F1 is its Czekanowski-Dice
+index).</p>
+<pre class="r"><code>labels &lt;- list(EC3 = setNames(ann$ec3, ann$protein),
+    EC4 = setNames(ann$ec4, ann$protein))
+scores &lt;- function(m, lab) {
+    lab &lt;- lab[names(m)]
+    tab &lt;- table(m, lab)
+    multi &lt;- rowSums(tab) &gt; 1
+    pr &lt;- clusterCrit::extCriteria(as.integer(factor(lab)),
+        as.integer(factor(m)), c(&quot;Precision&quot;, &quot;Recall&quot;, &quot;Czekanowski_Dice&quot;))
+    c(purity = mean(apply(tab[multi, ], 1, max) / rowSums(tab[multi, ])),
+        precision = pr$precision, recall = pr$recall,
+        F1 = pr$czekanowski_dice)
+}
+ec_scores &lt;- do.call(rbind, lapply(names(labels), function(level) {
+    do.call(rbind, lapply(names(groupings), function(g) {
+        data.frame(level = level, grouping = g,
+            t(scores(groupings[[g]], labels[[level]])))
+    }))
+}))
+knitr::kable(ec_scores, digits = 3, row.names = FALSE)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">level</th>
+<th align="left">grouping</th>
+<th align="right">purity</th>
+<th align="right">precision</th>
+<th align="right">recall</th>
+<th align="right">F1</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">EC3</td>
+<td align="left">repdist MCL bins</td>
+<td align="right">0.903</td>
+<td align="right">0.690</td>
+<td align="right">0.069</td>
+<td align="right">0.125</td>
+</tr>
+<tr class="even">
+<td align="left">EC3</td>
+<td align="left">MMseqs2 50%</td>
+<td align="right">0.983</td>
+<td align="right">0.966</td>
+<td align="right">0.003</td>
+<td align="right">0.006</td>
+</tr>
+<tr class="odd">
+<td align="left">EC3</td>
+<td align="left">MMseqs2 30%</td>
+<td align="right">0.948</td>
+<td align="right">0.868</td>
+<td align="right">0.022</td>
+<td align="right">0.044</td>
+</tr>
+<tr class="even">
+<td align="left">EC4</td>
+<td align="left">repdist MCL bins</td>
+<td align="right">0.695</td>
+<td align="right">0.161</td>
+<td align="right">0.441</td>
+<td align="right">0.236</td>
+</tr>
+<tr class="odd">
+<td align="left">EC4</td>
+<td align="left">MMseqs2 50%</td>
+<td align="right">0.921</td>
+<td align="right">0.852</td>
+<td align="right">0.071</td>
+<td align="right">0.131</td>
+</tr>
+<tr class="even">
+<td align="left">EC4</td>
+<td align="left">MMseqs2 30%</td>
+<td align="right">0.780</td>
+<td align="right">0.390</td>
+<td align="right">0.278</td>
+<td align="right">0.325</td>
+</tr>
+</tbody>
+</table>
+<p>The three groupings sit in different regimes rather than on one
+scale:</p>
+<p><img src="simulation_ec_files/figure-html/pr-plot-1.png" alt="Pairwise precision against recall for repdist MCL bins and MMseqs2 clusters, at EC3 and EC4" width="720" /></p>
+<p>MMseqs2 gives very pure sequence families that split each enzyme
+class into many groups, most of them singletons. The MCL bins group
+across sequence-family boundaries, with far fewer singletons, while
+keeping high EC3 coherence; their EC3 recall is still low in absolute
+terms. At EC4 the MCL bins recover more same-enzyme pairs but join more
+proteins of different EC4s, so the 30% clusters are more precise there
+and score a higher F1: exact EC4 reconstruction is better served by
+sequence clustering in this benchmark. repdist MCL bins occupy a middle
+ground between sequence-family fragmentation and broad functional
+merging. They are representation-aware abundance units, not
+reconstructions of EC classes.</p>
+</div>
+<div id="summary" class="section level1">
+<h1>Summary</h1>
+<ul>
+<li><strong>Contrasts.</strong> At <span
+class="math inline">\(\rho\)</span> = 1, 2, 5 and 10%, MMD detected 26,
+27, 28, 28 of 28 contrasts; Bray-Curtis on MCL bins 0, 0, 4, 12, on
+MMseqs2 30% bins 0, 0, 1, 3, on MMseqs2 50% bins 0, 0, 0, 0 and on
+proteins 0, 0, 0, 0. The <span class="math inline">\(\rho = 0\)</span>
+null sanity check gave 0 detections over the five distances. MMD missed
+3 contrast–<span class="math inline">\(\rho\)</span> combinations, all
+at <span class="math inline">\(\rho \le\)</span> 2% with p between 0.055
+and 0.068. PERMDISP was significant for at most 6 of 28 contrasts for
+any distance and <span class="math inline">\(\rho &gt; 0\)</span>, so
+the detections are shifts in location.</li>
+<li><strong>Sequence bins.</strong> The 50% clustering helped construct
+the benchmark, so the failure of the 50% bins is partly by design, not a
+general comparison with MMseqs2. The 30% bins, not used in the
+construction, detected 0 contrast–<span
+class="math inline">\(\rho\)</span> combinations that MMD or the MCL
+bins missed.</li>
+<li><strong>Protein clustering.</strong> At EC3 the MCL bins keep purity
+0.903 and precision 0.690 while recovering 0.069 of same-EC3 pairs,
+against 0.022 for the 30% and 0.003 for the 50% clusters, with 16.7%
+singleton proteins against 40.7% and 83.2%. At EC4 the MCL bins recall
+more (0.441 against 0.278) but the 30% clusters are more precise (0.390
+against 0.161) and score a higher F1 (0.325 against 0.236).</li>
+</ul>
+<p>Under sequence-disjoint functional contrasts, graded representation
+similarity retains relationships that protein identity and hard sequence
+bins may discard, and hard representation bins retain part of them. The
+result is conditional on that regime, built here by construction; it
+does not show that structure is better than sequence. The <a
+href="case_study.html">case study</a> applies the same tools to a real
+metaproteomic contrast without known functional truth, and <a
+href="parameters.html">MCL parameters</a> shows how the graph thresholds
+and inflation move the bins scored above.</p>
+<pre class="r"><code>sessionInfo()
+#&gt; R version 4.5.2 (2025-10-31)
+#&gt; Platform: aarch64-apple-darwin20
+#&gt; Running under: macOS 27.0.1
+#&gt; 
+#&gt; Matrix products: default
+#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+#&gt; 
+#&gt; locale:
+#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt; 
+#&gt; time zone: America/New_York
+#&gt; tzcode source: internal
+#&gt; 
+#&gt; attached base packages:
+#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
+#&gt; 
+#&gt; other attached packages:
+#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
+#&gt; 
+#&gt; loaded via a namespace (and not attached):
+#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.22-9     
+#&gt;  [4] MCL_1.0             digest_0.6.39       magrittr_2.0.5     
+#&gt;  [7] evaluate_1.0.5      grid_4.5.2          RColorBrewer_1.1-3 
+#&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-5       
+#&gt; [13] mgcv_1.9-4          scales_1.4.0        Biostrings_2.78.0  
+#&gt; [16] codetools_0.2-20    jquerylib_0.1.4     cli_3.6.6          
+#&gt; [19] expm_1.0-0          rlang_1.3.0         crayon_1.5.3       
+#&gt; [22] XVector_0.50.0      splines_4.5.2       withr_3.0.3        
+#&gt; [25] cachem_1.1.0        yaml_2.3.12         otel_0.2.0         
+#&gt; [28] tools_4.5.2         parallel_4.5.2      BiocParallel_1.44.0
+#&gt; [31] dplyr_1.2.1         BiocGenerics_0.56.0 vctrs_0.7.3        
+#&gt; [34] R6_2.6.1            stats4_4.5.2        lifecycle_1.0.5    
+#&gt; [37] Seqinfo_1.0.0       S4Vectors_0.48.1    IRanges_2.44.0     
+#&gt; [40] MASS_7.3-65         cluster_2.1.8.2     pkgconfig_2.0.3    
+#&gt; [43] pillar_1.11.1       bslib_0.11.0        gtable_0.3.6       
+#&gt; [46] glue_1.8.1          xfun_0.58           tibble_3.3.1       
+#&gt; [49] tidyselect_1.2.1    knitr_1.51          farver_2.1.2       
+#&gt; [52] htmltools_0.5.9     nlme_3.1-169        clusterCrit_1.3.0  
+#&gt; [55] labeling_0.4.3      rmarkdown_2.31      compiler_4.5.2     
+#&gt; [58] S7_0.2.2</code></pre>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-anderson2001permanova" class="csl-entry">
+Anderson, Marti J. 2001. <span>“A New Method for Non-Parametric
+Multivariate Analysis of Variance.”</span> <em>Austral Ecology</em> 26
+(1): 32–46. <a
+href="https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x">https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x</a>.
+</div>
+<div id="ref-anderson2006permdisp" class="csl-entry">
+Anderson, Marti J. 2006. <span>“Distance-Based Tests for Homogeneity of
+Multivariate Dispersions.”</span> <em>Biometrics</em> 62 (1): 245–53. <a
+href="https://doi.org/10.1111/j.1541-0420.2005.00440.x">https://doi.org/10.1111/j.1541-0420.2005.00440.x</a>.
+</div>
+<div id="ref-blakeleyruiz2025diet" class="csl-entry">
+Blakeley-Ruiz, J. Alfredo, Alexandria Bartlett, Arthur S. McMillan, et
+al. 2025. <span>“Dietary Protein Source Alters Gut Microbiota
+Composition and Function.”</span> <em>The ISME Journal</em> 19 (1):
+wraf048. <a
+href="https://doi.org/10.1093/ismejo/wraf048">https://doi.org/10.1093/ismejo/wraf048</a>.
+</div>
+<div id="ref-oksanen2025vegan" class="csl-entry">
+<span class="nocase">Oksanen, Jari, Gavin L. Simpson, F. Guillaume
+Blanchet, et al.</span> 2025. <em>Vegan: Community Ecology Package</em>.
+<a
+href="https://CRAN.R-project.org/package=vegan">https://CRAN.R-project.org/package=vegan</a>.
+</div>
+<div id="ref-steinegger2017mmseqs2" class="csl-entry">
+Steinegger, Martin, and Johannes Söding. 2017.
+<span>“<span>MMseqs2</span> Enables Sensitive Protein Sequence Searching
+for the Analysis of Massive Data Sets.”</span> <em>Nature
+Biotechnology</em> 35 (11): 1026–28. <a
+href="https://doi.org/10.1038/nbt.3988">https://doi.org/10.1038/nbt.3988</a>.
+</div>
+<div id="ref-suzek2015uniref" class="csl-entry">
+<span class="nocase">Suzek, Baris E., Yuqi Wang, Hongzhan Huang, Peter
+B. McGarvey, Cathy H. Wu, and the UniProt Consortium</span>. 2015.
+<span>“<span>UniRef</span> Clusters: A Comprehensive and Scalable
+Alternative for Improving Sequence Similarity Searches.”</span>
+<em>Bioinformatics</em> 31 (6): 926–32. <a
+href="https://doi.org/10.1093/bioinformatics/btu739">https://doi.org/10.1093/bioinformatics/btu739</a>.
+</div>
+<div id="ref-uniprot2025" class="csl-entry">
+The UniProt Consortium. 2025. <span>“<span>UniProt</span>: The Universal
+Protein Knowledgebase in 2025.”</span> <em>Nucleic Acids Research</em>
+53 (D1): D609–17. <a
+href="https://doi.org/10.1093/nar/gkae1010">https://doi.org/10.1093/nar/gkae1010</a>.
+</div>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

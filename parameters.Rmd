@@ -12,9 +12,12 @@ knitr::opts_chunk$set(
 
 `protein_similarity()` and `bin_proteins()` have three parameters: the
 similarity threshold `min_sim`, the coverage threshold `min_coverage` and the
-MCL `inflation`. This page scores a grid of the three against known enzyme
-labels, using the [simulation](simulation.html) universe of experimentally
-characterised Swiss-Prot enzymes.
+MCL `inflation`. This page scores a grid of the three on the universe of
+experimentally characterised Swiss-Prot enzymes from
+[Simulation 2](simulation_ec.html). MCL bins are meant as abundance units
+that group related proteins, so no single score decides a setting: each one
+trades fragmentation (singleton proteins) against EC3 precision and EC3
+recall. EC4 F1 is kept as a stricter, exact-enzyme diagnostic.
 
 ```{r libs}
 library(repdist)
@@ -23,10 +26,10 @@ library(ggplot2)
 
 ```{r data}
 u <- readRDS(file.path("curated", "simulation_universe.rds"))
-x <- u$proteins
+proteins <- u$proteins
 ec4 <- setNames(u$annotation$ec4, u$annotation$protein)
 ec3 <- setNames(u$annotation$ec3, u$annotation$protein)
-length(x)
+length(proteins)
 ```
 
 # Grid
@@ -45,7 +48,8 @@ the package defaults.
 ```{r similarity}
 n_cores <- BiocParallel::multicoreWorkers()
 base <- lapply(c(`0` = 0, `0.5` = 0.5, `0.8` = 0.8), function(cv) {
-    protein_similarity(x, min_sim = 0.6, min_coverage = cv, n_cores = n_cores)
+    protein_similarity(proteins, min_sim = 0.6, min_coverage = cv,
+        n_cores = n_cores)
 })
 gate <- function(S, t) {
     S[S < t] <- 0
@@ -53,7 +57,7 @@ gate <- function(S, t) {
     S
 }
 stopifnot(isTRUE(all.equal(gate(base[["0.5"]], 0.7),
-    protein_similarity(x, min_sim = 0.7, min_coverage = 0.5,
+    protein_similarity(proteins, min_sim = 0.7, min_coverage = 0.5,
         n_cores = n_cores))))
 ```
 
@@ -61,40 +65,48 @@ stopifnot(isTRUE(all.equal(gate(base[["0.5"]], 0.7),
 
 Each setting is scored on protein pairs. **Precision** is the share of pairs
 placed in one bin that carry the same label; **recall** is the share of
-same-label pairs placed in one bin; F1 is their harmonic mean. Pair counts
-grow with the square of bin size, so large mixed bins weigh heavily on
-precision.
+same-label pairs placed in one bin; F1 is their harmonic mean (all three from
+`clusterCrit::extCriteria()`, F1 being its Czekanowski-Dice index). Pair counts grow with the square of bin size, so large
+mixed bins weigh heavily on precision.
 
 ```{r scores}
-pair_scores <- function(membership, labels) {
-    tab <- table(membership, labels[names(membership)])
-    same_bin_same_label <- sum(choose(tab, 2))
-    c(precision = same_bin_same_label / sum(choose(rowSums(tab), 2)),
-        recall = same_bin_same_label / sum(choose(colSums(tab), 2)))
+pair_scores <- function(labels, membership) {
+    unlist(clusterCrit::extCriteria(as.integer(factor(labels)),
+        as.integer(factor(membership[names(labels)])),
+        c("Precision", "Recall", "Czekanowski_Dice")))
 }
 results <- do.call(rbind, lapply(seq_len(nrow(grid)), function(k) {
     g <- grid[k, ]
-    b <- bin_proteins(gate(base[[as.character(g$min_coverage)]], g$min_sim),
-        inflation = g$inflation)
-    sizes <- lengths(b$clusters)
-    s4 <- pair_scores(b$membership, ec4)
-    s3 <- pair_scores(b$membership, ec3)
+    bins <- bin_proteins(gate(base[[as.character(g$min_coverage)]],
+        g$min_sim), inflation = g$inflation)
+    sizes <- lengths(bins$clusters)
+    s3 <- pair_scores(ec3, bins$membership)
+    s4 <- pair_scores(ec4, bins$membership)
     data.frame(g, bins = length(sizes),
-        `singletons (%)` = 100 * sum(sizes == 1) / length(x),
+        `singletons (%)` = 100 * sum(sizes == 1) / length(proteins),
         `largest bin` = max(sizes),
-        `EC4 precision` = s4[["precision"]], `EC4 recall` = s4[["recall"]],
-        `EC4 F1` = 2 * prod(s4) / sum(s4),
         `EC3 precision` = s3[["precision"]], `EC3 recall` = s3[["recall"]],
-        check.names = FALSE)
+        `EC4 precision` = s4[["precision"]], `EC4 recall` = s4[["recall"]],
+        `EC4 F1` = s4[["czekanowski_dice"]], check.names = FALSE)
 }))
 ```
 
-```{r f1-plot, fig.alt = "EC4 F1 against the similarity threshold, by coverage threshold and inflation"}
-ggplot(results, aes(min_sim, `EC4 F1`, colour = factor(inflation))) +
+The three objectives against `min_sim`, by coverage threshold (columns) and
+inflation (colour); the dotted line marks the default `min_sim`:
+
+```{r tradeoff-plot, fig.height = 6.5, fig.alt = "EC3 precision, EC3 recall and singleton proteins against the similarity threshold, by coverage threshold and inflation"}
+objectives <- c("EC3 precision", "EC3 recall", "singletons (%)")
+long <- do.call(rbind, lapply(objectives, function(m) {
+    data.frame(results[c("min_sim", "min_coverage", "inflation")],
+        objective = factor(m, objectives), value = results[[m]])
+}))
+ggplot(long, aes(min_sim, value, colour = factor(inflation))) +
+    geom_vline(xintercept = 0.7, linetype = 3, colour = "grey50") +
     geom_line() +
     geom_point(size = 1.5) +
-    facet_wrap(~min_coverage, labeller = label_both) +
-    labs(x = "min_sim (predicted TM-score)", y = "EC4 pairwise F1",
+    facet_grid(objective ~ min_coverage, scales = "free_y",
+        labeller = labeller(min_coverage = label_both)) +
+    labs(x = "min_sim (predicted TM-score)", y = NULL,
         colour = "inflation") +
     theme_bw()
 ```
@@ -120,18 +132,29 @@ covered <- results[results$min_coverage > 0, ]
   inflation 2) and EC3 precision drops to
   `r round(nocov[["EC3 precision"]], 2)`, against
   `r round(def[["EC3 precision"]], 2)` with `min_coverage` 0.5.
-- **With the coverage gate, the scores change slowly.** Raising `min_sim` or
-  inflation trades recall for precision: across those settings EC4 F1 stays
-  between `r round(min(covered[["EC4 F1"]]), 2)` and
-  `r round(max(covered[["EC4 F1"]]), 2)`. The package defaults
-  (`min_sim` 0.7, `min_coverage` 0.5, inflation 2) give EC4 F1
-  `r round(def[["EC4 F1"]], 2)` with
-  `r round(def[["singletons (%)"]])`% singletons.
-- **Bins are structural, labels are functional.** EC3 precision is high but
-  EC4 precision is low at every setting: a bin often holds one structural
-  family whose members catalyse related but different reactions. No setting
-  turns structural bins into EC4 classes; the thresholds choose the
-  granularity of the structural grouping.
+- **With the coverage gate, the settings trade smoothly.** Raising `min_sim`
+  or inflation gives more singletons and higher EC3 precision but lower EC3
+  recall. Across those settings EC3 precision runs from
+  `r round(min(covered[["EC3 precision"]]), 2)` to
+  `r round(max(covered[["EC3 precision"]]), 2)`, EC3 recall from
+  `r round(min(covered[["EC3 recall"]]), 3)` to
+  `r round(max(covered[["EC3 recall"]]), 3)`, and singleton proteins from
+  `r round(min(covered[["singletons (%)"]]))`% to
+  `r round(max(covered[["singletons (%)"]]))`%.
+- **The defaults are a compromise, not an optimum.** `min_sim` 0.7,
+  `min_coverage` 0.5 and inflation 2 give EC3 precision
+  `r round(def[["EC3 precision"]], 2)`, EC3 recall
+  `r round(def[["EC3 recall"]], 3)` and
+  `r round(def[["singletons (%)"]])`% singleton proteins: inside the stable
+  region, neither the most precise nor the least fragmented setting. This
+  page reports the trade-off; it does not change them.
+- **EC4 is a stricter diagnostic.** EC4 F1 stays between
+  `r round(min(covered[["EC4 F1"]]), 2)` and
+  `r round(max(covered[["EC4 F1"]]), 2)` across the gated settings (defaults
+  `r round(def[["EC4 F1"]], 2)`), with EC4 precision low at every setting: a
+  bin often holds one structural family whose members catalyse related but
+  different reactions. No setting turns the bins into EC4 classes; the
+  thresholds choose the granularity of the grouping.
 
 ```{r session}
 sessionInfo()

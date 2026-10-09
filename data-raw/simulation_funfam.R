@@ -1,6 +1,6 @@
 # Build curated/simulation_funfam.rds: prokaryotic CATH FunFam domain
 # sequences, one per 50%-identity MMseqs2 cluster, embedded from their
-# sequences with the default repdist model. Simulation 1 of simulation.Rmd.
+# sequences with the default repdist model. Read by simulation_funfam.Rmd.
 # Which FunFams are simulation targets is decided on the page (enough
 # distinct clusters); every FunFam kept here is background.
 #
