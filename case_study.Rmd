@@ -121,21 +121,24 @@ D <- list(
 PERMANOVA [@anderson2001permanova] tests protein source after protein amount,
 cage and week, and PERMDISP [@anderson2006permdisp] tests for unequal spread
 between sources; both use 999 permutations restricted to within mouse.
-Cage nests sex. Its R² is reported but not tested: within-mouse permutations
-cannot test a between-mouse term.
+Cage nests sex.
 
 ```{r permanova}
 perm <- permute::how(blocks = md$subject, nperm = 999)
-tests <- t(vapply(D, function(Dk) {
+permanova <- lapply(D, function(Dk) {
     set.seed(1)
-    a <- adonis2(Dk ~ dose + cage + week + diet, data = md, by = "terms",
-        permutations = perm)
+    as.data.frame(adonis2(Dk ~ dose + cage + week + diet, data = md,
+        by = "terms", permutations = perm))
+})
+permdisp <- vapply(D, function(Dk) {
     set.seed(1)
-    pd <- permutest(betadisper(Dk, md$diet), permutations = perm)
-    c(`PERMANOVA R2` = a["diet", "R2"], `PERMANOVA p` = a["diet", "Pr(>F)"],
-        `PERMDISP p` = pd$tab[1, "Pr(>F)"], `Cage R2` = a["cage", "R2"])
-}, numeric(4)))
-knitr::kable(tests, digits = 3)
+    permutest(betadisper(Dk, md$diet), permutations = perm)$tab[1, "Pr(>F)"]
+}, numeric(1))
+options(knitr.kable.NA = "")
+knitr::kable(permanova[["Bray-Curtis (protein)"]], digits = 3,
+    caption = "Bray-Curtis (protein)")
+knitr::kable(permanova$MMD, digits = 3, caption = "MMD")
+round(permdisp, 3) # PERMDISP p
 ```
 
 Ellipses are 95% ellipses per protein source (multivariate t).
@@ -159,16 +162,16 @@ ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = cage)) +
 
 Both distances detect protein source. MMD attributes more of the variation
 to it than protein-level Bray-Curtis does (R²
-`r sprintf("%.3f", tests["MMD", "PERMANOVA R2"])` against
-`r sprintf("%.3f", tests["Bray-Curtis (protein)", "PERMANOVA R2"])`), and
+`r sprintf("%.3f", permanova$MMD["diet", "R2"])` against
+`r sprintf("%.3f", permanova[["Bray-Curtis (protein)"]]["diet", "R2"])`), and
 only Bray-Curtis also shows unequal spread between sources (PERMDISP p
-`r sprintf("%.3f", tests["Bray-Curtis (protein)", "PERMDISP p"])` against
-`r sprintf("%.3f", tests["MMD", "PERMDISP p"])`), so the MMD separation is
+`r sprintf("%.3f", permdisp[["Bray-Curtis (protein)"]])` against
+`r sprintf("%.3f", permdisp[["MMD"]])`), so the MMD separation is
 mainly a shift in location.
 
 Cage explains less under MMD (R²
-`r sprintf("%.3f", tests["MMD", "Cage R2"])` against
-`r sprintf("%.3f", tests["Bray-Curtis (protein)", "Cage R2"])`), and almost
+`r sprintf("%.3f", permanova$MMD["cage", "R2"])` against
+`r sprintf("%.3f", permanova[["Bray-Curtis (protein)"]]["cage", "R2"])`), and almost
 all of it is the split between the two mouse groups: the first Bray-Curtis
 axis separates C1 and C3 from C2 and C4, while the first MMD axis separates
 yeast and egg from the other sources.

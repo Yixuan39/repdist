@@ -365,6 +365,9 @@ div.tocify {
       <a href="simulation_ec.html">Sequence-disjoint functions</a>
     </li>
     <li>
+      <a href="simulation_distances.html">MMD, OT and UniFrac</a>
+    </li>
+    <li>
       <a href="parameters.html">MCL parameters</a>
     </li>
   </ul>
@@ -502,47 +505,150 @@ href="#ref-anderson2001permanova">Anderson 2001</a>)</span> tests
 protein source after protein amount, cage and week, and PERMDISP <span
 class="citation">(<a href="#ref-anderson2006permdisp">Anderson
 2006</a>)</span> tests for unequal spread between sources; both use 999
-permutations restricted to within mouse. Cage nests sex. Its R² is
-reported but not tested: within-mouse permutations cannot test a
-between-mouse term.</p>
+permutations restricted to within mouse. Cage nests sex.</p>
 <pre class="r"><code>perm &lt;- permute::how(blocks = md$subject, nperm = 999)
-tests &lt;- t(vapply(D, function(Dk) {
+permanova &lt;- lapply(D, function(Dk) {
     set.seed(1)
-    a &lt;- adonis2(Dk ~ dose + cage + week + diet, data = md, by = &quot;terms&quot;,
-        permutations = perm)
+    as.data.frame(adonis2(Dk ~ dose + cage + week + diet, data = md,
+        by = &quot;terms&quot;, permutations = perm))
+})
+permdisp &lt;- vapply(D, function(Dk) {
     set.seed(1)
-    pd &lt;- permutest(betadisper(Dk, md$diet), permutations = perm)
-    c(`PERMANOVA R2` = a[&quot;diet&quot;, &quot;R2&quot;], `PERMANOVA p` = a[&quot;diet&quot;, &quot;Pr(&gt;F)&quot;],
-        `PERMDISP p` = pd$tab[1, &quot;Pr(&gt;F)&quot;], `Cage R2` = a[&quot;cage&quot;, &quot;R2&quot;])
-}, numeric(4)))
-knitr::kable(tests, digits = 3)</code></pre>
+    permutest(betadisper(Dk, md$diet), permutations = perm)$tab[1, &quot;Pr(&gt;F)&quot;]
+}, numeric(1))
+options(knitr.kable.NA = &quot;&quot;)
+knitr::kable(permanova[[&quot;Bray-Curtis (protein)&quot;]], digits = 3,
+    caption = &quot;Bray-Curtis (protein)&quot;)</code></pre>
 <table>
+<caption>Bray-Curtis (protein)</caption>
 <thead>
 <tr class="header">
 <th align="left"></th>
-<th align="right">PERMANOVA R2</th>
-<th align="right">PERMANOVA p</th>
-<th align="right">PERMDISP p</th>
-<th align="right">Cage R2</th>
+<th align="right">Df</th>
+<th align="right">SumOfSqs</th>
+<th align="right">R2</th>
+<th align="right">F</th>
+<th align="right">Pr(&gt;F)</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">Bray-Curtis (protein)</td>
-<td align="right">0.251</td>
+<td align="left">dose</td>
+<td align="right">1</td>
+<td align="right">0.675</td>
+<td align="right">0.022</td>
+<td align="right">3.877</td>
 <td align="right">0.001</td>
-<td align="right">0.001</td>
-<td align="right">0.191</td>
 </tr>
 <tr class="even">
-<td align="left">MMD</td>
-<td align="right">0.322</td>
+<td align="left">cage</td>
+<td align="right">3</td>
+<td align="right">5.792</td>
+<td align="right">0.191</td>
+<td align="right">11.088</td>
 <td align="right">0.001</td>
-<td align="right">0.554</td>
-<td align="right">0.154</td>
+</tr>
+<tr class="odd">
+<td align="left">week</td>
+<td align="right">1</td>
+<td align="right">0.906</td>
+<td align="right">0.030</td>
+<td align="right">5.205</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="even">
+<td align="left">diet</td>
+<td align="right">5</td>
+<td align="right">7.617</td>
+<td align="right">0.251</td>
+<td align="right">8.749</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="odd">
+<td align="left">Residual</td>
+<td align="right">88</td>
+<td align="right">15.322</td>
+<td align="right">0.505</td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+<tr class="even">
+<td align="left">Total</td>
+<td align="right">98</td>
+<td align="right">30.312</td>
+<td align="right">1.000</td>
+<td align="right"></td>
+<td align="right"></td>
 </tr>
 </tbody>
 </table>
+<pre class="r"><code>knitr::kable(permanova$MMD, digits = 3, caption = &quot;MMD&quot;)</code></pre>
+<table>
+<caption>MMD</caption>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="right">Df</th>
+<th align="right">SumOfSqs</th>
+<th align="right">R2</th>
+<th align="right">F</th>
+<th align="right">Pr(&gt;F)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">dose</td>
+<td align="right">1</td>
+<td align="right">0.009</td>
+<td align="right">0.032</td>
+<td align="right">6.157</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="even">
+<td align="left">cage</td>
+<td align="right">3</td>
+<td align="right">0.045</td>
+<td align="right">0.154</td>
+<td align="right">9.947</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="odd">
+<td align="left">week</td>
+<td align="right">1</td>
+<td align="right">0.011</td>
+<td align="right">0.037</td>
+<td align="right">7.187</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="even">
+<td align="left">diet</td>
+<td align="right">5</td>
+<td align="right">0.094</td>
+<td align="right">0.322</td>
+<td align="right">12.458</td>
+<td align="right">0.001</td>
+</tr>
+<tr class="odd">
+<td align="left">Residual</td>
+<td align="right">88</td>
+<td align="right">0.133</td>
+<td align="right">0.455</td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+<tr class="even">
+<td align="left">Total</td>
+<td align="right">98</td>
+<td align="right">0.291</td>
+<td align="right">1.000</td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>round(permdisp, 3) # PERMDISP p
+#&gt; Bray-Curtis (protein)                   MMD 
+#&gt;                 0.001                 0.554</code></pre>
 <p>Ellipses are 95% ellipses per protein source (multivariate t).</p>
 <pre class="r"><code>ord &lt;- do.call(rbind, lapply(names(D), function(n) {
     e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
@@ -1128,84 +1234,84 @@ knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot
 <td align="left">AB21-1_Cage1_bin.62_00494</td>
 <td align="left">UBA7173 sp. AB21-1</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH94;GH92</td>
 </tr>
 <tr class="even">
 <td align="left">BT_AB5-1_Cage1_bin.90_00027</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">3.2.1.-;GH92</td>
 </tr>
 <tr class="odd">
 <td align="left">BT_AB5-1_Cage1_bin.90_00125</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH94;3.2.1.113;GH92</td>
 </tr>
 <tr class="even">
 <td align="left">BT_AB5-1_Cage1_bin.90_00126</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH92</td>
 </tr>
 <tr class="odd">
 <td align="left">BT_AB5-1_Cage1_bin.90_00128</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH92</td>
 </tr>
 <tr class="even">
 <td align="left">BT_AB5-1_Cage1_bin.90_00157</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH94;3.2.1.113;GH92</td>
 </tr>
 <tr class="odd">
 <td align="left">BT_AB5-1_Cage1_bin.90_00158</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH92</td>
 </tr>
 <tr class="even">
 <td align="left">BT_AB5-1_Cage1_bin.90_00161</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH92</td>
 </tr>
 <tr class="odd">
 <td align="left">BT_AB5-1_Cage1_bin.90_00877</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH94;GH92</td>
 </tr>
 <tr class="even">
 <td align="left">BT_AB5-1_Cage1_bin.90_01166</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH92</td>
 </tr>
 <tr class="odd">
 <td align="left">BT_AB5-1_Cage1_bin.90_01179</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH94;GH92</td>
 </tr>
 <tr class="even">
 <td align="left">BT_amb_Cage1_bin.90_00456</td>
 <td align="left">Bacteroides thetaiotaomicron</td>
 <td align="left">GH92 family glycosyl hydrolase</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">GH92</td>
 </tr>
 </tbody>
@@ -1236,72 +1342,72 @@ knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot
 <tr class="odd">
 <td align="left">AB77-2_co.bin.209_02535</td>
 <td align="left">Acetatifactor sp. AB77-2</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="even">
 <td align="left">AB79-1_Cage2_bin.14_02606</td>
 <td align="left">Acetatifactor sp. AB79-1</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="odd">
 <td align="left">AB79-2_co.bin.247_00988</td>
 <td align="left">Acetatifactor sp. AB79-2</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="even">
 <td align="left">AB82-1_Cage1_bin.42_02248</td>
 <td align="left">Acetatifactor sp. AB82-1</td>
-<td align="left">NA</td>
+<td align="left"></td>
 <td align="left">K19630</td>
-<td align="left">NA</td>
+<td align="left"></td>
 </tr>
 <tr class="odd">
 <td align="left">AB82-1_Cage1_bin.42_04733</td>
 <td align="left">Acetatifactor sp. AB82-1</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="even">
 <td align="left">AB94-1_Cage1_bin.112_03055</td>
 <td align="left">Kineothrix sp. AB94-1</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="odd">
 <td align="left">lowQ_bin.83_Cage2_PPEKKICB_00250</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="even">
 <td align="left">Unbin_Cage1_FEAPCNDJ_106437</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="odd">
 <td align="left">Unbin_Cage2_HKMOJPLM_36262</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 <tr class="even">
 <td align="left">Unbin_Cage2_HKMOJPLM_87315</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
-<td align="left">NA</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
 </tr>
 </tbody>
 </table>
