@@ -141,8 +141,27 @@ embeddings $\lVert z_i - z_j \rVert^2 = 2(1 - s_{ij})$, where $s_{ij}$ is the
 cosine similarity, so $k(z_i, z_j) = \exp(-(1 - s_{ij})/\sigma^2)$; with
 TM-Vec, $s_{ij}$ is the predicted TM-score.
 
+**Estimator.** This is the exact MMD between the observed
+relative-abundance distributions, including within-sample diagonal terms.
+When used to estimate population MMD, it is the biased plug-in form
+[@gretton2012mmd, equation 5]. The unbiased U-statistic estimates squared
+population MMD and can be negative; taking its square root would not give
+a valid sample distance in those cases. Clipping negative values would
+also lose unbiasedness. `sample_mmd()` therefore retains the empirical
+distribution distance for PCoA and PERMANOVA. For integer counts, an
+observation-level unbiased correction would also need to account for
+repeated observations of the same protein; simply dropping the protein
+kernel's diagonal is not that correction.
+
+**Sampling depth.** Relative abundances remove total-count scaling, but
+not depth-dependent sampling noise or changes in which proteins are seen.
+Rarefaction is an optional analysis choice, not a requirement of the
+distance. The simulations use all observed counts as relative abundances;
+the case study uses a common rarefaction depth for both distances. Raw
+counts are retained for count-based differential abundance analysis.
+
 **Why a kernel distance.** If $k$ were 1 for identical proteins and 0
-otherwise, the expression would reduce to the Euclidean distance between the
+otherwise, the returned MMD would reduce to the Euclidean distance between the
 two relative-abundance vectors, an identity-only comparison. With the RBF
 kernel, the cross term lets different accessions with close embeddings
 partly match, in proportion to their abundances. MMD compares the two
@@ -180,8 +199,13 @@ D2 <- sample_mmd(counts[1:2, ], proteins, sigma = attr(D, "sigma"))
 ```
 
 `weighted = FALSE` gives every detected protein equal weight (a
-presence/absence version). `sample_mmd()` holds the protein × protein kernel
-in memory, so memory grows with the square of the number of proteins.
+presence/absence version). Before computing the kernel, `sample_mmd()` drops
+proteins with zero abundance in every supplied sample. It then holds a dense
+kernel over the union of proteins detected across the entire call, not a
+separate kernel for each sample pair. Memory therefore grows with the square
+of the retained protein count. One double-precision kernel alone takes
+approximately $8r^2$ bytes for $r$ retained proteins; distance matrices and
+temporary copies add to peak memory.
 
 # Protein similarity graph {#protein-similarity-graph}
 

@@ -96,7 +96,14 @@ nb_counts <- function(up, ids, rho, pairs) {
 - **Bray-Curtis (MMseqs2 30% bins)**: the same at 30% identity, a
   clustering not used in the construction: the more independent sequence
   comparison.
-- **Bray-Curtis (protein)**: Bray-Curtis on the protein counts.
+- **Bray-Curtis (protein)**: Bray-Curtis on protein relative abundances.
+
+All sample distances use relative abundances. Counts are normalised before
+aggregation, so protein-level and bin-level Bray-Curtis use the same sample
+totals as MMD. The primary simulation is not rarefied: random depth is part
+of the observation model, and relative abundances remove total-count scaling
+without discarding observations. This does not remove depth-dependent
+sampling noise or differences in which proteins are detected.
 
 PERMANOVA (`adonis2()`) [@anderson2001permanova] tests whether the groups
 differ in their distance-based centroids; PERMDISP (`betadisper()` and
@@ -273,6 +280,7 @@ S <- protein_similarity(ec_proteins, n_cores = BiocParallel::multicoreWorkers())
 bins <- bin_proteins(S)
 glom <- function(counts, cluster) t(rowsum(t(counts), cluster[colnames(counts)]))
 distances_ec <- function(counts) {
+    counts <- counts / rowSums(counts)
     list(
         MMD = sample_mmd(counts, ec_proteins),
         `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
@@ -470,7 +478,8 @@ sing <- function(g) sprintf("%.1f%%", size_tab[g, "singleton proteins (%)"])
   `r sprintf("%.3f", min(mmd_miss$"PERMANOVA p"))` and
   `r sprintf("%.3f", max(mmd_miss$"PERMANOVA p"))`. PERMDISP was significant for at most
   `r max(disp[, -1])` of `r nrow(contrasts)` contrasts for any distance and
-  $\rho > 0$, so the detections are shifts in location.
+  $\rho > 0$. Where dispersion differs, PERMANOVA can reflect spread as
+  well as location.
 - **Sequence bins.** The 50% clustering helped construct the benchmark, so
   the failure of the 50% bins is partly by design, not a general comparison
   with MMseqs2. The 30% bins, not used in the construction, detected

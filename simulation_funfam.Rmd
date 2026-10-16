@@ -94,7 +94,14 @@ nb_counts <- function(up, ids, rho, pairs) {
   `bin_proteins()` → `bin_glom()`, then Bray-Curtis on the bin counts. The
   bins depend only on the universe, so they are built once, with package
   defaults (predicted TM-score ≥ 0.7, coverage ≥ 0.5, inflation 2).
-- **Bray-Curtis (protein)**: Bray-Curtis on the protein counts.
+- **Bray-Curtis (protein)**: Bray-Curtis on protein relative abundances.
+
+All sample distances use relative abundances. Counts are normalised before
+aggregation, so protein-level and bin-level Bray-Curtis use the same sample
+totals as MMD. The primary simulation is not rarefied: random depth is part
+of the observation model, and relative abundances remove total-count scaling
+without discarding observations. This does not remove depth-dependent
+sampling noise or differences in which proteins are detected.
 
 **Coherence.** `vegan::betadisper()` measures each group's dispersion, the
 mean distance of its samples to the group centroid, and PERMDISP
@@ -234,6 +241,7 @@ S <- protein_similarity(funfam_proteins,
     n_cores = BiocParallel::multicoreWorkers())
 bins <- bin_proteins(S)
 distances_ff <- function(counts) {
+    counts <- counts / rowSums(counts)
     list(
         MMD = sample_mmd(counts, funfam_proteins),
         `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
@@ -273,8 +281,7 @@ pc1_group <- vapply(D, function(Dk) {
 
 The share of variance on the first axis says how concentrated the variation
 is, not how well the groups separate. Under Bray-Curtis on MCL bins the first
-axis follows a few samples whose enriched domain fell in a small bin, and
-correlates `r sprintf("%.2f", pc1_group[["Bray-Curtis (repdist MCL bins)"]])`
+axis correlates `r sprintf("%.2f", pc1_group[["Bray-Curtis (repdist MCL bins)"]])`
 with the grouping; under MMD it correlates
 `r sprintf("%.2f", pc1_group[["MMD"]])`.
 
@@ -340,11 +347,11 @@ f3 <- function(v) sprintf("%.3f", v)
   difference in spread.
 - **MCL bins.** MCL holds `r sum(bins_per_target == 1)` of
   `r length(targets)` target FunFams in one bin: it captures each family as a
-  discrete group. Bray-Curtis on those bins is nevertheless insensitive to a
-  2% perturbation, because the shift in one of `r length(bins$clusters)` bins
-  is small against the sampling noise summed over all of them. MMD is more
-  sensitive for sample-level comparison because it uses the graded
-  similarity between the enriched domains directly.
+  discrete group. With the same relative-abundance normalisation for every
+  distance, both MMD and Bray-Curtis on the `r length(bins$clusters)` MCL
+  bins recover the imposed family-level signal. MMD uses graded similarity
+  between domains, while bin aggregation represents their shared family as
+  one abundance unit. This positive control supports both approaches.
 
 FunFam is a favourable case, chosen as a positive control.
 [Simulation 2](simulation_ec.html) asks the harder question, a symmetric

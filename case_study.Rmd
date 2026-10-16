@@ -103,18 +103,23 @@ md <- droplevels(md)
 table(md$diet, md$dose)
 ```
 
-Sequencing depth differs between samples, and depth changes which proteins
-are observed. Both distances are therefore computed on counts rarefied to the
-smallest sample.
+PSM totals differ between samples, and sampling depth changes which proteins
+are observed. For this case study, both distances use the same counts
+rarefied to the smallest sample, followed by relative-abundance
+normalisation. Rarefaction standardises the number of observed PSMs but
+discards counts and adds sampling variability; it is an analysis choice,
+not a requirement of MMD. It does not recover undetected proteins or remove
+all effects of the observation process.
 
 ```{r rarefy}
 range(rowSums(counts[rownames(md), ]))
 set.seed(1)
 rarefied <- rrarefy(counts[rownames(md), ], min(rowSums(counts[rownames(md), ])))
 rarefied <- rarefied[, colSums(rarefied) > 0]
+relative <- rarefied / rowSums(rarefied)
 D <- list(
-    `Bray-Curtis (protein)` = vegdist(rarefied, "bray"),
-    MMD = sample_mmd(rarefied, proteins)
+    `Bray-Curtis (protein)` = vegdist(relative, "bray"),
+    MMD = sample_mmd(relative, proteins)
 )
 ```
 
@@ -122,6 +127,14 @@ PERMANOVA [@anderson2001permanova] tests protein source after protein amount,
 cage and week, and PERMDISP [@anderson2006permdisp] tests for unequal spread
 between sources; both use 999 permutations restricted to within mouse.
 Cage nests sex.
+
+The table reports sequential R² and the p values returned by `adonis2()`.
+Cage R² is reported descriptively. Because every mouse stays in one cage,
+within-mouse permutations preserve cage membership; the printed cage p
+value is not interpreted as a test of a between-cage effect. The numeric
+week term adjusts for a linear time trend only. Diets were fed in a fixed
+order, so the diet association cannot be separated from arbitrary changes
+over time.
 
 ```{r permanova}
 perm <- permute::how(blocks = md$subject, nperm = 999)
@@ -169,12 +182,12 @@ only Bray-Curtis also shows unequal spread between sources (PERMDISP p
 `r sprintf("%.3f", permdisp[["MMD"]])`), so the MMD separation is
 mainly a shift in location.
 
-Cage explains less under MMD (R²
+The sequential R² assigned to cage is smaller under MMD (R²
 `r sprintf("%.3f", permanova$MMD["cage", "R2"])` against
-`r sprintf("%.3f", permanova[["Bray-Curtis (protein)"]]["cage", "R2"])`), and almost
-all of it is the split between the two mouse groups: the first Bray-Curtis
-axis separates C1 and C3 from C2 and C4, while the first MMD axis separates
-yeast and egg from the other sources.
+`r sprintf("%.3f", permanova[["Bray-Curtis (protein)"]]["cage", "R2"])`).
+This is a descriptive comparison of the two distance spaces. In the
+ordination, the first Bray-Curtis axis separates C1 and C3 from C2 and C4,
+while the first MMD axis separates yeast and egg from the other sources.
 
 To see what separates the mouse groups, the next chunk sets aside proteins
 seen in only one group and finds each one's nearest protein in the other
