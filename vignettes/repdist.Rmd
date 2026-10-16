@@ -179,14 +179,17 @@ c(
 
 # Step 1: beta diversity
 
-Two distances over the same rarefied counts. Bray-Curtis is the protein-level
+Two distances over the relative abundances of the same rarefied counts.
+The retained 2000-protein subset no longer has equal sample totals, so both
+distances use explicit row normalisation. Bray-Curtis is the protein-level
 baseline: it can only ask whether two samples hold the *same accession*. MMD
 asks how far apart the proteins they hold actually are.
 
 ```{r distances}
+relative <- d$counts / rowSums(d$counts)
 D <- list(
-    `Bray-Curtis` = vegan::vegdist(d$counts, "bray"),
-    `MMD`         = sample_mmd(d$counts, x)
+    `Bray-Curtis` = vegan::vegdist(relative, "bray"),
+    `MMD`         = sample_mmd(relative, x)
 )
 ```
 
@@ -241,7 +244,8 @@ database, so samples really do share accessions, and accession identity is
 something Bray-Curtis can read directly. The representation distance is not
 rescuing a failed analysis here — it is being checked against a case where the
 conventional method already works, and it agrees. The simulation study on
-the package website shows the case where only one of them survives.
+the package website compares the methods when each sample carries its
+functional signal through distinct protein accessions.
 
 ## Ordination
 
@@ -504,14 +508,24 @@ plot_bin_similarity(b, picks$bin[1], S, x)
 
 **Sampling depth.** `sample_mmd()` normalizes each row, which removes
 total-count scaling but not the effect of depth on which proteins were seen at
-all; check depth and richness as confounders, and rarefy with
-`vegan::rrarefy()` if you want them off the table, at the cost of discarded
-counts. The differential-abundance model wants the opposite — raw counts, with
-depth handled by its size factors.
+all. Check depth and richness as possible confounders. Rarefaction with
+`vegan::rrarefy()` standardises the number of observations, at the cost of
+discarded counts and added sampling variability; it does not recover
+undetected proteins or remove all depth effects. It is an optional analysis
+choice, not a requirement of MMD. The differential-abundance model uses raw
+counts, with depth handled by its size factors.
 
 **Memory.** `protein_similarity()` and `sample_mmd()` hold
 protein-by-protein matrices, so bin the *identified* subset of a catalog, never
-a whole search database.
+a whole search database. `sample_mmd()` first removes proteins absent from
+every supplied sample, then builds its kernel over the retained union across
+the whole call, rather than separately for each sample pair.
+
+**Estimator.** `sample_mmd()` computes the distance between the observed
+relative-abundance distributions, including within-sample diagonal terms.
+As a population estimate this is the biased plug-in form. An unbiased
+estimate of squared population MMD can be negative, so it is not used as
+the sample distance for PCoA or PERMANOVA.
 
 **Bandwidth.** `sample_mmd()` returns the bandwidth it used as
 `attr(, "sigma")`; pass it back to compare across studies. With the default the

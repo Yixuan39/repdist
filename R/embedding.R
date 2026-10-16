@@ -242,8 +242,8 @@ embed_proteins <- function(
         batch_size != floor(batch_size) || batch_size > .Machine$integer.max) {
         stop("`batch_size` must be a single positive integer.", call. = FALSE)
     }
-    resolved <- .model_spec(model)
     seqs <- .check_sequences(seqs)
+    resolved <- .model_spec(model)
     ids <- names(seqs)
 
     proc <- basilisk::basiliskStart(repdist_env)

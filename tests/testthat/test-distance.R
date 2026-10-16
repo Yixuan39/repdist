@@ -35,6 +35,12 @@ test_that("embeddings are normalised to unit rows", {
         sample_mmd(counts, x))
 })
 
+test_that("sample_mmd is invariant to sample totals and relative abundances", {
+    reference <- sample_mmd(counts, x)
+    expect_equal(sample_mmd(counts / rowSums(counts), x), reference)
+    expect_equal(sample_mmd(counts * seq_len(nrow(counts)), x), reference)
+})
+
 test_that("sample_mmd preserves sparse counts", {
     sparse_counts <- counts
     sparse_counts[(row(sparse_counts) + col(sparse_counts)) %% 4 != 0] <- 0L

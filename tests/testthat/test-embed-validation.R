@@ -1,3 +1,14 @@
+test_that("invalid sequences are rejected before model resolution", {
+    testthat::local_mocked_bindings(
+        .model_spec = function(...) stop("Model resolution must not run")
+    )
+    expect_error(embed_proteins(c("ACDE", "KLMN")), "names")
+    expect_error(embed_proteins(c(p1 = "")), "empty")
+    expect_error(embed_proteins(c(p1 = "AC-DE")), "model-incompatible")
+    expect_error(embed_proteins(c(p1 = NA_character_)), "missing")
+    expect_error(embed_proteins(c(p1 = "ACDE")), "Model resolution must not run")
+})
+
 test_that("duplicate, missing, or empty names are rejected", {
     expect_error(embed_proteins(c("ACDE", "KLMN")), "names")
     expect_error(embed_proteins(c(p1 = "ACDE", p1 = "KLMN")), "unique")

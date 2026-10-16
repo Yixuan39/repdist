@@ -18,19 +18,20 @@ Two groups of ten simulated samples, enriched for different enzyme classes
 (EC 2.7.7 and EC 2.3.2) with 2% of their abundance. Every sample carries its
 enrichment through proteins from MMseqs2 sequence clusters (50% identity) that
 no other sample of its group uses, so no accession or sequence cluster is
-shared. Ellipses are 95% ellipses per group. PERMANOVA and PERMDISP, 999
-permutations:
+shared. Every distance uses relative abundances, with counts normalised
+before bin aggregation. Ellipses are 95% ellipses per group. PERMANOVA and
+PERMDISP, 999 permutations:
 
 | Distance | PERMANOVA R² | PERMANOVA p | PERMDISP p |
 | --- | --- | --- | --- |
 | MMD | 0.115 | 0.001 | 0.704 |
-| Bray-Curtis (repdist MCL bins) | 0.061 | 0.207 | 0.220 |
-| Bray-Curtis (MMseqs2 bins) | 0.054 | 0.263 | 0.487 |
-| Bray-Curtis (protein) | 0.055 | 0.222 | 0.549 |
+| Bray-Curtis (repdist MCL bins) | 0.058 | 0.030 | 0.206 |
+| Bray-Curtis (MMseqs2 bins) | 0.052 | 0.576 | 0.304 |
+| Bray-Curtis (protein) | 0.053 | 0.353 | 0.327 |
 
-Under such sequence-disjoint functional contrasts, MMD's graded
-representation similarity keeps the relationship that protein identity and
-hard sequence bins discard. This is one of 28 contrasts in the
+The comparison measures how graded representation similarity, structural
+and sequence binning, and protein identity recover a functional contrast
+carried by distinct proteins in every sample. This is one of 28 contrasts in the
 [sequence-disjoint simulation](https://yixuan39.github.io/repdist/simulation_ec.html)
 on the package website.
 

@@ -39,6 +39,23 @@ Proteins with zero abundance in every sample are dropped first. Row
 normalisation removes total-count scaling, but not the effect of depth on
 which proteins were seen.
 }
+\section{Estimator}{
+
+This is the exact MMD between the observed relative-abundance
+distributions, including within-sample diagonal terms. As an estimate
+of a population MMD it is the biased plug-in form. The unbiased
+U-statistic estimates squared population MMD and can be negative, so it
+is not used as a sample distance for ordination or PERMANOVA.
+}
+
+\section{Memory}{
+
+Zero-abundance proteins are removed across all samples in \code{counts},
+not separately for each sample pair. The retained protein kernel is a
+dense matrix, so memory grows quadratically with the number of proteins
+detected in at least one supplied sample.
+}
+
 \section{Bandwidth}{
 
 \code{sigma = NULL} uses the median pairwise Euclidean distance between the
