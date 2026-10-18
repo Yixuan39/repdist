@@ -391,20 +391,19 @@ div.tocify {
 
 <h1 class="title toc-ignore">Simulation 3: MMD, optimal transport and
 UniFrac</h1>
-<h3 class="subtitle">Embedding- and graph-based sample distances on one
-FunFam contrast</h3>
+<h3 class="subtitle">Sample distances on the TM-Vec similarity matrix
+for one FunFam contrast</h3>
 
 </div>
 
 
 <p>Group A’s ten samples each enrich a different domain of one CATH
 FunFam; group B’s each enrich a different domain of a second FunFam.
-Four sample distances that use the protein embeddings or the MCL graph
-are compared on the same counts.</p>
+Three sample distances built on the same TM-Vec similarity matrix are
+compared on the same counts.</p>
 <pre class="r"><code>library(repdist)
 library(ggplot2)
-library(vegan)
-n_cores &lt;- BiocParallel::multicoreWorkers()</code></pre>
+library(vegan)</code></pre>
 <div id="simulation" class="section level1">
 <h1>Simulation</h1>
 <p>The FunFam domain universe and the negative-binomial count model of
@@ -479,87 +478,59 @@ group &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n_per_group))</co
 </div>
 <div id="distances" class="section level1">
 <h1>Distances</h1>
-<p>On unit-norm TM-Vec embeddings the Euclidean distance is <span
-class="math inline">\(\sqrt{2(1 - \widehat{TM})}\)</span>, a metric in
-the predicted TM-score.</p>
+<p>On unit-norm TM-Vec embeddings the cosine similarity is the predicted
+TM-score <span class="math inline">\(\widehat{TM}\)</span>. All three
+distances use the domain-by-domain matrix <span class="math inline">\(1
+- \widehat{TM}\)</span>, with no similarity gate and no MCL bins.</p>
 <ul>
 <li><strong>MMD</strong>: <code>sample_mmd()</code>, the maximum mean
-discrepancy under a Gaussian kernel on the embeddings <span
-class="citation">(<a href="#ref-gretton2012mmd">Gretton et al.
+discrepancy under a Gaussian kernel on the embeddings, <span
+class="math inline">\(\exp(-(1 - \widehat{TM}) / \sigma^2)\)</span>
+<span class="citation">(<a href="#ref-gretton2012mmd">Gretton et al.
 2012</a>)</span>.</li>
-<li><strong>OT (embedding)</strong>: optimal transport, the exact
-1-Wasserstein distance between the samples’ relative abundances, with
-the Euclidean distance between embeddings as the cost <span
+<li><strong>OT</strong>: optimal transport, the exact 1-Wasserstein
+distance between the samples’ relative abundances with cost <span
+class="math inline">\(1 - \widehat{TM}\)</span> <span
 class="citation">(<a href="#ref-peyre2019cot">Peyré and Cuturi
 2019</a>)</span>, solved by <code>transport::wasserstein()</code> <span
 class="citation">(<a href="#ref-schuhmacher2024transport">Schuhmacher et
-al. 2024</a>)</span>. Under a metric cost only the mass that differs
-needs to move, so each pair is solved on <span class="math inline">\((p
-- q)^+\)</span> against <span class="math inline">\((p -
-q)^-\)</span>.</li>
-<li><strong>OT (MCL graph)</strong>: the same, with the cost read from
-the weighted graph that MCL clusters (<code>protein_similarity()</code>,
-package defaults). An edge costs <span class="math inline">\(1 -
-\widehat{TM}\)</span>, two domains cost their shortest path, and domains
-with no path, or a path longer than 1, cost 1. With no edges every pair
-costs 1 and this is Bray-Curtis on relative abundances.</li>
-<li><strong>Weighted UniFrac (MCL tree)</strong>: the MCL graph is
-compressed into a tree. Each MCL bin (package defaults) becomes one tip,
-and the bins are joined by average linkage (UPGMA) on the mean embedding
-distance between their domains, i.e. UPGMA on the domains started from
-the bins. Weighted UniFrac <span class="citation">(<a
+al. 2024</a>)</span>. <span class="math inline">\(1 -
+\widehat{TM}\)</span> is not a metric, so each pair is solved on the
+full support.</li>
+<li><strong>Weighted UniFrac</strong>: the domains are joined by average
+linkage (UPGMA) on <span class="math inline">\(1 -
+\widehat{TM}\)</span>, and weighted UniFrac <span class="citation">(<a
 href="#ref-lozupone2007unifrac">Lozupone et al. 2007</a>)</span> is
-computed on the bin counts with <code>GUniFrac</code> <span
+computed on the domain counts with <code>GUniFrac</code> <span
 class="citation">(<a href="#ref-chen2012gunifrac">Chen et al.
 2012</a>)</span>. It is the 1-Wasserstein distance under the tree’s path
 metric <span class="citation">(<a href="#ref-evans2012kr">Evans and
-Matsen 2012</a>)</span>, so it differs from OT only in the ground
-metric.</li>
+Matsen 2012</a>)</span>, so it differs from OT only in replacing <span
+class="math inline">\(1 - \widehat{TM}\)</span> by its UPGMA tree.</li>
 </ul>
-<pre class="r"><code>S &lt;- protein_similarity(ff$proteins, n_cores = n_cores)
-bins &lt;- bin_proteins(S)
-Z &lt;- S4Vectors::mcols(ff$proteins)$embedding
+<pre class="r"><code>Z &lt;- S4Vectors::mcols(ff$proteins)$embedding
 Z &lt;- Z / sqrt(rowSums(Z^2))
 rownames(Z) &lt;- names(ff$proteins)
-C &lt;- as.matrix(dist(Z)) # sqrt(2 (1 - predicted TM))
-g &lt;- bins$membership[rownames(C)]
-sums &lt;- rowsum(t(rowsum(C, g)), g) # bin x bin sums of domain distances
-n &lt;- as.vector(table(g)[rownames(sums)])
-tree &lt;- ape::as.phylo(hclust(as.dist(sums / outer(n, n)), &quot;average&quot;,
-    members = n))
-w1 &lt;- function(a, b, C) {
-    d &lt;- a - b
-    P &lt;- d &gt; 0
-    N &lt;- d &lt; 0
-    m &lt;- sum(d[P])
-    m * transport::wasserstein(d[P] / m, -d[N] / sum(-d[N]),
-        costm = C[P, N, drop = FALSE], p = 1)
-}
-edges &lt;- which(upper.tri(S) &amp; S &gt; 0, arr.ind = TRUE)
-graph &lt;- igraph::graph_from_data_frame(data.frame(rownames(S)[edges[, 1]],
-    rownames(S)[edges[, 2]]), directed = FALSE, vertices = rownames(S))
-C_graph &lt;- pmin(igraph::distances(graph, weights = 1 - S[edges]), 1)
+C &lt;- pmax(1 - tcrossprod(Z), 0) # 1 - predicted TM
+diag(C) &lt;- 0
+tree &lt;- ape::as.phylo(hclust(as.dist(C), &quot;average&quot;))
 p &lt;- counts / rowSums(counts)
-ot &lt;- function(C) {
-    ij &lt;- combn(nrow(p), 2)
-    OT &lt;- matrix(0, nrow(p), nrow(p), dimnames = list(rownames(p),
-        rownames(p)))
-    OT[t(ij[2:1, ])] &lt;- apply(ij, 2, function(k) w1(p[k[1], ], p[k[2], ], C))
-    as.dist(OT)
-}
+ij &lt;- combn(nrow(p), 2)
+OT &lt;- matrix(0, nrow(p), nrow(p), dimnames = list(rownames(p), rownames(p)))
+OT[t(ij[2:1, ])] &lt;- apply(ij, 2, function(k) {
+    transport::wasserstein(p[k[1], ], p[k[2], ], costm = C, p = 1)
+})
 D &lt;- list(
     MMD = sample_mmd(counts, ff$proteins),
-    `OT (embedding)` = ot(C),
-    `OT (MCL graph)` = ot(C_graph),
-    `weighted UniFrac (MCL tree)` = as.dist(GUniFrac::GUniFrac(
-        bin_glom(counts, bins), tree, alpha = 1,
-        verbose = FALSE)$unifracs[, , &quot;d_1&quot;])
+    OT = as.dist(OT),
+    `weighted UniFrac` = as.dist(GUniFrac::GUniFrac(counts, tree,
+        alpha = 1, verbose = FALSE)$unifracs[, , &quot;d_1&quot;])
 )</code></pre>
 </div>
 <div id="pcoa" class="section level1">
 <h1>PCoA</h1>
 <p>Ellipses are 95% ellipses per group (multivariate t).</p>
-<p><img src="simulation_distances_files/figure-html/pcoa-1.png" alt="PCoA of the simulated FunFam contrast under MMD, optimal transport on the embeddings and on the MCL graph, and weighted UniFrac on the MCL tree, coloured by group, with 95% ellipses" width="816" /></p>
+<p><img src="simulation_distances_files/figure-html/pcoa-1.png" alt="PCoA of the simulated FunFam contrast under MMD, optimal transport and weighted UniFrac, all on the TM-Vec predicted TM-score, coloured by group, with 95% ellipses" width="960" /></p>
 </div>
 <div id="permanova" class="section level1">
 <h1>PERMANOVA</h1>
@@ -590,21 +561,15 @@ href="#ref-oksanen2025vegan"><span class="nocase">Oksanen et al.</span>
 <td align="right">0.001</td>
 </tr>
 <tr class="even">
-<td align="left">OT (embedding)</td>
-<td align="right">0.085</td>
-<td align="right">1.678</td>
+<td align="left">OT</td>
+<td align="right">0.119</td>
+<td align="right">2.434</td>
 <td align="right">0.001</td>
 </tr>
 <tr class="odd">
-<td align="left">OT (MCL graph)</td>
-<td align="right">0.142</td>
-<td align="right">2.969</td>
-<td align="right">0.001</td>
-</tr>
-<tr class="even">
-<td align="left">weighted UniFrac (MCL tree)</td>
-<td align="right">0.172</td>
-<td align="right">3.746</td>
+<td align="left">weighted UniFrac</td>
+<td align="right">0.115</td>
+<td align="right">2.346</td>
 <td align="right">0.001</td>
 </tr>
 </tbody>
@@ -631,33 +596,32 @@ href="#ref-oksanen2025vegan"><span class="nocase">Oksanen et al.</span>
 #&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
 #&gt; 
 #&gt; loaded via a namespace (and not attached):
-#&gt;  [1] tidyselect_1.2.1    timeDate_4052.112   dplyr_1.2.1        
-#&gt;  [4] farver_2.1.2        Biostrings_2.78.0   S7_0.2.2           
-#&gt;  [7] fastmap_1.2.0       digest_0.6.39       rpart_4.1.27       
-#&gt; [10] transport_0.15-4    lifecycle_1.0.5     cluster_2.1.8.2    
-#&gt; [13] statmod_1.5.2       magrittr_2.0.5      compiler_4.5.2     
-#&gt; [16] rlang_1.3.0         sass_0.4.10         tools_4.5.2        
-#&gt; [19] igraph_2.3.1        yaml_2.3.12         data.table_1.18.4  
-#&gt; [22] knitr_1.51          labeling_0.4.3      statip_0.2.3       
-#&gt; [25] RColorBrewer_1.1-3  BiocParallel_1.44.0 expm_1.0-0         
-#&gt; [28] withr_3.0.3         BiocGenerics_0.56.0 timeSeries_4052.112
-#&gt; [31] fBasics_4052.98     grid_4.5.2          stats4_4.5.2       
-#&gt; [34] stabledist_0.7-2    inline_0.3.21       scales_1.4.0       
-#&gt; [37] iterators_1.0.14    MASS_7.3-65         cli_3.6.6          
-#&gt; [40] rmarkdown_2.31      crayon_1.5.3        GUniFrac_1.9       
-#&gt; [43] generics_0.1.4      otel_0.2.0          ape_5.8-1          
-#&gt; [46] cachem_1.1.0        splines_4.5.2       parallel_4.5.2     
-#&gt; [49] stable_1.1.7        XVector_0.50.0      matrixStats_1.5.0  
-#&gt; [52] vctrs_0.7.3         Matrix_1.7-5        jsonlite_2.0.0     
-#&gt; [55] IRanges_2.44.0      S4Vectors_0.48.1    rmutil_1.1.10      
-#&gt; [58] ggrepel_0.9.8       clue_0.3-68         foreach_1.5.2      
-#&gt; [61] jquerylib_0.1.4     spatial_7.3-18      glue_1.8.1         
-#&gt; [64] codetools_0.2-20    MCL_1.0             gtable_0.3.6       
-#&gt; [67] tibble_3.3.1        pillar_1.11.1       htmltools_0.5.9    
-#&gt; [70] Seqinfo_1.0.0       R6_2.6.1            evaluate_1.0.5     
-#&gt; [73] lattice_0.22-9      modeest_2.4.0       bslib_0.11.0       
-#&gt; [76] Rcpp_1.1.2          nlme_3.1-169        mgcv_1.9-4         
-#&gt; [79] xfun_0.58           pkgconfig_2.0.3</code></pre>
+#&gt;  [1] transport_0.15-4    gtable_0.3.6        xfun_0.58          
+#&gt;  [4] bslib_0.11.0        ggrepel_0.9.8       inline_0.3.21      
+#&gt;  [7] lattice_0.22-9      vctrs_0.7.3         tools_4.5.2        
+#&gt; [10] generics_0.1.4      stats4_4.5.2        parallel_4.5.2     
+#&gt; [13] tibble_3.3.1        cluster_2.1.8.2     pkgconfig_2.0.3    
+#&gt; [16] Matrix_1.7-5        data.table_1.18.4   RColorBrewer_1.1-3 
+#&gt; [19] S7_0.2.2            S4Vectors_0.48.1    lifecycle_1.0.5    
+#&gt; [22] compiler_4.5.2      farver_2.1.2        Biostrings_2.78.0  
+#&gt; [25] statmod_1.5.2       Seqinfo_1.0.0       codetools_0.2-20   
+#&gt; [28] clue_0.3-68         htmltools_0.5.9     sass_0.4.10        
+#&gt; [31] rmutil_1.1.10       yaml_2.3.12         pillar_1.11.1      
+#&gt; [34] crayon_1.5.3        jquerylib_0.1.4     MASS_7.3-65        
+#&gt; [37] cachem_1.1.0        iterators_1.0.14    rpart_4.1.27       
+#&gt; [40] foreach_1.5.2       nlme_3.1-169        fBasics_4052.98    
+#&gt; [43] tidyselect_1.2.1    digest_0.6.39       dplyr_1.2.1        
+#&gt; [46] labeling_0.4.3      splines_4.5.2       fastmap_1.2.0      
+#&gt; [49] grid_4.5.2          cli_3.6.6           magrittr_2.0.5     
+#&gt; [52] stable_1.1.7        ape_5.8-1           withr_3.0.3        
+#&gt; [55] scales_1.4.0        rmarkdown_2.31      XVector_0.50.0     
+#&gt; [58] matrixStats_1.5.0   otel_0.2.0          timeDate_4052.112  
+#&gt; [61] timeSeries_4052.112 statip_0.2.3        evaluate_1.0.5     
+#&gt; [64] knitr_1.51          IRanges_2.44.0      GUniFrac_1.9       
+#&gt; [67] stabledist_0.7-2    modeest_2.4.0       mgcv_1.9-4         
+#&gt; [70] rlang_1.3.0         spatial_7.3-18      Rcpp_1.1.2         
+#&gt; [73] glue_1.8.1          BiocGenerics_0.56.0 jsonlite_2.0.0     
+#&gt; [76] R6_2.6.1</code></pre>
 </div>
 <div id="references" class="section level1 unnumbered">
 <h1 class="unnumbered">References</h1>

@@ -1,6 +1,6 @@
 ---
 title: "Simulation 3: MMD, optimal transport and UniFrac"
-subtitle: "Embedding- and graph-based sample distances on one FunFam contrast"
+subtitle: "Sample distances on the TM-Vec similarity matrix for one FunFam contrast"
 bibliography: references.bib
 link-citations: true
 ---
@@ -13,15 +13,14 @@ knitr::opts_chunk$set(
 ```
 
 Group A's ten samples each enrich a different domain of one CATH FunFam;
-group B's each enrich a different domain of a second FunFam. Four sample
-distances that use the protein embeddings or the MCL graph are compared on
-the same counts.
+group B's each enrich a different domain of a second FunFam. Three sample
+distances built on the same TM-Vec similarity matrix are compared on the same
+counts.
 
 ```{r libs}
 library(repdist)
 library(ggplot2)
 library(vegan)
-n_cores <- BiocParallel::multicoreWorkers()
 ```
 
 # Simulation
@@ -70,94 +69,63 @@ group <- factor(rep(c("A", "B"), each = n_per_group))
 
 # Distances
 
-On unit-norm TM-Vec embeddings the Euclidean distance is
-$\sqrt{2(1 - \widehat{TM})}$, a metric in the predicted TM-score.
+On unit-norm TM-Vec embeddings the cosine similarity is the predicted
+TM-score $\widehat{TM}$. All three distances use the domain-by-domain
+matrix $1 - \widehat{TM}$, with no similarity gate and no MCL bins.
 
 - **MMD**: `sample_mmd()`, the maximum mean discrepancy under a Gaussian
-  kernel on the embeddings [@gretton2012mmd].
-- **OT (embedding)**: optimal transport, the exact 1-Wasserstein distance
-  between the samples' relative abundances, with the Euclidean distance
-  between embeddings as the cost [@peyre2019cot], solved by
-  `transport::wasserstein()` [@schuhmacher2024transport]. Under a metric
-  cost only the mass that differs needs to move, so each pair is solved on
-  $(p - q)^+$ against $(p - q)^-$.
-- **OT (MCL graph)**: the same, with the cost read from the weighted graph
-  that MCL clusters (`protein_similarity()`, package defaults). An edge
-  costs $1 - \widehat{TM}$, two domains cost their shortest path, and
-  domains with no path, or a path longer than 1, cost 1. With no edges every
-  pair costs 1 and this is Bray-Curtis on relative abundances.
-- **Weighted UniFrac (MCL tree)**: the MCL graph is compressed into a tree.
-  Each MCL bin (package defaults) becomes one tip, and the bins are joined
-  by average linkage (UPGMA) on the mean embedding distance between their
-  domains, i.e. UPGMA on the domains started from the bins. Weighted UniFrac
-  [@lozupone2007unifrac] is computed on the bin counts with `GUniFrac`
-  [@chen2012gunifrac]. It is the 1-Wasserstein distance under the tree's
-  path metric [@evans2012kr], so it differs from OT only in the ground
-  metric.
+  kernel on the embeddings, $\exp(-(1 - \widehat{TM}) / \sigma^2)$
+  [@gretton2012mmd].
+- **OT**: optimal transport, the exact 1-Wasserstein distance between the
+  samples' relative abundances with cost $1 - \widehat{TM}$
+  [@peyre2019cot], solved by `transport::wasserstein()`
+  [@schuhmacher2024transport]. $1 - \widehat{TM}$ is not a metric, so each
+  pair is solved on the full support.
+- **Weighted UniFrac**: the domains are joined by average linkage (UPGMA)
+  on $1 - \widehat{TM}$, and weighted UniFrac [@lozupone2007unifrac] is
+  computed on the domain counts with `GUniFrac` [@chen2012gunifrac]. It is
+  the 1-Wasserstein distance under the tree's path metric [@evans2012kr],
+  so it differs from OT only in replacing $1 - \widehat{TM}$ by its
+  UPGMA tree.
 
 ```{r distances}
-S <- protein_similarity(ff$proteins, n_cores = n_cores)
-bins <- bin_proteins(S)
 Z <- S4Vectors::mcols(ff$proteins)$embedding
 Z <- Z / sqrt(rowSums(Z^2))
 rownames(Z) <- names(ff$proteins)
-C <- as.matrix(dist(Z)) # sqrt(2 (1 - predicted TM))
-g <- bins$membership[rownames(C)]
-sums <- rowsum(t(rowsum(C, g)), g) # bin x bin sums of domain distances
-n <- as.vector(table(g)[rownames(sums)])
-tree <- ape::as.phylo(hclust(as.dist(sums / outer(n, n)), "average",
-    members = n))
-w1 <- function(a, b, C) {
-    d <- a - b
-    P <- d > 0
-    N <- d < 0
-    m <- sum(d[P])
-    m * transport::wasserstein(d[P] / m, -d[N] / sum(-d[N]),
-        costm = C[P, N, drop = FALSE], p = 1)
-}
-edges <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
-graph <- igraph::graph_from_data_frame(data.frame(rownames(S)[edges[, 1]],
-    rownames(S)[edges[, 2]]), directed = FALSE, vertices = rownames(S))
-C_graph <- pmin(igraph::distances(graph, weights = 1 - S[edges]), 1)
+C <- pmax(1 - tcrossprod(Z), 0) # 1 - predicted TM
+diag(C) <- 0
+tree <- ape::as.phylo(hclust(as.dist(C), "average"))
 p <- counts / rowSums(counts)
-ot <- function(C) {
-    ij <- combn(nrow(p), 2)
-    OT <- matrix(0, nrow(p), nrow(p), dimnames = list(rownames(p),
-        rownames(p)))
-    OT[t(ij[2:1, ])] <- apply(ij, 2, function(k) w1(p[k[1], ], p[k[2], ], C))
-    as.dist(OT)
-}
+ij <- combn(nrow(p), 2)
+OT <- matrix(0, nrow(p), nrow(p), dimnames = list(rownames(p), rownames(p)))
+OT[t(ij[2:1, ])] <- apply(ij, 2, function(k) {
+    transport::wasserstein(p[k[1], ], p[k[2], ], costm = C, p = 1)
+})
 D <- list(
     MMD = sample_mmd(counts, ff$proteins),
-    `OT (embedding)` = ot(C),
-    `OT (MCL graph)` = ot(C_graph),
-    `weighted UniFrac (MCL tree)` = as.dist(GUniFrac::GUniFrac(
-        bin_glom(counts, bins), tree, alpha = 1,
-        verbose = FALSE)$unifracs[, , "d_1"])
+    OT = as.dist(OT),
+    `weighted UniFrac` = as.dist(GUniFrac::GUniFrac(counts, tree,
+        alpha = 1, verbose = FALSE)$unifracs[, , "d_1"])
 )
 ```
 
 ```{r checks, include = FALSE}
-# transporting (p - q)+- equals the full-support distance
-stopifnot(identical(rownames(C_graph), colnames(p)),
-    all.equal(as.matrix(D$`OT (embedding)`)[2, 1],
-        transport::wasserstein(p[1, ], p[2, ], costm = C, p = 1)),
-    all.equal(as.matrix(D$`OT (MCL graph)`)[2, 1],
-        transport::wasserstein(p[1, ], p[2, ], costm = C_graph, p = 1)))
-# weighted UniFrac = W1 under the tree's path metric / (2 x tree height)
-pb <- bin_glom(counts, bins)
-pb <- pb / rowSums(pb)
-path <- ape::cophenetic.phylo(tree)[colnames(pb), colnames(pb)]
+# weighted UniFrac = W1 under the tree's path metric / (2 x tree height);
+# the path metric is a metric, so only (p - q)+ against (p - q)- moves
+path <- ape::cophenetic.phylo(tree)[colnames(p), colnames(p)]
 H <- max(ape::node.depth.edgelength(tree))
-stopifnot(all.equal(as.matrix(D$`weighted UniFrac (MCL tree)`)[2, 1],
-    w1(pb[1, ], pb[2, ], path) / (2 * H)))
+d <- p[1, ] - p[2, ]
+stopifnot(all.equal(as.matrix(D$`weighted UniFrac`)[2, 1],
+    sum(d[d > 0]) * transport::wasserstein(d[d > 0] / sum(d[d > 0]),
+        -d[d < 0] / sum(-d[d < 0]), costm = path[d > 0, d < 0], p = 1) /
+        (2 * H)))
 ```
 
 # PCoA
 
 Ellipses are 95% ellipses per group (multivariate t).
 
-```{r pcoa, echo = FALSE, fig.width = 8.5, fig.height = 7.5, fig.alt = "PCoA of the simulated FunFam contrast under MMD, optimal transport on the embeddings and on the MCL graph, and weighted UniFrac on the MCL tree, coloured by group, with 95% ellipses"}
+```{r pcoa, echo = FALSE, fig.width = 10, fig.height = 4.2, fig.alt = "PCoA of the simulated FunFam contrast under MMD, optimal transport and weighted UniFrac, all on the TM-Vec predicted TM-score, coloured by group, with 95% ellipses"}
 ord <- do.call(rbind, lapply(names(D), function(m) {
     e <- cmdscale(D[[m]], k = 2, eig = TRUE)
     rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
@@ -168,7 +136,7 @@ ord$panel <- factor(ord$panel, unique(ord$panel))
 ggplot(ord, aes(PCo1, PCo2, colour = group)) +
     geom_point(size = 2) +
     stat_ellipse(linewidth = 0.4) +
-    facet_wrap(~panel, scales = "free", nrow = 2) +
+    facet_wrap(~panel, scales = "free", nrow = 1) +
     labs(colour = NULL) +
     theme_bw() +
     theme(legend.position = "bottom")
