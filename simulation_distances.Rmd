@@ -107,30 +107,37 @@ edges <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
 graph <- igraph::graph_from_data_frame(data.frame(rownames(S)[edges[, 1]],
     rownames(S)[edges[, 2]]), directed = FALSE, vertices = rownames(S))
 C_graph <- pmin(igraph::distances(graph, weights = 1 - S[edges]), 1)
-p <- counts / rowSums(counts)
-stopifnot(identical(rownames(C), colnames(p)),
-    identical(rownames(C_graph), colnames(p)))
-ot <- function(C) {
+stopifnot(identical(rownames(C), colnames(counts)),
+    identical(rownames(C_graph), colnames(counts)))
+ot <- function(p, C) {
     ij <- combn(nrow(p), 2)
     OT <- matrix(0, nrow(p), nrow(p), dimnames = list(rownames(p),
         rownames(p)))
-    OT[t(ij[2:1, ])] <- apply(ij, 2, function(k) {
-        transport::wasserstein(p[k[1], ], p[k[2], ], costm = C, p = 1)
-    })
+    # forking is safe for transport; sample_mmd() stays serial
+    OT[t(ij[2:1, ])] <- unlist(parallel::mclapply(seq_len(ncol(ij)),
+        function(k) {
+            transport::wasserstein(p[ij[1, k], ], p[ij[2, k], ], costm = C,
+                p = 1)
+        }, mc.cores = n_cores))
     as.dist(OT)
 }
-D <- list(
-    MMD = sample_mmd(counts, ff$proteins),
-    `OT (TM)` = ot(C),
-    `OT (MCL graph)` = ot(C_graph),
-    `weighted UniFrac` = as.dist(GUniFrac::GUniFrac(counts, tree,
-        alpha = 1, verbose = FALSE)$unifracs[, , "d_1"])
-)
+distances <- function(counts) {
+    p <- counts / rowSums(counts)
+    list(
+        MMD = sample_mmd(counts, ff$proteins),
+        `OT (TM)` = ot(p, C),
+        `OT (MCL graph)` = ot(p, C_graph),
+        `weighted UniFrac` = as.dist(GUniFrac::GUniFrac(counts, tree,
+            alpha = 1, verbose = FALSE)$unifracs[, , "d_1"])
+    )
+}
+D <- distances(counts)
 ```
 
 ```{r checks, include = FALSE}
 # weighted UniFrac = W1 under the tree's path metric / (2 x tree height);
 # the path metric is a metric, so only (p - q)+ against (p - q)- moves
+p <- counts / rowSums(counts)
 path <- ape::cophenetic.phylo(tree)[colnames(p), colnames(p)]
 H <- max(ape::node.depth.edgelength(tree))
 d <- p[1, ] - p[2, ]
@@ -166,12 +173,52 @@ ggplot(ord, aes(PCo1, PCo2, colour = group)) +
 `adonis2()`, 999 permutations [@anderson2001permanova; @oksanen2025vegan].
 
 ```{r permanova}
-knitr::kable(t(vapply(D, function(d) {
-    set.seed(1)
-    a <- adonis2(d ~ group, data = data.frame(group = group),
-        permutations = 999)
-    c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(>F)`[1])
-}, numeric(3))), digits = 3)
+permanova <- function(D) {
+    t(vapply(D, function(d) {
+        set.seed(1)
+        a <- adonis2(d ~ group, data = data.frame(group = group),
+            permutations = 999)
+        c(R2 = a$R2[1], F = a$F[1], p = a$`Pr(>F)`[1])
+    }, numeric(3)))
+}
+knitr::kable(permanova(D), digits = 3)
+```
+
+# Replicates
+
+The contrast above is one draw. It is repeated 50 times at $\rho$ = 0%, 1%
+and 2%, with the same two FunFams; each replicate redraws the enriched
+domains, the baseline and the counts, and uses the same seed at every
+$\rho$. At $\rho$ = 0% the groups differ only in label, so the samples are
+exchangeable and every distance should give an R^2^ averaging
+$1 / (n - 1)$ = `r round(1 / (2 * n_per_group - 1), 3)` and reject at
+p < 0.05 in about 5% of replicates.
+
+```{r replicates}
+grid <- expand.grid(replicate = seq_len(50), rho = c(0, 0.01, 0.02))
+rep_res <- do.call(rbind, lapply(seq_len(nrow(grid)), function(r) {
+    set.seed(grid$replicate[r])
+    pairs <- vapply(fams, function(f) {
+        sample(ann$domain[ann$family == f], n_per_group)
+    }, character(n_per_group))
+    up <- as.list(c(pairs))
+    names(up) <- sprintf("s%02d", seq_along(up))
+    a <- permanova(distances(nb_counts(up, ann$domain, grid$rho[r], pairs)))
+    data.frame(grid[r, ], method = rownames(a), a, row.names = NULL)
+}))
+rep_res$method <- factor(rep_res$method, names(D))
+tab <- do.call(cbind, lapply(split(rep_res, rep_res$rho), function(x) {
+    q <- tapply(x$R2, x$method, quantile, c(0.25, 0.5, 0.75))
+    cbind(R2 = vapply(q, function(v) {
+        sprintf("%.3f (%.3f-%.3f)", v[2], v[1], v[3])
+    }, ""), `p < 0.05` = sprintf("%.0f%%",
+        100 * tapply(x$p < 0.05, x$method, mean)))
+}))
+colnames(tab) <- paste0(colnames(tab), ", rho ",
+    rep(c("0%", "1%", "2%"), each = 2))
+knitr::kable(tab, caption = paste("PERMANOVA over 50 replicates per rho:",
+    "median R2 (interquartile range) and the share of replicates with",
+    "p < 0.05."))
 ```
 
 ```{r session}
