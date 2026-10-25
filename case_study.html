@@ -343,6 +343,9 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
+  <a href="vignette.html">Get started</a>
+</li>
+<li>
   <a href="index.html#installation">Install</a>
 </li>
 <li>
@@ -431,6 +434,17 @@ of the same protein amount, <strong>20% yeast protein (Yeast) against
 series, in the 11 mice sampled on both. Diets were fed in a fixed order,
 one week each, so protein source is partly confounded with feeding
 week.</p>
+<p><strong>Data.</strong> The input file is <a
+href="https://github.com/Yixuan39/repdist/raw/gh-pages/curated/diet_series.rds"><code>curated/diet_series.rds</code></a>
+(42 MB), in the repository’s <a
+href="https://github.com/Yixuan39/repdist/tree/gh-pages/curated"><code>curated/</code></a>
+folder on the <code>gh-pages</code> branch. To run the code on this
+page, save it in a <code>curated/</code> folder next to your working
+directory.</p>
+<p>It is not part of the package: the package ships only
+<code>extdata/diet_metaproteome.rds</code>, a smaller 2,000-protein
+subset of the same study used in the <a href="vignette.html">Get
+started</a> vignette.</p>
 <pre class="r"><code>d &lt;- readRDS(file.path(&quot;curated&quot;, &quot;diet_series.rds&quot;))
 proteins &lt;- d$proteins # sequences with TM-Vec embeddings
 counts &lt;- d$counts # raw PSM counts, samples x proteins
@@ -488,13 +502,13 @@ table(md$diet, md$dose)
 #&gt;   Rice   10  0
 #&gt;   Soy    18 11
 #&gt;   Yeast  11  0</code></pre>
-<p>PSM totals differ between samples, and sampling depth changes which proteins
-are observed. For this case study, both distances use the same counts
-rarefied to the smallest sample, followed by relative-abundance
+<p>PSM totals differ between samples, and sampling depth changes which
+proteins are observed. For this case study, both distances use the same
+counts rarefied to the smallest sample, followed by relative-abundance
 normalisation. Rarefaction standardises the number of observed PSMs but
 discards counts and adds sampling variability; it is an analysis choice,
-not a requirement of MMD. It does not recover undetected proteins or remove
-all effects of the observation process.</p>
+not a requirement of MMD. It does not recover undetected proteins or
+remove all effects of the observation process.</p>
 <pre class="r"><code>range(rowSums(counts[rownames(md), ]))
 #&gt; [1]  5441 39491
 set.seed(1)
@@ -502,8 +516,8 @@ rarefied &lt;- rrarefy(counts[rownames(md), ], min(rowSums(counts[rownames(md), 
 rarefied &lt;- rarefied[, colSums(rarefied) &gt; 0]
 relative &lt;- rarefied / rowSums(rarefied)
 D &lt;- list(
-    `Bray-Curtis (protein)` = vegdist(relative, &quot;bray&quot;),
-    MMD = sample_mmd(relative, proteins)
+    `Bray-Curtis (protein)` = vegdist(relative, &quot;bray&quot;), # shared accessions
+    MMD = sample_mmd(relative, proteins) # distance between embeddings
 )</code></pre>
 <p>PERMANOVA <span class="citation">(<a
 href="#ref-anderson2001permanova">Anderson 2001</a>)</span> tests
@@ -511,13 +525,13 @@ protein source after protein amount, cage and week, and PERMDISP <span
 class="citation">(<a href="#ref-anderson2006permdisp">Anderson
 2006</a>)</span> tests for unequal spread between sources; both use 999
 permutations restricted to within mouse. Cage nests sex.</p>
-<p>The table reports sequential R² and the p values returned by <code>adonis2()</code>.
-Cage R² is reported descriptively. Because every mouse stays in one cage,
-within-mouse permutations preserve cage membership; the printed cage p
-value is not interpreted as a test of a between-cage effect. The numeric
-week term adjusts for a linear time trend only. Diets were fed in a fixed
-order, so the diet association cannot be separated from arbitrary changes
-over time.</p>
+<p>The table reports sequential R² and the p values returned by
+<code>adonis2()</code>. Cage R² is reported descriptively. Because every
+mouse stays in one cage, within-mouse permutations preserve cage
+membership; the printed cage p value is not interpreted as a test of a
+between-cage effect. The numeric week term adjusts for a linear time
+trend only. Diets were fed in a fixed order, so the diet association
+cannot be separated from arbitrary changes over time.</p>
 <pre class="r"><code>perm &lt;- permute::how(blocks = md$subject, nperm = 999)
 permanova &lt;- lapply(D, function(Dk) {
     set.seed(1)
@@ -684,9 +698,9 @@ variation to it than protein-level Bray-Curtis does (R² 0.322 against
 shift in location.</p>
 <p>The sequential R² assigned to cage is smaller under MMD (R² 0.154
 against 0.191). This is a descriptive comparison of the two distance
-spaces. In the ordination, the first Bray-Curtis axis separates C1 and C3
-from C2 and C4, while the first MMD axis separates yeast and egg from the
-other sources.</p>
+spaces. In the ordination, the first Bray-Curtis axis separates C1 and
+C3 from C2 and C4, while the first MMD axis separates yeast and egg from
+the other sources.</p>
 <p>To see what separates the mouse groups, the next chunk sets aside
 proteins seen in only one group and finds each one’s nearest protein in
 the other group by TM-Vec similarity.</p>
@@ -752,6 +766,7 @@ manually curated broad function; proteins without one are grey. The map
 shows neighbourhoods in representation space; it is not evidence of
 function, and t-SNE does not preserve distances between groups.</p>
 <pre class="r"><code>set.seed(1)
+# 2-D map of the protein embeddings, coloured by broad function
 plot_tsne(proteins, color = setNames(ann$broad_function, ann$protein))</code></pre>
 <p><img src="case_study_files/figure-html/tsne-function-1.png" alt="t-SNE of protein embeddings coloured by broad function" width="720" /></p>
 <p>The study assigned a KO to 79% of the proteins. Proteins without a KO
@@ -778,8 +793,9 @@ tapply(nearest, ko_status, quantile, probs = c(0.25, 0.5, 0.75))
 <p>The similarity graph and MCL bins use the package defaults: an edge
 needs a predicted TM-score of at least 0.7 and a local alignment
 covering at least half of both sequences; MCL inflation is 2.</p>
-<pre class="r"><code>S &lt;- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
-bins &lt;- bin_proteins(S)
+<pre class="r"><code># similarity graph: pairs with predicted TM &gt;= 0.7 and half of both aligned
+S &lt;- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
+bins &lt;- bin_proteins(S) # MCL clusters of that graph
 bins$graph
 #&gt;          proteins             edges          isolated        components 
 #&gt;             11043             85928              1828              2737 
@@ -834,7 +850,7 @@ samples of each mouse; size factors use the <code>poscounts</code>
 estimator because no bin is observed in every sample. Fold changes are
 Yeast relative to Casein, shrunk with the <code>normal</code> prior for
 display; p-values are from the Wald test.</p>
-<pre class="r"><code>bin_counts &lt;- bin_glom(counts, bins)
+<pre class="r"><code>bin_counts &lt;- bin_glom(counts, bins) # sum protein counts within each bin
 dds &lt;- DESeq2::DESeqDataSetFromMatrix(round(t(bin_counts)), samples,
     design = ~ subject + diet)
 dds &lt;- DESeq2::DESeq(dds, sfType = &quot;poscounts&quot;, quiet = TRUE)
@@ -1220,7 +1236,8 @@ data.frame(bin = shown, t(vapply(shown, pair_types, numeric(4))))</code></pre>
 </tbody>
 </table>
 </div>
-<pre class="r"><code>plot_bin_similarity(bins, shown[[&quot;Yeast&quot;]], S, proteins)</code></pre>
+<pre class="r"><code># pairwise predicted TM-scores among the bin&#39;s members
+plot_bin_similarity(bins, shown[[&quot;Yeast&quot;]], S, proteins)</code></pre>
 <p><img src="case_study_files/figure-html/bin-yeast-1.png" alt="Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges crossed" width="672" /></p>
 <pre class="r"><code>m &lt;- bins$clusters[[shown[[&quot;Yeast&quot;]]]]
 knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot;ko&quot;, &quot;cazy&quot;)],

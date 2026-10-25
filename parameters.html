@@ -321,6 +321,9 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
+  <a href="vignette.html">Get started</a>
+</li>
+<li>
   <a href="index.html#installation">Install</a>
 </li>
 <li>
@@ -386,6 +389,14 @@ EC3 precision and EC3 recall. EC4 F1 is kept as a stricter, exact-enzyme
 diagnostic.</p>
 <pre class="r"><code>library(repdist)
 library(ggplot2)</code></pre>
+<p><strong>Data.</strong> The input file is <a
+href="https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds"><code>curated/simulation_universe.rds</code></a>
+(7.3 MB), in the repository’s <a
+href="https://github.com/Yixuan39/repdist/tree/gh-pages/curated"><code>curated/</code></a>
+folder on the <code>gh-pages</code> branch, built by
+<code>data-raw/simulation_universe.R</code>. To run the code on this
+page, save it in a <code>curated/</code> folder next to your working
+directory.</p>
 <pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
 proteins &lt;- u$proteins
 ec4 &lt;- setNames(u$annotation$ec4, u$annotation$protein)
@@ -404,6 +415,8 @@ matrix per coverage threshold, computed at the lowest
 the pairs below it. The check below confirms this for the package
 defaults.</p>
 <pre class="r"><code>n_cores &lt;- BiocParallel::multicoreWorkers()
+# one similarity graph per coverage gate at the loosest min_sim; gate() below
+# applies the higher min_sim cuts without re-aligning
 base &lt;- lapply(c(`0` = 0, `0.5` = 0.5, `0.8` = 0.8), function(cv) {
     protein_similarity(proteins, min_sim = 0.6, min_coverage = cv,
         n_cores = n_cores)
@@ -433,6 +446,7 @@ bins weigh heavily on precision.</p>
 }
 results &lt;- do.call(rbind, lapply(seq_len(nrow(grid)), function(k) {
     g &lt;- grid[k, ]
+    # MCL bins at this grid setting
     bins &lt;- bin_proteins(gate(base[[as.character(g$min_coverage)]],
         g$min_sim), inflation = g$inflation)
     sizes &lt;- lengths(bins$clusters)

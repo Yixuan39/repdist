@@ -26,6 +26,11 @@ bin for count-based analyses such as DESeq2.
 
 # Documentation
 
+**[Get started](vignette.html)**: the package vignette, a worked example
+for first-time users: what input files you need, then embedding, beta
+diversity, MCL bins and differential abundance on data shipped with the
+package.
+
 **[Reference](reference.html)**: what each function computes and how to call
 it: embeddings, the MMD distance, the similarity graph and MCL bins, and
 the QC plots.
@@ -58,9 +63,11 @@ if (!requireNamespace("remotes", quietly = TRUE))
 remotes::install_github("Yixuan39/repdist")
 ```
 
-`embed_proteins()` runs its models in a Python environment that `repdist`
-creates and manages itself through `basilisk`; no manual Python setup is
-needed. Model weights are downloaded on first use.
+`embed_proteins()` runs its models in a version-pinned Python environment
+that `repdist` creates and manages itself through `basilisk`. Python, conda
+and git do not need to be installed, on Windows, macOS or Linux: the first
+call downloads a standalone Python and the pinned packages (up to a few GB,
+once). Model weights are downloaded on first use.
 
 ```r
 library(repdist)

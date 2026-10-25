@@ -47,6 +47,12 @@ abundance** compare two diets of the same protein amount, **20% yeast protein
 the series, in the 11 mice sampled on both. Diets were fed in a fixed order,
 one week each, so protein source is partly confounded with feeding week.
 
+**Data.** The input file is [`curated/diet_series.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/diet_series.rds) (42 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch. To run the code on this page, save it in a `curated/` folder next to your working directory.
+
+It is not part of the package: the package ships only
+`extdata/diet_metaproteome.rds`, a smaller 2,000-protein subset of the same
+study used in the [Get started](vignette.html) vignette.
+
 ```{r data}
 d <- readRDS(file.path("curated", "diet_series.rds"))
 proteins <- d$proteins # sequences with TM-Vec embeddings
@@ -118,8 +124,8 @@ rarefied <- rrarefy(counts[rownames(md), ], min(rowSums(counts[rownames(md), ]))
 rarefied <- rarefied[, colSums(rarefied) > 0]
 relative <- rarefied / rowSums(rarefied)
 D <- list(
-    `Bray-Curtis (protein)` = vegdist(relative, "bray"),
-    MMD = sample_mmd(relative, proteins)
+    `Bray-Curtis (protein)` = vegdist(relative, "bray"), # shared accessions
+    MMD = sample_mmd(relative, proteins) # distance between embeddings
 )
 ```
 
@@ -260,6 +266,7 @@ groups.
 
 ```{r tsne-function, fig.width = 7.5, fig.height = 4.6, fig.alt = "t-SNE of protein embeddings coloured by broad function"}
 set.seed(1)
+# 2-D map of the protein embeddings, coloured by broad function
 plot_tsne(proteins, color = setNames(ann$broad_function, ann$protein))
 ```
 
@@ -286,8 +293,9 @@ predicted TM-score of at least 0.7 and a local alignment covering at least
 half of both sequences; MCL inflation is 2.
 
 ```{r bins}
+# similarity graph: pairs with predicted TM >= 0.7 and half of both aligned
 S <- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
-bins <- bin_proteins(S)
+bins <- bin_proteins(S) # MCL clusters of that graph
 bins$graph
 sizes <- lengths(bins$clusters)
 c(proteins = length(proteins), bins = length(sizes),
@@ -335,7 +343,7 @@ no bin is observed in every sample. Fold changes are Yeast relative to Casein,
 shrunk with the `normal` prior for display; p-values are from the Wald test.
 
 ```{r deseq}
-bin_counts <- bin_glom(counts, bins)
+bin_counts <- bin_glom(counts, bins) # sum protein counts within each bin
 dds <- DESeq2::DESeqDataSetFromMatrix(round(t(bin_counts)), samples,
     design = ~ subject + diet)
 dds <- DESeq2::DESeq(dds, sfType = "poscounts", quiet = TRUE)
@@ -443,6 +451,7 @@ data.frame(bin = shown, t(vapply(shown, pair_types, numeric(4))))
 ```
 
 ```{r bin-yeast, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges crossed"}
+# pairwise predicted TM-scores among the bin's members
 plot_bin_similarity(bins, shown[["Yeast"]], S, proteins)
 ```
 

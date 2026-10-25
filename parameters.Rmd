@@ -24,6 +24,8 @@ library(repdist)
 library(ggplot2)
 ```
 
+**Data.** The input file is [`curated/simulation_universe.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds) (7.3 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch, built by `data-raw/simulation_universe.R`. To run the code on this page, save it in a `curated/` folder next to your working directory.
+
 ```{r data}
 u <- readRDS(file.path("curated", "simulation_universe.rds"))
 proteins <- u$proteins
@@ -47,6 +49,8 @@ the package defaults.
 
 ```{r similarity}
 n_cores <- BiocParallel::multicoreWorkers()
+# one similarity graph per coverage gate at the loosest min_sim; gate() below
+# applies the higher min_sim cuts without re-aligning
 base <- lapply(c(`0` = 0, `0.5` = 0.5, `0.8` = 0.8), function(cv) {
     protein_similarity(proteins, min_sim = 0.6, min_coverage = cv,
         n_cores = n_cores)
@@ -77,6 +81,7 @@ pair_scores <- function(labels, membership) {
 }
 results <- do.call(rbind, lapply(seq_len(nrow(grid)), function(k) {
     g <- grid[k, ]
+    # MCL bins at this grid setting
     bins <- bin_proteins(gate(base[[as.character(g$min_coverage)]],
         g$min_sim), inflation = g$inflation)
     sizes <- lengths(bins$clusters)

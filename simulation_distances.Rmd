@@ -12,6 +12,12 @@ knitr::opts_chunk$set(
 )
 ```
 
+*This page is a benchmark of the method. To use repdist on your own data, start with [Get started](vignette.html).*
+
+In plain terms: one simulated contrast is scored with MMD and with the
+alternatives that also use protein similarity, optimal transport and
+UniFrac, rather than with Bray-Curtis.
+
 Group A's ten samples each enrich a different domain of one CATH FunFam;
 group B's each enrich a different domain of a second FunFam. Three sample
 distances built on the same TM-Vec similarity matrix, and optimal transport
@@ -32,6 +38,8 @@ log-normal baseline in every sample, and each sample puts $\rho$ = 2% of its
 expected abundance on its enriched domain. The $k$-th enriched domain of
 group B takes the baseline abundance of the $k$-th of group A. The two
 FunFams are drawn with a fixed seed from those with at least ten domains.
+
+**Data.** The input file is [`curated/simulation_funfam.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_funfam.rds) (1.1 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch, built by `data-raw/simulation_funfam.R`. To run the code on this page, save it in a `curated/` folder next to your working directory.
 
 ```{r simulate}
 ff <- readRDS(file.path("curated", "simulation_funfam.rds"))
@@ -102,6 +110,7 @@ rownames(Z) <- names(ff$proteins)
 C <- pmax(1 - tcrossprod(Z), 0) # 1 - predicted TM
 diag(C) <- 0
 tree <- ape::as.phylo(hclust(as.dist(C), "average"))
+# similarity graph (predicted TM >= 0.7, half of both aligned) for OT (MCL graph)
 S <- protein_similarity(ff$proteins, n_cores = n_cores)
 edges <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
 graph <- igraph::graph_from_data_frame(data.frame(rownames(S)[edges[, 1]],
@@ -124,7 +133,7 @@ ot <- function(p, C) {
 distances <- function(counts) {
     p <- counts / rowSums(counts)
     list(
-        MMD = sample_mmd(counts, ff$proteins),
+        MMD = sample_mmd(counts, ff$proteins), # embedding distance
         `OT (TM)` = ot(p, C),
         `OT (MCL graph)` = ot(p, C_graph),
         `weighted UniFrac` = as.dist(GUniFrac::GUniFrac(counts, tree,

@@ -12,6 +12,14 @@ knitr::opts_chunk$set(
 )
 ```
 
+*This page is a benchmark of the method. To use repdist on your own data, start with [Get started](vignette.html).*
+
+In plain terms: two groups of simulated samples are enriched for two
+different enzyme activities, but every sample carries its activity on its own
+proteins, unrelated in sequence to the other samples'. No enriched accession
+is shared, so the question is which distances can still tell the groups
+apart.
+
 **Question.** Can representation-aware analysis recover a condition-level
 functional difference when the proteins carrying each function belong to
 different sequence clusters in every sample?
@@ -147,6 +155,8 @@ pcoa_plot <- function(D, group) {
 
 # Protein universe
 
+**Data.** The input files are [`curated/simulation_universe.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds) (7.3 MB), [`curated/simulation_mmseqs2.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_mmseqs2.rds) (0.3 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch, built by `data-raw/simulation_universe.R` and `data-raw/simulation_mmseqs2.R`. To run the code on this page, save them in a `curated/` folder next to your working directory.
+
 ```{r universe}
 u <- readRDS(file.path("curated", "simulation_universe.rds"))
 mm <- readRDS(file.path("curated", "simulation_mmseqs2.rds"))
@@ -276,13 +286,15 @@ simulate_ec <- function(i, rho) {
 ```
 
 ```{r ec-bins}
+# similarity graph (predicted TM >= 0.7, half of both aligned) and its bins
 S <- protein_similarity(ec_proteins, n_cores = BiocParallel::multicoreWorkers())
 bins <- bin_proteins(S)
 glom <- function(counts, cluster) t(rowsum(t(counts), cluster[colnames(counts)]))
 distances_ec <- function(counts) {
     counts <- counts / rowSums(counts)
     list(
-        MMD = sample_mmd(counts, ec_proteins),
+        MMD = sample_mmd(counts, ec_proteins), # embedding distance
+        # bin_glom() sums counts within each MCL bin
         `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
             "bray"),
         `Bray-Curtis (MMseqs2 bins)` = vegdist(glom(counts, mm50), "bray"),

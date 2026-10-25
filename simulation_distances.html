@@ -343,6 +343,9 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
+  <a href="vignette.html">Get started</a>
+</li>
+<li>
   <a href="index.html#installation">Install</a>
 </li>
 <li>
@@ -397,6 +400,11 @@ for one FunFam contrast</h3>
 </div>
 
 
+<p><em>This page is a benchmark of the method. To use repdist on your
+own data, start with <a href="vignette.html">Get started</a>.</em></p>
+<p>In plain terms: one simulated contrast is scored with MMD and with
+the alternatives that also use protein similarity, optimal transport and
+UniFrac, rather than with Bray-Curtis.</p>
 <p>Group A’s ten samples each enrich a different domain of one CATH
 FunFam; group B’s each enrich a different domain of a second FunFam.
 Three sample distances built on the same TM-Vec similarity matrix, and
@@ -416,6 +424,14 @@ on its enriched domain. The <span class="math inline">\(k\)</span>-th
 enriched domain of group B takes the baseline abundance of the <span
 class="math inline">\(k\)</span>-th of group A. The two FunFams are
 drawn with a fixed seed from those with at least ten domains.</p>
+<p><strong>Data.</strong> The input file is <a
+href="https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_funfam.rds"><code>curated/simulation_funfam.rds</code></a>
+(1.1 MB), in the repository’s <a
+href="https://github.com/Yixuan39/repdist/tree/gh-pages/curated"><code>curated/</code></a>
+folder on the <code>gh-pages</code> branch, built by
+<code>data-raw/simulation_funfam.R</code>. To run the code on this page,
+save it in a <code>curated/</code> folder next to your working
+directory.</p>
 <pre class="r"><code>ff &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_funfam.rds&quot;))
 ann &lt;- ff$annotation
 stopifnot(identical(ann$domain, names(ff$proteins)))
@@ -523,6 +539,7 @@ rownames(Z) &lt;- names(ff$proteins)
 C &lt;- pmax(1 - tcrossprod(Z), 0) # 1 - predicted TM
 diag(C) &lt;- 0
 tree &lt;- ape::as.phylo(hclust(as.dist(C), &quot;average&quot;))
+# similarity graph (predicted TM &gt;= 0.7, half of both aligned) for OT (MCL graph)
 S &lt;- protein_similarity(ff$proteins, n_cores = n_cores)
 edges &lt;- which(upper.tri(S) &amp; S &gt; 0, arr.ind = TRUE)
 graph &lt;- igraph::graph_from_data_frame(data.frame(rownames(S)[edges[, 1]],
@@ -545,7 +562,7 @@ ot &lt;- function(p, C) {
 distances &lt;- function(counts) {
     p &lt;- counts / rowSums(counts)
     list(
-        MMD = sample_mmd(counts, ff$proteins),
+        MMD = sample_mmd(counts, ff$proteins), # embedding distance
         `OT (TM)` = ot(p, C),
         `OT (MCL graph)` = ot(p, C_graph),
         `weighted UniFrac` = as.dist(GUniFrac::GUniFrac(counts, tree,

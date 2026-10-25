@@ -321,6 +321,9 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
+  <a href="vignette.html">Get started</a>
+</li>
+<li>
   <a href="index.html#installation">Install</a>
 </li>
 <li>
@@ -396,6 +399,10 @@ protein counts within each bin for count-based analyses such as
 DESeq2.</p>
 <div id="documentation" class="section level1">
 <h1>Documentation</h1>
+<p><strong><a href="vignette.html">Get started</a></strong>: the package
+vignette, a worked example for first-time users: what input files you
+need, then embedding, beta diversity, MCL bins and differential
+abundance on data shipped with the package.</p>
 <p><strong><a href="reference.html">Reference</a></strong>: what each
 function computes and how to call it: embeddings, the MMD distance, the
 similarity graph and MCL bins, and the QC plots.</p>
@@ -423,10 +430,12 @@ development version from GitHub:</p>
 <pre class="r"><code>if (!requireNamespace(&quot;remotes&quot;, quietly = TRUE))
     install.packages(&quot;remotes&quot;)
 remotes::install_github(&quot;Yixuan39/repdist&quot;)</code></pre>
-<p><code>embed_proteins()</code> runs its models in a Python environment
-that <code>repdist</code> creates and manages itself through
-<code>basilisk</code>; no manual Python setup is needed. Model weights
-are downloaded on first use.</p>
+<p><code>embed_proteins()</code> runs its models in a version-pinned
+Python environment that <code>repdist</code> creates and manages itself
+through <code>basilisk</code>. Python, conda and git do not need to be
+installed, on Windows, macOS or Linux: the first call downloads a
+standalone Python and the pinned packages (up to a few GB, once). Model
+weights are downloaded on first use.</p>
 <pre class="r"><code>library(repdist)
 proteins &lt;- embed_proteins(&quot;proteins.fasta&quot;) # default model: &quot;tmvec&quot;
 

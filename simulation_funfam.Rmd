@@ -12,6 +12,13 @@ knitr::opts_chunk$set(
 )
 ```
 
+*This page is a benchmark of the method. To use repdist on your own data, start with [Get started](vignette.html).*
+
+In plain terms: each of ten simulated samples carries extra copies of a
+different protein, but all ten proteins come from one family. A distance that
+sees protein similarity should find these samples closer to each other than
+ten samples whose extra proteins are unrelated.
+
 **Question.** Can repdist detect hidden shared coherence when every sample
 enriches a different protein and a different sequence cluster?
 
@@ -152,6 +159,8 @@ pcoa_plot <- function(D, group) {
 
 # Domain universe
 
+**Data.** The input file is [`curated/simulation_funfam.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_funfam.rds) (1.1 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch, built by `data-raw/simulation_funfam.R`. To run the code on this page, save it in a `curated/` folder next to your working directory.
+
 ```{r ff-universe}
 ff <- readRDS(file.path("curated", "simulation_funfam.rds"))
 funfam_proteins <- ff$proteins
@@ -237,13 +246,15 @@ simulate_ff <- function(i) {
 ```
 
 ```{r ff-bins}
+# similarity graph (predicted TM >= 0.7, half of both aligned) and its bins
 S <- protein_similarity(funfam_proteins,
     n_cores = BiocParallel::multicoreWorkers())
 bins <- bin_proteins(S)
 distances_ff <- function(counts) {
     counts <- counts / rowSums(counts)
     list(
-        MMD = sample_mmd(counts, funfam_proteins),
+        MMD = sample_mmd(counts, funfam_proteins), # embedding distance
+        # bin_glom() sums counts within each MCL bin
         `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
             "bray"),
         `Bray-Curtis (protein)` = vegdist(counts, "bray")

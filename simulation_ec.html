@@ -343,6 +343,9 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
+  <a href="vignette.html">Get started</a>
+</li>
+<li>
   <a href="index.html#installation">Install</a>
 </li>
 <li>
@@ -354,7 +357,7 @@ div.tocify {
 <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
     Simulations
-
+     
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
@@ -377,7 +380,7 @@ div.tocify {
         <li>
   <a href="https://github.com/Yixuan39/repdist">
     <span class="fa fa-github fa-lg"></span>
-
+     
   </a>
 </li>
       </ul>
@@ -397,6 +400,13 @@ clusters in every sample</h3>
 </div>
 
 
+<p><em>This page is a benchmark of the method. To use repdist on your
+own data, start with <a href="vignette.html">Get started</a>.</em></p>
+<p>In plain terms: two groups of simulated samples are enriched for two
+different enzyme activities, but every sample carries its activity on
+its own proteins, unrelated in sequence to the other samples’. No
+enriched accession is shared, so the question is which distances can
+still tell the groups apart.</p>
 <p><strong>Question.</strong> Can representation-aware analysis recover
 a condition-level functional difference when the proteins carrying each
 function belong to different sequence clusters in every sample?</p>
@@ -521,6 +531,17 @@ test_all &lt;- function(D, group) {
 </div>
 <div id="protein-universe" class="section level1">
 <h1>Protein universe</h1>
+<p><strong>Data.</strong> The input files are <a
+href="https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds"><code>curated/simulation_universe.rds</code></a>
+(7.3 MB), <a
+href="https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_mmseqs2.rds"><code>curated/simulation_mmseqs2.rds</code></a>
+(0.3 MB), in the repository’s <a
+href="https://github.com/Yixuan39/repdist/tree/gh-pages/curated"><code>curated/</code></a>
+folder on the <code>gh-pages</code> branch, built by
+<code>data-raw/simulation_universe.R</code> and
+<code>data-raw/simulation_mmseqs2.R</code>. To run the code on this
+page, save them in a <code>curated/</code> folder next to your working
+directory.</p>
 <pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
 mm &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_mmseqs2.rds&quot;))
 # the sequence clusters were computed on this exact universe file
@@ -534,12 +555,12 @@ ann$mmseqs50 &lt;- mm$clusters$mmseqs50
 ann$mmseqs30 &lt;- mm$clusters$mmseqs30
 c(proteins = length(ec_proteins), EC3 = length(unique(ann$ec3)),
     EC4 = length(unique(ann$ec4)))
-#&gt; proteins      EC3      EC4
+#&gt; proteins      EC3      EC4 
 #&gt;     4920      229     2679
 u$provenance$steps
-#&gt;               candidates      single_complete_ec4           length_50_1000
-#&gt;                    18779                     5903                     5794
-#&gt;                no_U_or_O uniref50_representatives
+#&gt;               candidates      single_complete_ec4           length_50_1000 
+#&gt;                    18779                     5903                     5794 
+#&gt;                no_U_or_O uniref50_representatives 
 #&gt;                     5786                     4920</code></pre>
 <p>The proteins are UniProtKB/Swiss-Prot entries <span
 class="citation">(<a href="#ref-uniprot2025">The UniProt Consortium
@@ -567,11 +588,11 @@ sensitive prefilter (<code>-s 7.5</code>):</p>
 <pre class="r"><code>mm$provenance[c(&quot;cluster_50&quot;, &quot;cluster_30&quot;)]
 #&gt; $cluster_50
 #&gt; [1] &quot;mmseqs easy-cluster &lt;tmp&gt;/universe.fasta &lt;tmp&gt;/c0.5 &lt;tmp&gt;/work --min-seq-id 0.5 -c 0.8 --cov-mode 0 --cluster-mode 0 -s 7.5&quot;
-#&gt;
+#&gt; 
 #&gt; $cluster_30
 #&gt; [1] &quot;mmseqs easy-cluster &lt;tmp&gt;/universe.fasta &lt;tmp&gt;/c0.3 &lt;tmp&gt;/work --min-seq-id 0.3 -c 0.8 --cov-mode 0 --cluster-mode 0 -s 7.5&quot;
 mm$provenance$n_clusters
-#&gt; mmseqs50 mmseqs30
+#&gt; mmseqs50 mmseqs30 
 #&gt;     4454     2945
 # every 50% cluster lies inside one 30% cluster
 all(tapply(ann$mmseqs30, ann$mmseqs50, function(v) length(unique(v))) == 1)
@@ -598,7 +619,7 @@ n50 &lt;- clusters_per(&quot;ec3&quot;)
 eligible &lt;- sort(names(n50)[n50 &gt;= k])
 c(EC3 = length(n50), eligible = length(eligible),
     `eligible EC4` = sum(clusters_per(&quot;ec4&quot;) &gt;= k))
-#&gt;          EC3     eligible eligible EC4
+#&gt;          EC3     eligible eligible EC4 
 #&gt;          229           56            5
 set.seed(20261008)
 shuffled &lt;- sample(eligible)
@@ -661,13 +682,15 @@ simulate_ec &lt;- function(i, rho) {
     d$counts &lt;- nb_counts(d$up, ann$protein, rho, d$pairs)
     d
 }</code></pre>
-<pre class="r"><code>S &lt;- protein_similarity(ec_proteins, n_cores = BiocParallel::multicoreWorkers())
+<pre class="r"><code># similarity graph (predicted TM &gt;= 0.7, half of both aligned) and its bins
+S &lt;- protein_similarity(ec_proteins, n_cores = BiocParallel::multicoreWorkers())
 bins &lt;- bin_proteins(S)
 glom &lt;- function(counts, cluster) t(rowsum(t(counts), cluster[colnames(counts)]))
 distances_ec &lt;- function(counts) {
     counts &lt;- counts / rowSums(counts)
     list(
-        MMD = sample_mmd(counts, ec_proteins),
+        MMD = sample_mmd(counts, ec_proteins), # embedding distance
+        # bin_glom() sums counts within each MCL bin
         `Bray-Curtis (repdist MCL bins)` = vegdist(bin_glom(counts, bins),
             &quot;bray&quot;),
         `Bray-Curtis (MMseqs2 bins)` = vegdist(glom(counts, mm50), &quot;bray&quot;),
@@ -685,7 +708,7 @@ class="math inline">\(\rho\)</span> = 2%; both were fixed before any
 result.</p>
 <pre class="r"><code>sim &lt;- simulate_ec(1, rho_example)
 unlist(contrasts[1, ])
-#&gt;       A       B
+#&gt;       A       B 
 #&gt; &quot;2.7.7&quot; &quot;2.3.2&quot;
 enr &lt;- data.frame(sample = rep(names(sim$up), lengths(sim$up)),
     condition = rep(sim$group, lengths(sim$up)), protein = unlist(sim$up))
@@ -704,7 +727,7 @@ t(sapply(split(enr, enr$condition), function(d) c(
 tapply(vapply(seq_along(sim$up), function(i) {
     sum(sim$counts[i, sim$up[[i]]]) / sum(sim$counts[i, ])
 }, numeric(1)), sim$group, median)
-#&gt;          A          B
+#&gt;          A          B 
 #&gt; 0.02200388 0.02131370
 D &lt;- distances_ec(sim$counts)
 res &lt;- test_all(D, sim$group)
@@ -1058,8 +1081,9 @@ null sanity check gave 3 detections over the five distances. MMD missed
 3 contrast–<span class="math inline">\(\rho\)</span> combinations, all
 at <span class="math inline">\(\rho \le\)</span> 2% with p between 0.055
 and 0.068. PERMDISP was significant for at most 6 of 28 contrasts for
-any distance and <span class="math inline">\(\rho &gt; 0\)</span>.
-Where dispersion differs, PERMANOVA can reflect spread as well as location.</li>
+any distance and <span class="math inline">\(\rho &gt; 0\)</span>. Where
+dispersion differs, PERMANOVA can reflect spread as well as
+location.</li>
 <li><strong>Sequence bins.</strong> The 50% clustering helped construct
 the benchmark, so the failure of the 50% bins is partly by design, not a
 general comparison with MMseqs2. The 30% bins, not used in the
@@ -1086,44 +1110,44 @@ and inflation move the bins scored above.</p>
 #&gt; R version 4.5.2 (2025-10-31)
 #&gt; Platform: aarch64-apple-darwin20
 #&gt; Running under: macOS 27.0.1
-#&gt;
+#&gt; 
 #&gt; Matrix products: default
-#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib
+#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
 #&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
-#&gt;
+#&gt; 
 #&gt; locale:
-#&gt; [1] C.UTF-8/C.UTF-8/C.UTF-8/C/C.UTF-8/C.UTF-8
-#&gt;
+#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt; 
 #&gt; time zone: America/New_York
 #&gt; tzcode source: internal
-#&gt;
+#&gt; 
 #&gt; attached base packages:
-#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base
-#&gt;
+#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
+#&gt; 
 #&gt; other attached packages:
 #&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
-#&gt;
+#&gt; 
 #&gt; loaded via a namespace (and not attached):
-#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.22-9
-#&gt;  [4] MCL_1.0             digest_0.6.39       magrittr_2.0.5
-#&gt;  [7] evaluate_1.0.5      grid_4.5.2          RColorBrewer_1.1-3
-#&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-5
-#&gt; [13] mgcv_1.9-4          scales_1.4.0        Biostrings_2.78.0
-#&gt; [16] codetools_0.2-20    jquerylib_0.1.4     cli_3.6.6
-#&gt; [19] expm_1.0-0          rlang_1.3.0         crayon_1.5.3
-#&gt; [22] XVector_0.50.0      splines_4.5.2       withr_3.0.3
-#&gt; [25] cachem_1.1.0        yaml_2.3.12         otel_0.2.0
+#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.22-9     
+#&gt;  [4] MCL_1.0             digest_0.6.39       magrittr_2.0.5     
+#&gt;  [7] evaluate_1.0.5      grid_4.5.2          RColorBrewer_1.1-3 
+#&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-5       
+#&gt; [13] mgcv_1.9-4          scales_1.4.0        Biostrings_2.78.0  
+#&gt; [16] codetools_0.2-20    jquerylib_0.1.4     cli_3.6.6          
+#&gt; [19] expm_1.0-0          rlang_1.3.0         crayon_1.5.3       
+#&gt; [22] XVector_0.50.0      splines_4.5.2       withr_3.0.3        
+#&gt; [25] cachem_1.1.0        yaml_2.3.12         otel_0.2.0         
 #&gt; [28] tools_4.5.2         parallel_4.5.2      BiocParallel_1.44.0
-#&gt; [31] dplyr_1.2.1         BiocGenerics_0.56.0 vctrs_0.7.3
-#&gt; [34] R6_2.6.1            stats4_4.5.2        lifecycle_1.0.5
-#&gt; [37] pwalign_1.6.0       Seqinfo_1.0.0       S4Vectors_0.48.1
-#&gt; [40] IRanges_2.44.0      MASS_7.3-65         cluster_2.1.8.2
-#&gt; [43] pkgconfig_2.0.3     pillar_1.11.1       bslib_0.11.0
-#&gt; [46] gtable_0.3.6        glue_1.8.1          xfun_0.58
-#&gt; [49] tibble_3.3.1        tidyselect_1.2.1    knitr_1.51
-#&gt; [52] farver_2.1.2        htmltools_0.5.9     nlme_3.1-169
-#&gt; [55] clusterCrit_1.3.0   labeling_0.4.3      rmarkdown_2.31
-#&gt; [58] compiler_4.5.2      S7_0.2.2</code></pre>
+#&gt; [31] dplyr_1.2.1         BiocGenerics_0.56.0 vctrs_0.7.3        
+#&gt; [34] R6_2.6.1            stats4_4.5.2        lifecycle_1.0.5    
+#&gt; [37] Seqinfo_1.0.0       S4Vectors_0.48.1    IRanges_2.44.0     
+#&gt; [40] MASS_7.3-65         cluster_2.1.8.2     pkgconfig_2.0.3    
+#&gt; [43] pillar_1.11.1       bslib_0.11.0        gtable_0.3.6       
+#&gt; [46] glue_1.8.1          xfun_0.58           tibble_3.3.1       
+#&gt; [49] tidyselect_1.2.1    knitr_1.51          farver_2.1.2       
+#&gt; [52] htmltools_0.5.9     nlme_3.1-169        clusterCrit_1.3.0  
+#&gt; [55] labeling_0.4.3      rmarkdown_2.31      compiler_4.5.2     
+#&gt; [58] S7_0.2.2</code></pre>
 </div>
 <div id="references" class="section level1 unnumbered">
 <h1 class="unnumbered">References</h1>

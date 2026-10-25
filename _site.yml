@@ -4,6 +4,8 @@ exclude: ["README.md", "data", "data-raw", "curated", "references.bib"]
 navbar:
   title: "repdist"
   left:
+    - text: "Get started"
+      href: vignette.html
     - text: "Install"
       href: index.html#installation
     - text: "Reference"

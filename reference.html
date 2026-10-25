@@ -343,6 +343,9 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
+  <a href="vignette.html">Get started</a>
+</li>
+<li>
   <a href="index.html#installation">Install</a>
 </li>
 <li>
@@ -500,6 +503,14 @@ library(ggplot2)</code></pre>
 the <a href="simulation_ec.html">Simulation 2</a> universe:
 experimentally characterised Swiss-Prot enzymes whose embeddings were
 computed with <code>embed_proteins()</code>.</p>
+<p><strong>Data.</strong> The input file is <a
+href="https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds"><code>curated/simulation_universe.rds</code></a>
+(7.3 MB), in the repository’s <a
+href="https://github.com/Yixuan39/repdist/tree/gh-pages/curated"><code>curated/</code></a>
+folder on the <code>gh-pages</code> branch, built by
+<code>data-raw/simulation_universe.R</code>. To run the code on this
+page, save it in a <code>curated/</code> folder next to your working
+directory.</p>
 <pre class="r"><code>u &lt;- readRDS(file.path(&quot;curated&quot;, &quot;simulation_universe.rds&quot;))
 classes &lt;- names(sort(table(u$annotation$ec3), decreasing = TRUE))[1:3]
 keep &lt;- u$annotation$ec3 %in% classes
@@ -537,10 +548,11 @@ R.</strong> It accepts a named character vector, an
 <code>AAStringSet</code> or a FASTA path, and a <code>model</code> key
 from <code>known_models()</code>. Models run in a Python environment
 that <code>repdist</code> builds and pins itself through
-<code>basilisk</code>, so users do not install or configure Python.
-Weights are downloaded on first use and pinned to fixed revisions
-(HuggingFace commits, or a SHA-256-checked file). Every sequence is
-embedded whole; nothing is truncated or dropped.</p>
+<code>basilisk</code>, on a standalone Python it downloads, so users do
+not install Python, conda or git. Weights are downloaded on first use
+and pinned to fixed revisions (HuggingFace commits, or a SHA-256-checked
+file). Every sequence is embedded whole; nothing is truncated or
+dropped.</p>
 <pre class="r"><code>proteins &lt;- embed_proteins(&quot;proteins.fasta&quot;) # model = &quot;tmvec&quot;
 proteins &lt;- embed_proteins(seqs, model = &quot;esm2-650m&quot;, device = &quot;cpu&quot;)</code></pre>
 <p><strong><code>read_embeddings()</code>: embeddings computed
