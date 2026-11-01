@@ -81,9 +81,9 @@ dependencies from source and needs these system libraries first:
 
 ```sh
 # Debian/Ubuntu
-sudo apt-get install -y build-essential gfortran libcurl4-openssl-dev libssl-dev libxml2-dev
+sudo apt-get install -y build-essential gfortran cmake libcurl4-openssl-dev libssl-dev libpng-dev libuv1-dev libbz2-dev libicu-dev
 # Fedora/RHEL
-sudo dnf install -y gcc-c++ gcc-gfortran libcurl-devel openssl-devel libxml2-devel
+sudo dnf install -y gcc-c++ gcc-gfortran cmake libcurl-devel openssl-devel libpng-devel libuv-devel bzip2-devel libicu-devel
 ```
 
 Then, in R:

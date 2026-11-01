@@ -26,7 +26,7 @@ jobs:
       - name: System libraries, as the README says
         run: |
           apt-get update
-          apt-get install -y build-essential gfortran libcurl4-openssl-dev libssl-dev libxml2-dev
+          apt-get install -y build-essential gfortran cmake libcurl4-openssl-dev libssl-dev libpng-dev libuv1-dev libbz2-dev libicu-dev
       - name: CRAN source packages, not rocker's binary mirror; hide Python and git
         run: |
           echo 'options(repos = c(CRAN = "https://cloud.r-project.org"))' > ~/.Rprofile
