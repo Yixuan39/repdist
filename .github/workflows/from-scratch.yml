@@ -8,11 +8,13 @@ jobs:
       - run: apt-get update && apt-get install -y libpng-dev
       - run: |
           for p in $(which -a python3 python git 2>/dev/null); do mv -f "$p" "$p.hidden" || true; done
+          which curl wget tar gzip || true
           Rscript -e 'install.packages("reticulate")'
-      - run: |
-          Rscript -e '
-          uv <- reticulate:::uv_binary(); print(uv); print(attributes(uv))
-          print(system2(uv, c("python", "list", "--all-versions"), stdout = TRUE, stderr = TRUE)[1:15])
-          r <- tryCatch(reticulate:::resolve_python_version(constraints = "3.11.9", uv = uv), error = function(e) conditionMessage(e)); print(r)
-          out <- reticulate::uv_run_tool("python", c("-c", shQuote("import sys; print(sys._base_executable)")), python_version = "3.11.9", stdout = TRUE, stderr = TRUE)
-          print(out); print(attributes(out))'
+      - name: without curl
+        env: {_RETICULATE_DEBUG_UV_: "1"}
+        continue-on-error: true
+        run: Rscript -e 'print(reticulate:::uv_binary())'
+      - name: with curl
+        run: |
+          apt-get install -y curl
+          Rscript -e 'out <- reticulate::uv_run_tool("python", c("-c", shQuote("import sys; print(sys._base_executable)")), python_version = "3.11.9", stdout = TRUE, stderr = TRUE); print(out)'
