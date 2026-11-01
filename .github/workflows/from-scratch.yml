@@ -64,7 +64,7 @@ jobs:
           if ($env:RTOOLS -ne 'true') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue C:\rtools* }
 
       - name: Confirm nothing is left
-        run: Rscript -e "w <- Sys.which(c('python','python3','py','conda','git','uv','sh','gcc')); print(w); stopifnot(!nzchar(w[c('python','python3','py','conda','git','uv')]))"
+        run: Rscript -e "source('.github/ci/confirm.R')"
 
       - name: Install as the README says
         run: Rscript -e "source('.github/ci/install.R')"
