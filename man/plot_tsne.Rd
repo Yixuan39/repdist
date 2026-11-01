@@ -30,10 +30,10 @@ between clusters or their sizes. The layout is stochastic; call
 \code{\link[=set.seed]{set.seed()}} first to reproduce it.
 }
 \examples{
-d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
-    package = "repdist"
-))
-x <- d$proteins[1:100]
+x <- read_embeddings(
+    system.file("extdata", "metaproteomics.npz", package = "repdist"),
+    system.file("extdata", "metaproteomics.fasta", package = "repdist")
+)
 if (requireNamespace("ggplot2", quietly = TRUE) &&
     requireNamespace("Rtsne", quietly = TRUE)) {
     set.seed(1)

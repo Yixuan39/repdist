@@ -24,7 +24,10 @@ of \verb{tmvec embed} -- one group per protein holding datasets \code{seq} and
 per-residue \code{emb} matrix is averaged over residues; rows are L2-normalised.
 }
 \examples{
-if (interactive()) {
-    x <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
-}
+# 100 gut metaproteome proteins, as written by `tmvec build-db`
+x <- read_embeddings(
+    system.file("extdata", "metaproteomics.npz", package = "repdist"),
+    system.file("extdata", "metaproteomics.fasta", package = "repdist")
+)
+x
 }

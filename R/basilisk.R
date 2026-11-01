@@ -1,4 +1,4 @@
-# The Python side of embed_proteins() lives in a basilisk-managed Conda
+# The Python side of embed_proteins() lives in a basilisk-managed virtual
 # environment rather than in whatever Python reticulate happens to find. Every
 # version is pinned, so the stack Bioconductor's build machines install is the
 # stack a user gets, and it cannot be perturbed by the rest of their system.
@@ -20,10 +20,14 @@
 # runs on these pins. Split only when a model needs pins that genuinely cannot
 # coexist with these -- configure builds every environment declared here, so an
 # extra one costs another multi-GB torch on the Bioconductor builders.
+# 3.11.9 is the last 3.11 release with a python.org Windows installer, which
+# basilisk's pyenv route needs there; 3.11.10+ are source-only.
+repdist_python <- "3.11.9"
+
 repdist_env <- basilisk::BasiliskEnvironment(
     envname = "repdist-embed",
     pkgname = "repdist",
-    packages = "python=3.11.11",
+    packages = paste0("python=", repdist_python),
     pip = c(
         "torch==2.5.1",
         "transformers==4.46.3",
@@ -39,3 +43,31 @@ repdist_env <- basilisk::BasiliskEnvironment(
         "protobuf==5.29.1"
     )
 )
+
+# basilisk >= 1.22 builds the environment on a Python from pyenv, which needs
+# git on every OS and compiles Python from source on macOS and Linux. A uv
+# standalone build needs neither (reticulate fetches uv itself), so hand one to
+# basilisk through its documented BASILISK_CUSTOM_PYTHON_* override before the
+# environment is first built. An override already set (e.g. by an admin) wins;
+# if uv fails, basilisk falls back to pyenv.
+.standalone_python <- function() {
+    var <- paste0("BASILISK_CUSTOM_PYTHON_",
+        gsub(".", "_", repdist_python, fixed = TRUE))
+    built <- file.path(basilisk::getExternalDir(), "repdist",
+        utils::packageVersion("repdist"), "repdist-embed")
+    if (nzchar(Sys.getenv(var)) || basilisk::useSystemDir() ||
+        file.exists(built)) {
+        return(invisible())
+    }
+    py <- tryCatch(
+        reticulate::uv_run_tool("python",
+            c("-c", shQuote("import sys; print(sys._base_executable)")),
+            python_version = repdist_python, stdout = TRUE),
+        error = function(e) character(), warning = function(w) character()
+    )
+    py <- py[length(py)]
+    if (length(py) && file.exists(py)) {
+        do.call(Sys.setenv, stats::setNames(list(py), var))
+    }
+    invisible()
+}

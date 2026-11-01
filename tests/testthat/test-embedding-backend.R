@@ -1,6 +1,7 @@
 test_that("R dispatch preserves sequences and validates backend output", {
     s <- c(p1 = "ACDE", p2 = "KLMN")
     result <- diag(2)
+    testthat::local_mocked_bindings(.standalone_python = function() NULL)
     testthat::local_mocked_bindings(
         basiliskStart = function(...) NULL,
         basiliskStop = function(...) NULL,
@@ -33,4 +34,36 @@ test_that("all remote model artifacts have immutable revisions", {
             expect_match(model$head_revision, "^[0-9a-f]{40}$")
         }
     }
+})
+
+test_that("a uv Python is handed to basilisk only before the env is built", {
+    var <- paste0("BASILISK_CUSTOM_PYTHON_",
+        gsub(".", "_", repdist_python, fixed = TRUE))
+    keep <- c(var, "BASILISK_EXTERNAL_DIR", "BASILISK_USE_SYSTEM_DIR")
+    old <- Sys.getenv(keep, unset = NA)
+    on.exit({
+        Sys.unsetenv(keep[is.na(old)])
+        if (any(!is.na(old))) do.call(Sys.setenv, as.list(old[!is.na(old)]))
+    })
+    Sys.unsetenv(c(var, "BASILISK_USE_SYSTEM_DIR"))
+    Sys.setenv(BASILISK_EXTERNAL_DIR = tempfile())
+    py <- tempfile()
+    file.create(py)
+    calls <- 0
+    testthat::local_mocked_bindings(uv_run_tool = function(...) {
+        calls <<- calls + 1
+        c("Downloading cpython", py)
+    }, .package = "reticulate")
+
+    .standalone_python()
+    expect_identical(Sys.getenv(var), py)
+    .standalone_python() # an override already set wins
+    expect_identical(calls, 1)
+
+    Sys.unsetenv(var)
+    dir.create(file.path(basilisk::getExternalDir(), "repdist",
+        utils::packageVersion("repdist"), "repdist-embed"), recursive = TRUE)
+    .standalone_python() # a built env needs no Python
+    expect_identical(calls, 1)
+    expect_identical(Sys.getenv(var), "")
 })

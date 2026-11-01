@@ -34,10 +34,10 @@ members through shared neighbours, so a pair inside it need not be an edge,
 and a pair above \code{min_sim} is not one if it failed the coverage gate.
 }
 \examples{
-d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
-    package = "repdist"
-))
-x <- d$proteins[1:100]
+x <- read_embeddings(
+    system.file("extdata", "metaproteomics.npz", package = "repdist"),
+    system.file("extdata", "metaproteomics.fasta", package = "repdist")
+)
 S <- protein_similarity(x)
 if (requireNamespace("ggplot2", quietly = TRUE)) {
     plot_bin_similarity(bin_proteins(S), "bin1", S, x)

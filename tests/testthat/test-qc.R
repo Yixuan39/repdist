@@ -103,5 +103,9 @@ test_that("plot_tsne colours the 12 most frequent labels", {
     # M and N fall outside the top 12; NA and unnamed proteins stay unlabelled
     expect_equal(as.character(lab[25:28]), c("other", "other", "other", NA))
     expect_true(all(is.na(lab[29:30])))
+    # with 12 labels or fewer there is no empty "other" in the legend
+    set.seed(1)
+    p <- plot_tsne(as_proteins(Z), color = labels[1:6])
+    expect_identical(levels(p$data$label), c("A", "B", "C"))
     expect_error(plot_tsne(as_proteins(Z), color = unname(labels)), "named")
 })
