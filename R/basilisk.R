@@ -12,7 +12,9 @@
 # cannot carry a staged install path. R CMD check's NOTE about it is expected.
 #
 # This file is sourced standalone by configureBasiliskEnv() from ./configure, so
-# it must not assume the rest of the package is loaded. `repdist_env` carries no
+# it must not assume the rest of the package is loaded. There is deliberately no
+# configure.win: R runs it through sh, which Windows has only with Rtools or
+# git, so it made a GitHub install fail on a bare Windows machine. `repdist_env` carries no
 # leading dot on purpose: configureBasiliskEnv() collects environments with
 # ls(), which skips dot-prefixed names, and would silently build nothing.
 #

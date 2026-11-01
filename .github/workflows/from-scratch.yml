@@ -1,6 +1,7 @@
 # Install repdist the way the README says, on machines with no Python, conda,
 # git or Rtools, then use it: first embed_proteins() call (provisions Python),
-# the default TM-Vec model, the quick-start pipeline, and the test suite.
+# the default TM-Vec model, the quick-start pipeline, the vignette code and the
+# test suite.
 name: from-scratch
 
 on:
@@ -8,78 +9,78 @@ on:
     branches: ["ci/**"]
   workflow_dispatch:
 
+env:
+  GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+  REF: ${{ github.sha }}
+
 jobs:
-  install-and-use:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {os: ubuntu-latest, rtools: false}
-          # Bare Windows, then Windows with Rtools: R CMD INSTALL runs
-          # configure.win through sh, which only Rtools (or Git) provides.
-          - {os: windows-latest, rtools: false}
-          - {os: windows-latest, rtools: true}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 240
+  linux:
+    # Plain R on Ubuntu: no Python, no git, CRAN source packages.
+    runs-on: ubuntu-latest
+    container: rocker/r-ver:latest
+    timeout-minutes: 300
     env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-      REF: ${{ github.sha }}
+      MAKEFLAGS: -j4
     steps:
       - uses: actions/checkout@v4
+      - name: System libraries, as the README says
+        run: |
+          apt-get update
+          apt-get install -y build-essential gfortran libcurl4-openssl-dev libssl-dev libxml2-dev
+      - name: CRAN source packages, not rocker's binary mirror; hide Python and git
+        run: |
+          echo 'options(repos = c(CRAN = "https://cloud.r-project.org"))' > ~/.Rprofile
+          for b in python python3 git conda uv; do
+            for p in $(which -a $b 2>/dev/null); do mv -f "$p" "$p.hidden" || true; done
+          done
+          df -h /
+      - name: Confirm nothing is left
+        run: Rscript -e "source('.github/ci/confirm.R')"
+      - name: Install as the README says
+        run: Rscript -e "source('.github/ci/install.R')"
+      - name: Use it
+        run: Rscript -e "source('.github/ci/use.R')"
+      - name: Run the vignette code
+        run: Rscript -e "knitr::purl('vignettes/repdist.Rmd', 'vig.R', quiet = TRUE); source('vig.R', echo = TRUE, max.deparse.length = Inf)"
+      - name: Test suite, with real esm2-8m inference
+        env:
+          REPDIST_CHECK_MODEL: esm2-8m
+        run: Rscript -e "install.packages('pkgload'); testthat::test_local(stop_on_failure = TRUE)"
+      - name: Disk and cache sizes
+        if: always()
+        run: Rscript -e "source('.github/ci/sizes.R')"
 
+  windows:
+    # Bare Windows: no Python (bar the Store stubs), conda, git or Rtools.
+    runs-on: windows-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: release
-          use-public-rspm: true
-          windows-path-include-rtools: ${{ matrix.rtools }}
-
-      - name: Free disk (Linux; default model is ~11 GB of weights)
-        if: runner.os == 'Linux'
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-
-      - name: Hide Python, conda and git (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo rm -rf /opt/hostedtoolcache/Python /opt/hostedtoolcache/PyPy /usr/share/miniconda /opt/pipx*
-          for b in python python3 python3.12 pip pip3 git conda uv pyenv; do
-            for p in $(which -a $b 2>/dev/null); do sudo mv -f "$p" "$p.hidden" 2>/dev/null || true; done
-          done
-          echo "CONDA=" >> "$GITHUB_ENV"
-
-      - name: Hide Python, conda, git and Rtools (Windows)
-        if: runner.os == 'Windows'
+          windows-path-include-rtools: false
+      - name: Hide Python, conda, git and Rtools
         shell: pwsh
-        env:
-          RTOOLS: ${{ matrix.rtools }}
         run: |
-          $drop = '(?i)python|conda|\\git\\|strawberry|\\uv'
-          if ($env:RTOOLS -ne 'true') { $drop += '|rtools|msys|mingw' }
+          $drop = '(?i)python|conda|\\git\\|strawberry|\\uv|rtools|msys|mingw'
           $keep = $env:PATH -split ';' | Where-Object { $_ -and $_ -notmatch $drop }
           "PATH=$($keep -join ';')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "CONDA=" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Remove-Item -Force -ErrorAction SilentlyContinue C:\Windows\py.exe, C:\Windows\pyw.exe
-          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue C:\Miniconda, C:\hostedtoolcache\windows\Python
-          if ($env:RTOOLS -ne 'true') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue C:\rtools* }
-
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue C:\Miniconda, C:\hostedtoolcache\windows\Python, C:\rtools*
       - name: Confirm nothing is left
         run: Rscript -e "source('.github/ci/confirm.R')"
-
       - name: Install as the README says
         run: Rscript -e "source('.github/ci/install.R')"
-
       - name: Use it
         run: Rscript -e "source('.github/ci/use.R')"
-
       - name: Run the vignette code
         run: Rscript -e "knitr::purl('vignettes/repdist.Rmd', 'vig.R', quiet = TRUE); source('vig.R', echo = TRUE, max.deparse.length = Inf)"
-
       - name: Test suite, with real esm2-8m inference
         env:
           REPDIST_CHECK_MODEL: esm2-8m
-        run: Rscript -e "install.packages(c('testthat','pkgload')); testthat::test_local(stop_on_failure = TRUE)"
-
+        run: Rscript -e "install.packages('pkgload'); testthat::test_local(stop_on_failure = TRUE)"
       - name: Disk and cache sizes
         if: always()
         run: Rscript -e "source('.github/ci/sizes.R')"

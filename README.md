@@ -75,7 +75,18 @@ if (!requireNamespace("BiocManager", quietly = TRUE))
 BiocManager::install("repdist", dependencies = TRUE)
 ```
 
-Until then, install the development version with Bioconductor dependencies:
+Until then, install the development version with Bioconductor dependencies.
+You need R >= 4.5; Rtools is not needed on Windows. On Linux, R compiles some
+dependencies from source and needs these system libraries first:
+
+```sh
+# Debian/Ubuntu
+sudo apt-get install -y build-essential gfortran libcurl4-openssl-dev libssl-dev libxml2-dev
+# Fedora/RHEL
+sudo dnf install -y gcc-c++ gcc-gfortran libcurl-devel openssl-devel libxml2-devel
+```
+
+Then, in R:
 
 ```r
 if (!requireNamespace("BiocManager", quietly = TRUE))
