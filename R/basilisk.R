@@ -61,15 +61,29 @@ repdist_env <- basilisk::BasiliskEnvironment(
         file.exists(built)) {
         return(invisible())
     }
+    why <- NULL
     py <- tryCatch(
         reticulate::uv_run_tool("python",
             c("-c", shQuote("import sys; print(sys._base_executable)")),
             python_version = repdist_python, stdout = TRUE),
-        error = function(e) character(), warning = function(w) character()
+        error = function(e) {
+            why <<- conditionMessage(e)
+            character()
+        },
+        warning = function(w) {
+            why <<- conditionMessage(w)
+            character()
+        }
     )
     py <- py[length(py)]
     if (length(py) && file.exists(py)) {
         do.call(Sys.setenv, stats::setNames(list(py), var))
+    } else {
+        # Otherwise the user sees only pyenv's "requires git", which hides the
+        # real cause (on Linux, usually no curl or wget for uv's installer).
+        message("Could not get a standalone Python through uv",
+            if (length(why)) paste0(" (", why, ")"),
+            "; falling back to basilisk's pyenv, which needs git.")
     }
     invisible()
 }

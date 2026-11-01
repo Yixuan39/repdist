@@ -26,7 +26,7 @@ jobs:
       - name: System libraries, as the README says
         run: |
           apt-get update
-          apt-get install -y build-essential gfortran cmake libcurl4-openssl-dev libssl-dev libpng-dev libuv1-dev libbz2-dev libicu-dev
+          apt-get install -y curl build-essential gfortran cmake libcurl4-openssl-dev libssl-dev libpng-dev libuv1-dev libbz2-dev libicu-dev
       - name: CRAN source packages, not rocker's binary mirror; hide Python and git
         run: |
           echo 'options(repos = c(CRAN = "https://cloud.r-project.org"))' > ~/.Rprofile
@@ -69,6 +69,37 @@ jobs:
           "CONDA=" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Remove-Item -Force -ErrorAction SilentlyContinue C:\Windows\py.exe, C:\Windows\pyw.exe
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue C:\Miniconda, C:\hostedtoolcache\windows\Python, C:\rtools*
+      - name: Confirm nothing is left
+        run: Rscript -e "source('.github/ci/confirm.R')"
+      - name: Install as the README says
+        run: Rscript -e "source('.github/ci/install.R')"
+      - name: Use it
+        run: Rscript -e "source('.github/ci/use.R')"
+      - name: Run the vignette code
+        run: Rscript -e "knitr::purl('vignettes/repdist.Rmd', 'vig.R', quiet = TRUE); source('vig.R', echo = TRUE, max.deparse.length = Inf)"
+      - name: Test suite, with real esm2-8m inference
+        env:
+          REPDIST_CHECK_MODEL: esm2-8m
+        run: Rscript -e "install.packages('pkgload'); testthat::test_local(stop_on_failure = TRUE)"
+      - name: Disk and cache sizes
+        if: always()
+        run: Rscript -e "source('.github/ci/sizes.R')"
+
+  macos:
+    # Apple Silicon; Homebrew Python, git and conda off PATH.
+    runs-on: macos-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - name: Hide Python, conda and git
+        run: |
+          keep=$(echo "$PATH" | tr ':' '\n' | grep -viE 'python|conda|homebrew|/usr/local/bin|hostedtoolcache' | paste -sd: -)
+          echo "PATH=/Library/Frameworks/R.framework/Resources/bin:$keep" >> "$GITHUB_ENV"
+          echo "CONDA=" >> "$GITHUB_ENV"
+          sudo rm -rf /Library/Frameworks/Python.framework /usr/local/miniconda /opt/homebrew/bin/python* /opt/homebrew/bin/uv
       - name: Confirm nothing is left
         run: Rscript -e "source('.github/ci/confirm.R')"
       - name: Install as the README says
