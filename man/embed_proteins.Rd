@@ -50,15 +50,20 @@ To use embeddings from elsewhere, build the same object:
 Dispatches on \code{model}. A TM-Vec head regresses the TM-score of a
 protein pair, so cosine similarity between two rows is a predicted
 TM-score; the generic presets are mean-pooled \code{AutoModel} hidden
-states, with no such calibration claim. \code{basilisk} provisions the
-pinned Python environment on first use, and model weights are cached
+states, with no such calibration claim.
+}
+\details{
+Python, conda and git do not need to be installed. On the first call a
+standalone Python is downloaded with \code{uv} (through \code{reticulate}) and
+\code{basilisk} installs the pinned packages, torch included, into a private
+environment: up to a few GB, an internet connection, and several minutes,
+once. Later calls reuse it, offline. Model weights are cached
 (HuggingFace models under \verb{~/.cache/huggingface}, the large TM-Vec
 head under \code{BiocFileCache}). HuggingFace weights and tokenizers are
 pinned to commit revisions, and Figshare weights are checked against a
 SHA-256 digest. Floating-point differences can still occur across devices
 and numerical libraries.
-}
-\details{
+
 Every sequence is embedded whole and in input order: nothing is truncated,
 subset, or silently dropped, and no length limit is imposed -- a sequence
 past a model's \code{training_max_length} is embedded, just outside the
@@ -68,14 +73,15 @@ batch of its own is an error naming the offender. Batches are capped at
 that still exceeds device memory is split and retried automatically.
 }
 \examples{
-if (interactive()) {
-    # esm2-8m is 8M parameters; the default downloads several GB.
-    seqs <- c(
-        p1 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ",
-        p2 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVE"
-    )
-    x <- embed_proteins(seqs, model = "esm2-8m")
-    dim(S4Vectors::mcols(x)$embedding)
+\donttest{
+# Not run by R CMD check: the first call installs the Python environment.
+# esm2-8m is 8M parameters; the default "tmvec" downloads several GB.
+seqs <- c(
+    p1 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ",
+    p2 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVE"
+)
+x <- embed_proteins(seqs, model = "esm2-8m")
+dim(S4Vectors::mcols(x)$embedding)
 }
 }
 \references{

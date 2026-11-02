@@ -8,9 +8,8 @@
 \description{
 Embed protein sequences with \code{\link[=read_fasta]{read_fasta()}} and
 \code{\link[=embed_proteins]{embed_proteins()}},
-read embeddings made with the tmvec tool with
-\code{\link[=read_embeddings]{read_embeddings()}}, or load the documented
-\link{diet_metaproteome} example. Each gives an \code{AAStringSet} with the embeddings in
+or read embeddings made with the tmvec tool with
+\code{\link[=read_embeddings]{read_embeddings()}}. Each gives an \code{AAStringSet} with the embeddings in
 \code{mcols()}.
 }
 \details{

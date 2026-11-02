@@ -54,6 +54,8 @@ protein_similarity <- function(x, min_sim = 0.7, min_coverage = 0.5,
     if (min_coverage > 0) {
         S4Vectors::mcols(x) <- NULL # pwalign drops them with a warning
         ij <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
+        message("Aligning ", nrow(ij), " protein pairs with similarity >= ",
+            min_sim, " to check coverage.")
         BPPARAM <- if (n_cores > 1) {
             BiocParallel::MulticoreParam(n_cores)
         } else {
@@ -152,10 +154,10 @@ protein_similarity <- function(x, min_sim = 0.7, min_coverage = 0.5,
 #' @references van Dongen S (2000). Graph clustering by flow simulation.
 #'   PhD thesis, University of Utrecht.
 #' @examples
-#' d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
-#'     package = "repdist"
-#' ))
-#' x <- d$proteins[1:100]
+#' x <- read_embeddings(
+#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
+#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
+#' )
 #' b <- bin_proteins(protein_similarity(x))
 #' head(lengths(b$clusters))
 #' @export

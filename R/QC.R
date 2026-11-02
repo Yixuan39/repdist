@@ -22,10 +22,10 @@ utils::globalVariables(c(
 #' @return A ggplot object whose `data` holds the t-SNE coordinates (and the
 #'   `label` used for colour). Needs the `ggplot2` and `Rtsne` packages.
 #' @examples
-#' d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
-#'     package = "repdist"
-#' ))
-#' x <- d$proteins[1:100]
+#' x <- read_embeddings(
+#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
+#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
+#' )
 #' if (requireNamespace("ggplot2", quietly = TRUE) &&
 #'     requireNamespace("Rtsne", quietly = TRUE)) {
 #'     set.seed(1)
@@ -59,7 +59,7 @@ plot_tsne <- function(x, perplexity = NULL, color = NULL) {
     label <- as.character(color[df$protein])
     top <- utils::head(names(sort(table(label), decreasing = TRUE)), 12L)
     label[!is.na(label) & !label %in% top] <- "other"
-    df$label <- factor(label, c(top, "other"))
+    df$label <- factor(label, intersect(c(top, "other"), label))
     # coloured points on top of the grey ones
     p$data <- df[order(!is.na(df$label), df$label != "other"), ]
     p + ggplot2::geom_point(ggplot2::aes(colour = label), alpha = 0.7,
@@ -93,10 +93,10 @@ plot_tsne <- function(x, perplexity = NULL, color = NULL) {
 #' @return A ggplot object whose `data` holds each pair's `similarity` and
 #'   whether it is an `edge`. Needs the `ggplot2` package.
 #' @examples
-#' d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
-#'     package = "repdist"
-#' ))
-#' x <- d$proteins[1:100]
+#' x <- read_embeddings(
+#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
+#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
+#' )
 #' S <- protein_similarity(x)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'     plot_bin_similarity(bin_proteins(S), "bin1", S, x)

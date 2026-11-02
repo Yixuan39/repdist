@@ -1,4 +1,3 @@
-^data$
 ^\.git
 ^.*\.Rproj$
 ^\.Rproj\.user$

@@ -13,47 +13,32 @@ vignette: >
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-    collapse = TRUE, comment = "#>", fig.width = 7,
-    fig.height = 4, message = FALSE, warning = FALSE
+    collapse = TRUE, comment = "#>", message = FALSE, warning = FALSE
 )
 ```
 
-# Why a representation distance
+# Introduction
 
-Bray-Curtis, Jaccard and their relatives compare samples through protein
-*identity*: two proteins are either the same accession or maximally different.
-Metaproteomes break that assumption. Two communities can carry the same
-enzymatic function on accessions that never overlap, and an identity-based
-distance cannot tell that case apart from any other difference — it simply
-reports the maximum and stops.
+Bray-Curtis and its relatives compare metaproteomes by accession: two
+different proteins count as unrelated even when they share fold and function.
+`repdist` compares them in the representation space of a protein language
+model, by default TM-Vec, where the cosine similarity of two proteins is their
+predicted TM-score. It does three things:
 
-`repdist` replaces the identity comparison with a distance in a protein
-language model's representation space. Each sample becomes an
-abundance-weighted distribution over protein embeddings, and two samples are
-compared by the maximum mean discrepancy (MMD) between those distributions
-under an RBF kernel. The ground distance is defined for *any* pair of
-sequences, including proteins with no annotation, no tree position, and no
-homolog in the other sample.
+- **Compare samples.** `sample_mmd()` gives a sample-by-sample distance, the
+    maximum mean discrepancy (MMD), for PERMANOVA and ordination.
+- **Group proteins.** `protein_similarity()` and `bin_proteins()` cluster
+    structurally similar proteins into bins by Markov clustering (MCL).
+- **Find what changed.** `bin_glom()` sums counts within bins, for
+    differential abundance with any count-based method.
 
-This vignette runs the whole workflow on real data:
-
-1. **Beta diversity** with the MMD distance and a PERMANOVA in
-    `r BiocStyle::CRANpkg("vegan")`.
-2. **Structural bins** by Markov clustering of the graph joining proteins
-    with a predicted TM-score of at least 0.7.
-3. **Differential abundance** on the bins with
-    `r BiocStyle::Biocpkg("DESeq2")`.
-4. **Reading the winner**: the functional annotations of the proteins in the
-    most responsive bin.
-
-The [simulation study](https://yixuan39.github.io/repdist/simulation.html)
-on the package website shows on simulated data exactly when this matters — and when Bray-Curtis
-cannot see a real difference at all.
-
-```{r libs}
-library(repdist)
-library(ggplot2)
-```
+You need protein sequences (a FASTA file, named by protein ID), a count table
+with samples in rows and proteins in columns, and sample metadata. This
+vignette runs the workflow on simulated data with a known answer. The
+[simulation page](https://yixuan39.github.io/repdist/simulation.html)
+benchmarks it over many such contrasts, and the
+[case study](https://yixuan39.github.io/repdist/case_study.html) applies it to
+a real metaproteome.
 
 # Installation
 
@@ -61,499 +46,191 @@ library(ggplot2)
 if (!requireNamespace("BiocManager", quietly = TRUE)) {
     install.packages("BiocManager")
 }
-BiocManager::install("repdist")
+# dependencies = TRUE also installs vegan, ggplot2, Rtsne and DESeq2, used below
+BiocManager::install("repdist", dependencies = TRUE)
 ```
 
-# The example dataset
+```{r libs}
+library(repdist)
+library(vegan)
+library(ggplot2)
+```
 
-The study is Blakeley-Ruiz *et al.*, *ISME J* **19**(1) wraf048: mouse faecal
-metaproteomes across six dietary protein sources, quantified by spectral
-counting. Does dietary protein source restructure the gut metaproteome, and
-which proteins carry the signal?
+# Data
+
+`simulate_ec` holds 1,160 bacterial and archaeal Swiss-Prot enzymes with
+experimentally supported EC numbers: every enzyme of two classes, EC 2.7.7
+(nucleotidyltransferases) and EC 2.3.2 (aminoacyltransferases), and 1,000
+other enzymes as background. Every enzyme has a positive expected abundance
+in each of 20 samples. In each sample of group A, 5% of the abundance goes to
+two extra EC 2.7.7 enzymes; in group B, to two EC 2.3.2 enzymes. No two
+enriched enzymes share a 50%-identity sequence cluster, so no two samples of
+a group share an enriched protein or sequence family: the groups differ in
+function, not in any shared protein. The
+[simulated data page](https://yixuan39.github.io/repdist/simulation_data.html)
+shows how the dataset was built.
 
 ```{r data}
-d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
-    package = "repdist"
-))
-names(d)
+data(simulate_ec, package = "repdist")
+proteins <- simulate_ec$proteins # sequences, embeddings in mcols()$embedding
+counts <- simulate_ec$counts # samples x proteins
+samples <- simulate_ec$samples
+annotation <- simulate_ec$annotation # EC labels and the truth
+dim(counts)
+table(samples$group, samples$enriched_ec3)
 ```
 
-`counts` was rarefied to even depth on the full protein catalog and then cut
-to the 2000 most abundant proteins, so the shipped table's row totals differ —
-it is **not** itself equal-depth. `sample_mmd()` normalizes each row
-anyway. `counts_raw` is the same samples and proteins before rarefaction, which
-is what the differential-abundance step uses — it fits its own per-sample
-normalization. See `?diet_metaproteome` for every field and the installed
-`scripts/DATA_PROVENANCE.md` for source, licence and processing.
+# Embeddings
 
-```{r dims}
-dim(d$counts)
-table(d$metadata$diet)
-```
-
-Each mouse contributes several samples, so `subject` is carried through
-everything below as a blocking factor. The full study is 30,561 proteins;
-shipped here are the 2000 most abundant after rarefaction, which hold 80% of
-the total spectral counts. `inst/scripts/prepare_vignette_data.R` in the source
-repository is the script that made this object.
-
-# Embedding
-
-`embed_proteins()` downloads a protein language model and runs it through a
-pinned Python environment managed by `r BiocStyle::Biocpkg("basilisk")`; you do
-not manage Python packages yourself. Every sequence is embedded whole and every
-sequence comes back, in input order — nothing is truncated, subset, or silently
-dropped. Because the default model is several gigabytes, the embeddings here
-are precomputed; on your own data this is the one call that needs the model.
-Embeddings made with the `tmvec` command-line tool
-(<https://github.com/valentynbez/tmvec>) are read with `read_embeddings()`
-instead:
+On your own data, `embed_proteins()` embeds the sequences. Python, conda and
+git do not need to be installed: the first call sets up a private, pinned
+Python environment (up to a few GB, once). Embeddings made with the `tmvec`
+command-line tool are read with `read_embeddings()` instead. `simulate_ec`
+ships with its embeddings.
 
 ```{r embed, eval = FALSE}
-x <- embed_proteins("proteins.fasta") # default model: "tmvec"
-x <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
+proteins <- embed_proteins("proteins.fasta")
+proteins <- read_embeddings("proteins.npz", "proteins.fasta")
 ```
 
-Either way the result is an `AAStringSet`: the sequences, named by accession,
-with one embedding row per protein in `mcols(x)$embedding`. The shipped data
-holds the same object.
+# Beta diversity
 
-```{r x}
-x <- d$proteins
-x
-dim(S4Vectors::mcols(x)$embedding)
-```
+`sample_mmd()` compares the samples' abundance-weighted distributions over
+the embeddings. Bray-Curtis compares shared proteins, or shared sequence
+families when the counts are first summed within MMseqs2 clusters at 30%
+identity (`annotation$mmseqs30`). PERMANOVA (`adonis2()`) tests whether the
+groups differ.
 
-`known_models()` lists the registered models, each with a `description` of
-what its embedding measures. Those keys are the whole of what `model` accepts:
-the pinned environment fixes which architectures load at all, so an arbitrary
-HuggingFace repo is rejected rather than embedded on a stack nobody has
-checked it against. TM-Vec heads are the reason the scale is
-interpretable: the head was trained to regress the TM-score of protein pairs,
-so cosine similarity between two TM-Vec embeddings *is* a predicted TM-score.
-When structural similarity is not the question, the `esm2-*` models embed
-general sequence features instead — at the cost of that calibration.
-
-Other trained heads exist, and some of them cluster proteins better than a
-TM-score head does. They are not the default here because their distance has
-no referent outside the model: it means similarity as that model was trained
-to define it, so a threshold on it cannot be read as anything in particular.
-A predicted TM-score can.
-
-```{r models}
-names(known_models())
-```
-
-# The protein similarity graph
-
-`protein_similarity()` builds the protein-by-protein similarity -- for
-TM-Vec, the predicted TM-score -- that binning reads. Pairs below `min_sim` are
-set to 0, and so are pairs whose local alignment (BLOSUM62 unless
-`substitutionMatrix` says otherwise) covers less than `min_coverage` (default
-0.5) of either sequence, so two proteins sharing only one domain are not
-joined. Only pairs above `min_sim` are aligned; `n_cores` spreads the
-alignments over several cores.
-
-Build it once with no gates, to see every predicted TM-score, and once with
-the gates you bin at:
-
-```{r ground}
-S_all <- protein_similarity(x, min_sim = 0, min_coverage = 0) # every pair
-S <- protein_similarity(x, min_sim = 0.7) # TM >= 0.7, half of both covered
-```
-
-`sample_mmd()` does not take this matrix: MMD needs a
-positive-semi-definite kernel, which the Gaussian RBF gives on Euclidean
-distances but not on `1 - cosine`, so it builds the Euclidean distance from the
-embeddings itself. On the unit-norm rows `embed_proteins()` returns the two are
-monotone transforms of each other (`||a - b|| = sqrt(2 * (1 - cos))`) and rank
-protein pairs identically, so nothing is given up.
-
-```{r scales}
-pairs <- S_all[upper.tri(S_all)]
-c(
-    median_predicted_TM = round(median(pairs), 3),
-    pairs_above_0.7 = sum(pairs >= 0.7)
-)
-```
-
-# Step 1: beta diversity
-
-Two distances over the relative abundances of the same rarefied counts.
-The retained 2000-protein subset no longer has equal sample totals, so both
-distances use explicit row normalisation. Bray-Curtis is the protein-level
-baseline: it can only ask whether two samples hold the *same accession*. MMD
-asks how far apart the proteins they hold actually are.
-
-```{r distances}
-relative <- d$counts / rowSums(d$counts)
+```{r beta}
+relative <- counts / rowSums(counts)
+# summed within 30%-identity MMseqs2 clusters
+mmseqs30 <- t(rowsum(t(relative), annotation[colnames(relative), "mmseqs30"]))
 D <- list(
-    `Bray-Curtis` = vegan::vegdist(relative, "bray"),
-    `MMD`         = sample_mmd(relative, x)
+    MMD = sample_mmd(relative, proteins),
+    `Bray-Curtis, MMseqs2 30%` = vegdist(mmseqs30, "bray"),
+    `Bray-Curtis, protein` = vegdist(relative, "bray")
 )
-```
-
-`sample_mmd()` treats each sample as an abundance-weighted distribution over
-embeddings and returns the maximum mean discrepancy between them. Both are
-`dist` objects, so they drop straight into `r BiocStyle::CRANpkg("vegan")`.
-
-Both are also abundance-weighted, so both inherit some dependence on how many
-proteins a sample carries — MMD doubly so, since a sample's own within-sample
-dispersion enters its self-term. One line before reading any $R^2$: how much of
-each distance richness alone explains.
-
-```{r qc-richness}
-rich <- vegan::specnumber(d$counts)
-round(vapply(D, function(x) cor(rich, rowMeans(as.matrix(x))), numeric(1)), 2)
-```
-
-Richness still spans `r round(max(rich) / min(rich), 1)`-fold after rarefaction
-and tracks both distances, MMD slightly *less* than the protein-identity
-baseline. That baseline is the thing to check against: a representation
-distance more richness-coupled than Bray-Curtis would be the first thing to
-suspect of tracking depth rather than structure.
-
-## PERMANOVA
-
-Amount of protein, sex and age stay in the model as covariates and diet goes
-last, so its reported $R^2$ is what survives *after* them — the conservative
-reading. Permutations are blocked within mouse.
-
-```{r permanova}
-md <- d$metadata
-md$subject <- factor(md$subject)
-perm <- permute::how(blocks = md$subject, nperm = 999)
-
-res <- do.call(rbind, lapply(names(D), function(n) {
+perm <- t(vapply(D, function(Dk) {
     set.seed(1)
-    a <- vegan::adonis2(D[[n]] ~ dose + sex + age_week + diet,
-        data = md,
-        by = "terms", permutations = perm
-    )
-    data.frame(
-        distance = n, R2 = round(a["diet", "R2"], 3),
-        F = round(a["diet", "F"], 2), p = a["diet", "Pr(>F)"]
-    )
-}))
-knitr::kable(res, row.names = FALSE)
+    a <- adonis2(Dk ~ group, data = samples, permutations = 999)
+    c(R2 = a$R2[1], p = a$`Pr(>F)`[1])
+}, numeric(2)))
+round(perm, 3)
 ```
-
-Both find dietary protein source highly significant. That is worth being
-precise about: these are cage-housed lab mice searched against one protein
-database, so samples really do share accessions, and accession identity is
-something Bray-Curtis can read directly. The representation distance is not
-rescuing a failed analysis here — it is being checked against a case where the
-conventional method already works, and it agrees. The simulation study on
-the package website compares the methods when each sample carries its
-functional signal through distinct protein accessions.
-
-## Ordination
-
-PCoA on each distance, one panel each, coloured by diet. The percentage in each
-panel heading is that axis's share of the total variation, computed per distance
-because each one has its own eigenvalues.
 
 ```{r pcoa}
-#| fig.height: 3.6
-#| fig.width: 6.5
-#| fig.alt: >
-#|   PCoA of the samples under Bray-Curtis and MMD, coloured by dietary
-#|   protein source
-ord <- do.call(rbind, lapply(names(D), function(n) {
-    e <- cmdscale(D[[n]], k = 2, eig = TRUE)
-    rel <- 100 * e$eig / sum(e$eig[e$eig > 0]) # negative eigenvalues excluded
-    data.frame(
-        Axis1 = e$points[, 1], Axis2 = e$points[, 2],
-        diet = md[rownames(e$points), "diet"],
-        panel = sprintf("%s  (PCo1 %.1f%%, PCo2 %.1f%%)", n, rel[1], rel[2])
-    )
-}))
-
-ggplot(ord, aes(Axis1, Axis2, colour = diet)) +
-    geom_point(size = 1.6, alpha = 0.85) +
-    stat_ellipse(type = "t", linewidth = 0.3) +
-    facet_wrap(~panel, scales = "free") +
-    labs(x = "PCo1", y = "PCo2", colour = "diet") +
-    theme_bw() +
-    theme(legend.position = "bottom")
-```
-
-# Step 2: structural bins at TM-score 0.7
-
-PERMANOVA says diet structures the community; it says nothing about which
-proteins carry it. Testing 2000 proteins one at a time would pay a
-multiple-testing price on units that are not independent — homologous proteins
-are the same signal counted repeatedly.
-
-`bin_proteins()` collapses them into bins: every nonzero pair of `S`, a
-predicted TM-score of at least 0.7 with half of both sequences aligned, is an
-edge, and Markov clustering (MCL) at inflation 2 splits the graph. The 0.7
-sits above TM-score's conventional same-fold boundary of 0.5, but it is an
-edge floor, not an all-pairs guarantee: a bin can hold pairs below it, joined
-through shared neighbours.
-
-```{r bins}
-b <- bin_proteins(S, inflation = 2)
-b$graph
-```
-
-`b$graph` describes the graph MCL split. Isolated proteins have no edge at
-this floor and become singleton bins; a largest component holding most of the
-proteins would mean the floor is too low to separate anything before MCL
-starts.
-
-`plot_tsne()` maps the embeddings in two dimensions, here with the 12
-largest bins coloured. A bin should sit in one neighbourhood; one split across
-two islands, as a couple are here, is worth a look with
-`plot_bin_similarity()`. t-SNE keeps neighbours together but not the distances
-between groups, so read it for compactness, not for how far apart bins sit.
-
-```{r tsne}
-#| fig.height: 5
-#| fig.alt: >
-#|   t-SNE of the protein embeddings, the 12 largest bins coloured
-set.seed(1)
-plot_tsne(x, color = b$membership)
-```
-
-Rolling the unrarefied counts up to bin level is one `bin_glom()` call:
-
-```{r bin-counts}
-binned <- bin_glom(d$counts_raw, b)
-c(proteins = ncol(d$counts_raw), bins = ncol(binned))
-```
-
-```{r bin-sizes}
-sizes <- lengths(b$clusters)
-table(cut(sizes, c(0, 1, 2, 5, 10, Inf),
-    labels = c("1", "2", "3-5", "6-10", ">10")
-))
-```
-
-`r sum(sizes == 1)` of the `r ncol(d$counts_raw)` proteins have no structural
-relative at this floor and stay in a bin of their own. The rest fall into
-`r sum(sizes > 1)` multi-member bins, which is where the collapse buys
-something: the number of things to test drops by a factor of
-`r round(ncol(d$counts_raw) / ncol(binned), 1)`, and each surviving unit is
-a structural group rather than an accession.
-
-# Step 3: differential abundance with DESeq2
-
-`r BiocStyle::Biocpkg("DESeq2")` fits a negative-binomial model per bin on the
-**unrarefied** counts — its size factors are the model-based counterpart to
-rarefaction. The design is paired: `subject` enters as a fixed blocking factor,
-absorbing sex, cage, and every other between-mouse difference, and diet is
-tested *within* mice. Size factors use the `"poscounts"` estimator because,
-as in most metaproteomes, few bins are observed in every sample.
-
-Diet has six levels, so "the diet effect" on a bin is a likelihood-ratio test
-against the model without diet — the counterpart to `adonis2`'s `by = "terms"`,
-not a single contrast.
-
-```{r deseq}
-dds <- DESeq2::DESeqDataSetFromMatrix(t(binned), md,
-    design = ~ subject + diet
-)
-dds <- DESeq2::DESeq(dds,
-    test = "LRT", reduced = ~subject,
-    sfType = "poscounts", quiet = TRUE
-)
-res_lrt <- DESeq2::results(dds)
-
-c(
-    bins_tested = nrow(res_lrt),
-    diet_significant = sum(res_lrt$padj <= 0.05, na.rm = TRUE)
-)
-```
-
-Nothing about the bins is DESeq2-specific — they are ordinary count columns, so
-a compositional model such as LinDA or ALDEx2 drops in the same way.
-
-The LRT has no size to it — no single number is "the" effect when diet has five
-contrasts against the Casein reference. So each significant bin is given, as
-its effect size, the largest fold change it shows against Casein on any diet.
-Two refinements matter here. `nbinomWaldTest()` re-uses the dispersions already
-fitted to give each contrast its own test, which the volcano below needs; and
-`lfcShrink()` pulls fold changes toward zero in proportion to how little
-supports them, so a bin seen in a handful of samples cannot post an enormous
-log-ratio on almost no evidence.
-
-```{r effects}
-lev <- setdiff(levels(md$diet), "Casein")
-ddsw <- DESeq2::nbinomWaldTest(dds, quiet = TRUE)
-shrunk <- lapply(lev, function(l) {
-    DESeq2::lfcShrink(ddsw,
-        coef = paste0("diet_", l, "_vs_Casein"),
-        type = "normal", quiet = TRUE
-    )
-})
-names(shrunk) <- lev
-fc <- vapply(shrunk, function(o) o$log2FoldChange, numeric(nrow(res_lrt)))
-rownames(fc) <- rownames(res_lrt)
-
-sig <- rownames(res_lrt)[!is.na(res_lrt$padj) & res_lrt$padj <= 0.05]
-top <- data.frame(
-    bin     = sig,
-    members = sizes[sig],
-    padj    = formatC(res_lrt[sig, "padj"], digits = 2, format = "e"),
-    diet    = lev[apply(abs(fc[sig, ]), 1, which.max)],
-    log2FC  = round(fc[cbind(sig, lev[apply(abs(fc[sig, ]), 1, which.max)])], 2)
-)
-top <- top[order(-abs(top$log2FC)), ]
-knitr::kable(head(top, 8), row.names = FALSE)
-```
-
-A volcano plot needs one effect size per point, so the five diet-vs-Casein
-contrasts are shown separately: one panel per diet, shrunken log2 fold change
-on the x-axis, each point one bin, red where that specific contrast rejects at
-`padj <= 0.05`.
-
-```{r volcano}
-#| fig.height: 3.4
 #| fig.width: 9
-#| fig.alt: >
-#|   Volcano plot of bins, one panel per diet: shrunken log2 fold change
-#|   against Casein versus -log10 p, red where that contrast rejects
-volc <- do.call(rbind, lapply(lev, function(l) {
-    o <- shrunk[[l]]
-    data.frame(
-        bin = rownames(o), diet = l, log2FoldChange = o$log2FoldChange,
-        pvalue = o$pvalue, reject = !is.na(o$padj) & o$padj <= 0.05
-    )
+#| fig.height: 3.8
+#| fig.alt: "PCoA of MMD and two Bray-Curtis distances, 95% group ellipses"
+pcoa <- do.call(rbind, lapply(names(D), function(k) {
+    pc <- cmdscale(D[[k]], k = 2, eig = TRUE)
+    pct <- round(100 * pc$eig[1:2] / sum(pc$eig[pc$eig > 0]))
+    data.frame(samples, PCo1 = pc$points[, 1], PCo2 = pc$points[, 2],
+        distance = sprintf("%s\nPCo1 %d%%, PCo2 %d%%", k, pct[1], pct[2]))
 }))
-
-ggplot(volc, aes(log2FoldChange, -log10(pvalue), color = reject)) +
-    geom_point(alpha = 0.6, size = 1) +
-    facet_wrap(~diet, nrow = 1) +
-    scale_color_manual(
-        values = c(`FALSE` = "grey70", `TRUE` = "firebrick"),
-        guide = "none"
-    ) +
-    labs(x = "log2 fold change vs Casein", y = expression(-log[10](p))) +
+pcoa$distance <- factor(pcoa$distance, unique(pcoa$distance))
+ggplot(pcoa, aes(PCo1, PCo2, colour = group)) +
+    geom_point(size = 2) +
+    stat_ellipse(level = 0.95) + # 95% data ellipse per group
+    facet_wrap(~distance, scales = "free") +
     theme_bw()
 ```
 
-# Step 4: the three most responsive bins, read functionally
+MMD separates the groups and Bray-Curtis does not, on proteins or on sequence
+clusters: no enriched protein is shared, and the 40 enriched enzymes fall in 37
+different 30% clusters, so to Bray-Curtis every enrichment looks like noise.
+MMD credits enzymes of one class for being close in the embedding space.
 
-The very top of that table is telling in its own right: several of the most
-responsive bins contain only proteins with **no database annotation at all** —
-groups a lineage- or profile-based method cannot form, held together here by
-structure alone. But a bin with no annotations cannot demonstrate what the
-annotations of a bin look like, so take the three most responsive bins whose
-members carry them:
+# Protein clusters
 
-```{r pick}
-n_ann <- vapply(
-    b$clusters[top$bin],
-    function(m) sum(!is.na(d$taxa[m, "annotation"])), integer(1)
-)
-picks <- head(top[top$members > 1 & n_ann >= 2, ], 3)
-knitr::kable(picks, row.names = FALSE)
+`protein_similarity()` joins two proteins when their predicted TM-score is at
+least 0.7 and their alignment covers at least half of both, and
+`bin_proteins()` splits that graph by MCL.
+
+```{r bins}
+S <- protein_similarity(proteins) # gated predicted TM-scores
+bins <- bin_proteins(S) # Markov clustering
+sizes <- lengths(bins$clusters)
+table(cut(sizes, c(0, 1, 2, 5, 10, Inf), c("1", "2", "3-5", "6-10", ">10")))
 ```
 
-Their members, with the counts that produced those fold changes:
+`plot_tsne()` draws the embeddings in two dimensions, here coloured by the 12
+largest bins. Each bin is a tight group of points; t-SNE keeps neighbourhoods,
+not the distances between them.
 
-```{r members}
-info <- do.call(rbind, lapply(seq_len(nrow(picks)), function(i) {
-    m <- b$clusters[[picks$bin[i]]]
-    data.frame(
-        bin         = picks$bin[i],
-        genus       = d$taxa[m, "genus"],
-        annotation  = substr(d$taxa[m, "annotation"], 1, 52),
-        mean_Casein = round(colMeans(
-            d$counts_raw[md$diet == "Casein", m, drop = FALSE]
-        ), 1),
-        mean_top = round(colMeans(
-            d$counts_raw[md$diet == picks$diet[i], m, drop = FALSE]
-        ), 1)
-    )
-}))
-knitr::kable(info, row.names = FALSE)
+```{r tsne}
+#| fig.width: 7
+#| fig.height: 5
+#| fig.alt: "t-SNE of the protein embeddings, the 12 largest bins coloured"
+set.seed(1)
+plot_tsne(proteins, color = bins$membership)
 ```
 
-Read the annotation column one bin at a time. In **`r picks$bin[1]`** all four
-members carry the same call, *endo-alpha-N-acetylgalactosaminidase* — one
-mucin-O-glycan-cleaving activity supplied by four distinct accessions from four
-different genome bins. **`r picks$bin[2]`** is the caution: a dihydrolipoyl
-dehydrogenase and a thioredoxin reductase are both flavoprotein disulfide
-reductases, built on the same FAD- and NAD(P)H-binding domains but doing
-different jobs, and the third member has no annotation at all.
-**`r picks$bin[3]`** agrees again: three carbon monoxide dehydrogenases, none
-from a named genus.
+The EC labels were not used to build the bins, so they can check them: the
+share of multi-member bins whose enzymes all share one EC3 class.
 
-That is the workflow's point, and its limit. At the protein level each of these
-is several weak tests on units that are not independent; as a bin it is one
-unit, one test, and one structural reading — a shared activity where the
-annotations agree, a shared family where they do not — including for the
-members with no annotation, which inherit a specific, checkable hypothesis
-from their bin-mates instead of silence. All three fall on the same diet and in
-the same direction, which is a property of that diet's proteome rather than of
-any one accession.
-
-MCL makes no all-pairs promise: members are joined through the graph, so a
-pair inside a bin need not be an edge. `plot_bin_similarity()` colours every
-pair by its predicted TM-score and crosses out every pair that is not an edge,
-so it shows whether a bin is one tight group or two sub-groups joined through a
-few edges. A crossed pair above 0.7 failed the coverage gate:
-
-```{r floor}
-#| fig.height: 4.5
-#| fig.alt: >
-#|   Pairwise predicted TM-score heatmap among the members of the most
-#|   responsive annotated bin
-plot_bin_similarity(b, picks$bin[1], S, x)
+```{r purity}
+ec3 <- setNames(annotation$ec3, annotation$protein)
+multi <- bins$clusters[sizes > 1]
+mean(vapply(multi, function(m) length(unique(ec3[m])) == 1, logical(1)))
 ```
 
-# Practical notes
+The [simulation page](https://yixuan39.github.io/repdist/simulation.html)
+scores the bins in full: purity, pairwise precision, recall, specificity, F1
+and coverage, against MMseqs2 sequence clusters.
 
-**Sampling depth.** `sample_mmd()` normalizes each row, which removes
-total-count scaling but not the effect of depth on which proteins were seen at
-all. Check depth and richness as possible confounders. Rarefaction with
-`vegan::rrarefy()` standardises the number of observations, at the cost of
-discarded counts and added sampling variability; it does not recover
-undetected proteins or remove all depth effects. It is an optional analysis
-choice, not a requirement of MMD. The differential-abundance model uses raw
-counts, with depth handled by its size factors.
+# Differential abundance
 
-**Memory.** `protein_similarity()` and `sample_mmd()` hold
-protein-by-protein matrices, so bin the *identified* subset of a catalog, never
-a whole search database. `sample_mmd()` first removes proteins absent from
-every supplied sample, then builds its kernel over the retained union across
-the whole call, rather than separately for each sample pair.
+`bin_glom()` sums the counts within each bin, and the bin table goes to any
+count-based method; here DESeq2.
 
-**Estimator.** `sample_mmd()` computes the distance between the observed
-relative-abundance distributions, including within-sample diagonal terms.
-As a population estimate this is the biased plug-in form. An unbiased
-estimate of squared population MMD can be negative, so it is not used as
-the sample distance for PCoA or PERMANOVA.
+```{r deseq}
+library(DESeq2)
+bin_counts <- bin_glom(counts, bins) # samples x bins
+dds <- DESeqDataSetFromMatrix(t(bin_counts), samples, ~group)
+dds <- DESeq(dds, quiet = TRUE)
+res <- results(dds, contrast = c("group", "B", "A"))
+res <- res[order(res$padj), ]
+head(as.data.frame(res)[, c("baseMean", "log2FoldChange", "padj")], 3)
+```
 
-**Bandwidth.** `sample_mmd()` returns the bandwidth it used as
-`attr(, "sigma")`; pass it back to compare across studies. With the default the
-kernel is nearly linear in TM-score, so the distance is close to the euclidean
-distance between abundance-weighted mean embeddings, and on this data that is
-also where separation peaks. Checking that is one line: the largest exponent the
-kernel ever sees, `(1 - min(S_all)) / attr(D$MMD, "sigma")^2` (the euclidean
-`||a - b||^2 / (2 sigma^2)` on unit-norm rows), is
-`r round((1 - min(S_all)) / attr(D$MMD, "sigma")^2, 2)` here, so `exp()` never
-leaves its near-linear stretch. A much larger value means the kernel is
-saturating and only near-identical proteins still count.
+One bin is significant. Its members, with the truth:
 
-The full analysis runs this same workflow on every protein that survives
-rarefaction and a 3,000aa ceiling, rather than the 2,000-protein package
-subset. That ceiling is a choice about TM-Vec's training range, not something
-`repdist` imposes -- `embed_proteins()` embeds every sequence whole and no
-function here takes a maximum length. It is published at
-<https://yixuan39.github.io/repdist/>, with its source on the `gh-pages`
-branch.
+```{r top-bin}
+top <- bins$clusters[[rownames(res)[1]]]
+annotation[top, c("name", "ec4", "enriched_in")]
+enriched <- annotation$protein[!is.na(annotation$enriched_in)]
+length(unique(bins$membership[enriched])) # bins holding the 40 enriched
+```
+
+All four are EC 2.3.2 enzymes enriched in group B, each in a different
+sample. The other enriched enzymes are spread over many bins, so a bin-level
+test finds only the part of the signal that MCL gathers into one bin; MMD
+above tests the whole of it.
+
+# Notes
+
+`protein_similarity()` and `sample_mmd()` hold protein-by-protein matrices,
+so on real data use the proteins identified in your samples, never a whole
+search database: 20,000 proteins take about 3 GB each. Structural similarity
+does not guarantee shared function: proteins of unrelated folds can catalyse
+the same reaction, and `repdist` measures structure.
 
 # References
 
-- Blakeley-Ruiz et al. (2025). Dietary protein source alters gut microbiota
-    composition and function. <https://doi.org/10.1093/ismejo/wraf048>.
-- Hamamsy et al. (2024). Protein remote homology detection and structural
-    alignment using deep learning. <https://doi.org/10.1038/s41587-023-01917-2>.
+- Anderson (2001). A new method for non-parametric multivariate analysis of
+    variance. <https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x>.
 - Gretton et al. (2012). A Kernel Two-Sample Test.
     <https://jmlr.org/papers/v13/gretton12a.html>.
+- Hamamsy et al. (2024). Protein remote homology detection and structural
+    alignment using deep learning. <https://doi.org/10.1038/s41587-023-01917-2>.
+- Love, Huber and Anders (2014). Moderated estimation of fold change and
+    dispersion for RNA-seq data with DESeq2.
+    <https://doi.org/10.1186/s13059-014-0550-8>.
+- The UniProt Consortium (2025). UniProt: the Universal Protein Knowledgebase
+    in 2025. <https://doi.org/10.1093/nar/gkae1010>.
+- van Dongen (2000). Graph clustering by flow simulation. PhD thesis,
+    University of Utrecht.
 
 # Session information
 

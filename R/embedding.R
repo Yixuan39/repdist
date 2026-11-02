@@ -168,8 +168,13 @@ known_models <- function() {
 #' Dispatches on `model`. A TM-Vec head regresses the TM-score of a
 #' protein pair, so cosine similarity between two rows is a predicted
 #' TM-score; the generic presets are mean-pooled `AutoModel` hidden
-#' states, with no such calibration claim. `basilisk` provisions the
-#' pinned Python environment on first use, and model weights are cached
+#' states, with no such calibration claim.
+#'
+#' Python, conda and git do not need to be installed. On the first call a
+#' standalone Python is downloaded with `uv` (through `reticulate`) and
+#' `basilisk` installs the pinned packages, torch included, into a private
+#' environment: up to a few GB, an internet connection, and several minutes,
+#' once. Later calls reuse it, offline. Model weights are cached
 #' (HuggingFace models under `~/.cache/huggingface`, the large TM-Vec
 #' head under `BiocFileCache`). HuggingFace weights and tokenizers are
 #' pinned to commit revisions, and Figshare weights are checked against a
@@ -222,14 +227,15 @@ known_models <- function() {
 #'   structural alignment using deep learning. Nature Biotechnology.
 #'   \doi{10.1038/s41587-023-01917-2}.
 #' @examples
-#' if (interactive()) {
-#'     # esm2-8m is 8M parameters; the default downloads several GB.
-#'     seqs <- c(
-#'         p1 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ",
-#'         p2 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVE"
-#'     )
-#'     x <- embed_proteins(seqs, model = "esm2-8m")
-#'     dim(S4Vectors::mcols(x)$embedding)
+#' \donttest{
+#' # Not run by R CMD check: the first call installs the Python environment.
+#' # esm2-8m is 8M parameters; the default "tmvec" downloads several GB.
+#' seqs <- c(
+#'     p1 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ",
+#'     p2 = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVE"
+#' )
+#' x <- embed_proteins(seqs, model = "esm2-8m")
+#' dim(S4Vectors::mcols(x)$embedding)
 #' }
 #' @export
 embed_proteins <- function(
@@ -246,6 +252,7 @@ embed_proteins <- function(
     resolved <- .model_spec(model)
     ids <- names(seqs)
 
+    .standalone_python()
     proc <- basilisk::basiliskStart(repdist_env)
     on.exit(basilisk::basiliskStop(proc), add = TRUE)
     Z <- basilisk::basiliskRun(
@@ -281,9 +288,12 @@ embed_proteins <- function(
 #'   database was built from. Ignored for HDF5, which stores them.
 #' @return As [embed_proteins()].
 #' @examples
-#' if (interactive()) {
-#'     x <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
-#' }
+#' # 100 gut metaproteome proteins, as written by `tmvec build-db`
+#' x <- read_embeddings(
+#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
+#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
+#' )
+#' x
 #' @export
 read_embeddings <- function(path, seqs = NULL) {
     if (grepl("\\.npz$", path, ignore.case = TRUE)) {
@@ -336,7 +346,11 @@ read_embeddings <- function(path, seqs = NULL) {
         stop("Unsupported array type ", descr, " in ", path, ".",
             call. = FALSE)
     )
-    if (length(dims) == 2L) matrix(x, dims[[1]], byrow = TRUE) else unname(x)
+    if (length(dims) == 2L) {
+        matrix(x, dims[[1]], byrow = !grepl("'fortran_order': *True", header))
+    } else {
+        unname(x)
+    }
 }
 
 # The unit-norm embedding matrix of an embed_proteins() result, rows named by

@@ -41,10 +41,10 @@ only through shared neighbours (see
 Collapse a counts table to bins with \code{\link[=bin_glom]{bin_glom()}}.
 }
 \examples{
-d <- readRDS(system.file("extdata", "diet_metaproteome.rds",
-    package = "repdist"
-))
-x <- d$proteins[1:100]
+x <- read_embeddings(
+    system.file("extdata", "metaproteomics.npz", package = "repdist"),
+    system.file("extdata", "metaproteomics.fasta", package = "repdist")
+)
 b <- bin_proteins(protein_similarity(x))
 head(lengths(b$clusters))
 }
