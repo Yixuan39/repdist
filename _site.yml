@@ -14,7 +14,7 @@ navbar:
       href: case_study.html
     - text: "Simulations"
       menu:
-        - text: "Interchangeable enzymes (KOfam)"
+        - text: "One function, remote homologs (COG)"
           href: simulation_kofam.html
         - text: "MMD, OT and UniFrac"
           href: simulation_distances.html

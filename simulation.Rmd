@@ -4,9 +4,9 @@ title: "Simulations"
 
 The simulation page has been split. The benchmarks are now:
 
-- [Simulation 4: Interchangeable enzymes of one KEGG reaction](simulation_kofam.html):
-  proteins of several KOs that KEGG's ko-rn table assigns to one shared
-  reaction, scored against a naive "count by KO" baseline.
+- [Simulation 4: One function across remote homologs](simulation_kofam.html):
+  one COG enriched from MMseqs2 30% clusters that no other sample uses;
+  bins against proteins, MMseqs2 30% clusters and the COG label.
 - [Simulation 3: MMD, optimal transport and UniFrac](simulation_distances.html):
   MMD, optimal transport on the embeddings and on the MCL graph, and
   weighted UniFrac on an MCL tree, on one FunFam contrast.

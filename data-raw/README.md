@@ -21,7 +21,7 @@ and curated objects are kept, unchanged, for `simulation_distances.Rmd` and
 for reference.
 
 ```sh
-Rscript data-raw/simulation_kofam.R
+KOFAM_COG=COGxxxx Rscript data-raw/simulation_kofam.R
 Rscript data-raw/simulation_universe.R
 Rscript data-raw/simulation_mmseqs2.R
 Rscript data-raw/simulation_funfam.R
@@ -35,43 +35,32 @@ counts, the model specification and the R session that built it.
 
 ## `simulation_kofam.rds`
 
-Source: KEGG REST (<https://rest.kegg.jp>; copyright Kanehisa Laboratories,
-not an open-licensed database, academic use only, rate-limited to <= 3
-calls/s) for the KO-reaction (`ko-rn`) link table and the BRITE `ko00001`
-hierarchy (auxiliary annotation only; `ko01000` is never fetched or used as
-a grouping key), and UniProtKB/Swiss-Prot through
-<https://rest.uniprot.org> (CC BY 4.0) for sequences and metadata. See
-`KOFAM_SIM_PLAN.md` and `kofam-official-sources.md` for the endpoints,
-licence notes and the open question about public redistribution of
-KEGG-derived labels (`KOFAM_SIM_PLAN.md` section 11); raw KEGG downloads are
-cached, untracked, in `data/kegg/` and never committed.
+Source: NCBI COG 2024 release (<https://ftp.ncbi.nih.gov/pub/COG/COG2024/data/>:
+`cog-24.cog.csv`, `COGorg24.faa.gz`, `cog-24.def.tab`, md5-checked against
+`checksums.md5`), ~2.2 GB downloaded once into `data/cog/` (untracked). Needs
+MMseqs2, gzip and awk. Design: `KOFAM_SIM_PLAN.md`.
 
-1. Fetch `ko-rn` and rank reactions with >= 2 distinct KOs (interchangeable
-   alternative enzymes), preferring ones annotated under BRITE Metabolism.
-2. Reject candidates whose KO or reaction entries contain "subunit" (a
-   multisubunit-complex screen) and candidates with fewer than two KOs
-   having >= 3 qualifying Bacteria/Archaea, reviewed, non-fragment,
-   50-1000 residue Swiss-Prot proteins (mapped KO -> KEGG genes -> UniProt
-   accession, not a bulk Swiss-Prot scan).
-3. Reject candidates with any cross-KO MMseqs2 hit (E <= 1e-3, 80% coverage)
-   or shared 30%-identity cluster among their own proteins; the first
-   surviving candidate (by KO count, then reaction id) is the treatment
-   group. Every other protein is background (effect size 0 by design);
-   background proteins that hit a treatment protein under the same filter
-   are removed (leakage).
-4. Exclude proteins reached from more than one KO (ambiguous label), cap at
-   20 proteins/KO and 3000 proteins total, and embed with `tmvec`.
+| Step | Rule |
+| --- | --- |
+| Pool | exactly one COG per protein, every row membership class 0, 50-1000 aa |
+| Sequences | standard residues, lowest protein id per unique sequence |
+| Treatment | `KOFAM_COG`, seeded draw of 300 |
+| Background | shuffled COGs with >= 60 members, 20 proteins each |
+| Leakage | drop background with an MMseqs2 hit to treatment (E <= 1e-3, 80% coverage of both) |
+| Cap | whole background COGs up to 3000 proteins |
+| Embedding | `tmvec`, length-sorted |
+| Graph | `protein_similarity(n_cores = 1)` (E <= 0.01, cosine weights) |
 
-Fields: `proteins` (AAStringSet with embeddings), `annotation` (accession,
-organism, taxon, length, KO, reaction id(s), BRITE top category, role,
-treatment group), `ko_rn` (KO/reaction pairs for the KOs in this universe,
-not the full KEGG table), `candidates` (every reaction actually probed, with
-its outcome and reason), `filters`, `provenance`.
+Fields: `proteins` (AAStringSet with embeddings), `annotation` (protein,
+length, COG, role, MMseqs2 30% cluster, COG name), `similarity` (upper-triangle
+edges i, j, s of the graph), `mmseqs` (best hit per pair with `cov80` and
+`id30_cov80` flags over both directions; commands, version), `design`,
+`steps`, `provenance`.
 
-`KOFAM_SMOKE=1 Rscript data-raw/simulation_kofam.R` runs the same algorithm
-on a tens-of-proteins scale (smaller per-KO and background caps, random
-unit-vector embeddings instead of TM-Vec) and is the build that was actually
-run for this branch; see `IMPLEMENTATION_NOTES.md`.
+```sh
+KOFAM_COG=COGxxxx Rscript data-raw/simulation_kofam.R
+KOFAM_SMOKE=1 KOFAM_COG=COGxxxx Rscript data-raw/simulation_kofam.R  # 60 proteins, random embeddings
+```
 
 ## `simulation_universe.rds`
 

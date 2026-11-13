@@ -1,6 +1,6 @@
 ---
-title: "Simulation 4: Interchangeable enzymes of one KEGG reaction"
-subtitle: "Same-reaction KOs from KEGG ko-rn, scored against a naive KO-count baseline"
+title: "Simulation 4: One function across remote homologs"
+subtitle: "One COG, enriched from MMseqs2 30% clusters that no other sample uses"
 bibliography: references.bib
 link-citations: true
 ---
@@ -14,396 +14,286 @@ knitr::opts_chunk$set(
 
 *This page is a benchmark of the method. To use repdist on your own data, start with [Get started](vignette.html).*
 
-In plain terms: KEGG's ko-rn table lists, for each metabolic reaction, every
-KO (KEGG Orthology group) known to catalyse it. When a reaction has two or
-more KOs, those KOs are alternative enzymes for the same step: interchangeable
-by function, not required to share a fold. One simulated condition is
-enriched for every protein of one such reaction's KOs, pooled; the other is
-not. Unlike [Simulation 2](simulation_ec.html)'s EC3 classes, which can group
-structurally unrelated, convergent enzymes, a KO is itself already a
-fine-grained orthology call; the question here is whether the proteins of
-several *different* KOs that share one reaction behave as one functional
-unit under `repdist`, and whether that beats counting KOs directly.
-
-**Question.** Can a TM-Vec similarity graph -- with or without the homology
-(E-value) gate -- group proteins of several KOs that KEGG assigns to one
-shared reaction, and support differential abundance and MMD, relative to a
-naive "count by KO" baseline that already knows the KO labels?
+**Question.** When the proteins of one function share less than 30% sequence
+identity, do `repdist` bins recover the function as one unit, and does that
+help differential abundance and beta diversity? Baselines: proteins,
+MMseqs2 30% clusters, and the COG label itself (an oracle).
 
 ```{r libs}
 library(repdist)
-library(ggplot2)
 library(vegan)
 ```
 
-# Data and provenance
+# Data
 
-**Data.** The input file is `curated/simulation_kofam.rds`, built by
-`data-raw/simulation_kofam.R` from KEGG REST (ko-rn, BRITE ko00001; KEGG is
-copyright Kanehisa Laboratories, not open-licensed
-[@kanehisa2000kegg]) and UniProtKB/Swiss-Prot [@uniprot2025] (CC BY 4.0). See
-`data-raw/README.md` and `KOFAM_SIM_PLAN.md` for the selection algorithm
-(KO-reaction grouping, the subunit/homology/leakage filters, and the open
-licensing question for a public KO-labelled build, `KOFAM_SIM_PLAN.md`
-section 11).
+`curated/simulation_kofam.rds`, built by `data-raw/simulation_kofam.R` from
+the NCBI COG 2024 release [@galperin2025cog]: proteins with exactly one COG,
+assigned over their full length (membership class 0), 50-1000 aa, one per
+unique sequence. One COG is the treatment; the background is other COGs,
+minus any protein with an MMseqs2 hit (E $\le$ 10^-3^, 80% coverage of both)
+to a treatment protein [@steinegger2017mmseqs2]. Embeddings are TM-Vec
+[@hamamsy2024tmvec]; the similarity graph is `protein_similarity()` at its
+defaults, computed at build time.
 
 ```{r data}
-kofam_path <- file.path("curated", "simulation_kofam.rds")
-have_kofam <- file.exists(kofam_path)
-if (have_kofam) {
-    kf <- readRDS(kofam_path)
+sim_path <- file.path("curated", "simulation_kofam.rds")
+have_sim <- file.exists(sim_path)
+if (have_sim) {
+    kf <- readRDS(sim_path)
     ann <- kf$annotation
-    kofam_proteins <- kf$proteins
+    proteins <- kf$proteins
     smoke <- isTRUE(kf$provenance$smoke)
 } else {
     smoke <- NA
 }
-have_kofam
+have_sim
 ```
 
 ```{r smoke-banner, echo = FALSE, results = "asis"}
-if (!have_kofam) {
-    cat("> **No `curated/simulation_kofam.rds` found.** The result chunks",
-        "below are skipped; see `data-raw/README.md` for the build command.",
-        "No numbers are shown in its place.\n")
+if (!have_sim) {
+    cat("> **No `curated/simulation_kofam.rds` found.** Result chunks are",
+        "skipped; see `data-raw/README.md` for the build command.\n")
 } else if (isTRUE(smoke)) {
-    cat("> **`KOFAM_SMOKE=1` build.** This object has tens of proteins with",
-        "random unit-vector embeddings, not real TM-Vec, and is only a",
-        "pipeline check. Every number below is genuinely computed from it,",
-        "but none of it is a result; see `IMPLEMENTATION_NOTES.md`.\n")
+    cat("> **`KOFAM_SMOKE=1` build.** Tens of proteins with random",
+        "unit-vector embeddings: a pipeline check. Every number below is",
+        "computed, but none of it is a result.\n")
 }
 ```
 
-```{r kofam-universe, eval = have_kofam}
-c(proteins = length(kofam_proteins), KOs = length(unique(ann$ko)),
-    treatment_KOs = length(unique(ann$ko[ann$role == "treatment"])),
-    treatment_proteins = sum(ann$role == "treatment"),
-    background_proteins = sum(ann$role == "background"))
-kf$provenance$embedding
-kf$filters$steps
+```{r universe, eval = have_sim}
+treat <- ann$role == "treatment"
+data.frame(treatment = kf$design$treatment_cog, name = ann$cog_name[treat][1],
+    proteins = nrow(ann), treatment_proteins = sum(treat),
+    treatment_30pct_clusters = length(unique(ann$mmseqs30[treat])),
+    background_COGs = length(unique(ann$cog[!treat])))
 ```
 
-The selected treatment reaction and its KOs (`data-raw/simulation_kofam.R`
-Steps A-G: ko-rn grouping, BRITE-Metabolism preference, a "subunit" text
-screen of the KO and reaction entries, a minimum of three qualifying
-proteins per KO, and an MMseqs2 cross-KO homology/leakage check, in that
-order):
+How common is this regime? The share of same-COG protein pairs with no
+MMseqs2 alignment of $\ge$ 30% identity over 80% of both proteins:
 
-```{r kofam-group, eval = have_kofam}
-treatment_reaction <- ann$treatment_group[ann$role == "treatment"][1]
-treatment_reaction
-unique(ann$ko[ann$role == "treatment"])
-kf$candidates
+```{r regime, eval = have_sim}
+h <- kf$mmseqs$hits
+close <- with(h[h$id30_cov80, ], c(paste(p1, p2), paste(p2, p1)))
+beyond <- function(ids) {
+    pr <- utils::combn(ids, 2)
+    mean(!paste(pr[1, ], pr[2, ]) %in% close)
+}
+bg <- split(ann$protein[!treat], ann$cog[!treat])
+bg_beyond <- vapply(bg[lengths(bg) >= 2L], beyond, 1)
+c(treatment = beyond(ann$protein[treat]), background_median = median(bg_beyond),
+    background_q25 = unname(quantile(bg_beyond, 0.25)),
+    background_q75 = unname(quantile(bg_beyond, 0.75)))
+```
+
+# Bins against the labels
+
+Pairwise recall (share of same-COG pairs in one unit) and purity (share of
+same-unit pairs that share a COG), for the treatment COG and for all COGs.
+
+```{r bins, eval = have_sim}
+n <- length(proteins)
+S <- matrix(0, n, n, dimnames = list(names(proteins), names(proteins)))
+S[cbind(kf$similarity$i, kf$similarity$j)] <- kf$similarity$s
+S <- S + t(S)
+diag(S) <- 1
+bins <- bin_proteins(S)
+cog <- setNames(ann$cog, ann$protein)
+mm30 <- setNames(ann$mmseqs30, ann$protein)
+tc <- kf$design$treatment_cog
+pair_scores <- function(unit) {
+    tab <- table(unit[ann$protein], cog[ann$protein])
+    ch <- function(k) k * (k - 1) / 2
+    a <- rowSums(tab)
+    t_in <- tab[, tc]
+    c(`treatment recall` = sum(ch(t_in)) / ch(sum(t_in)),
+        `treatment purity` = sum(ch(t_in)) / sum(ch(a) - ch(a - t_in)),
+        `units holding treatment` = sum(t_in > 0),
+        `all-COG recall` = sum(ch(tab)) / sum(ch(colSums(tab))),
+        `all-COG purity` = sum(ch(tab)) / sum(ch(a)))
+}
+knitr::kable(rbind(bins = pair_scores(bins$membership), `MMseqs2 30%` = pair_scores(mm30)),
+    digits = 3)
 ```
 
 # Count model
 
-The same negative-binomial model as
-[Simulation 1](simulation_funfam.html#count-model) and
-[Simulation 2](simulation_ec.html#count-model), with depth $D = 2 \times
-10^4$, size factor $s_i \sim \mathrm{LogNormal}(0, 0.25)$ and dispersion
-$\phi_{ij} = (0.1 + 1/\mu_{ij})\, e_j$, $e_j \sim \mathrm{LogNormal}(0, 0.5)$,
-but restructured for this page's design (`KOFAM_SIM_PLAN.md` section 6): every
-sample of condition A puts a share $\rho$ of its expected abundance evenly
-over *every* treatment-reaction protein (pooled across its KOs), and
-condition B has $\rho = 0$, an asymmetric enrichment-versus-null design
-rather than the symmetric per-sample single-protein enrichment of
-Simulations 1-2. `nb_counts()` there loops per sample and per-sample
-enrichment set; here the enrichment set is the same for every sample of
-condition A, so the loop collapses to one group-level update.
+The negative-binomial model of the earlier simulations: depth $D = 2 \times
+10^4$, size factor $s_i \sim \mathrm{LogNormal}(0, 0.25)$, log-normal baseline
+$\pi$, dispersion $\phi_{ij} = (0.1 + 1/\mu_{ij})\, e_j$ with $e_j \sim
+\mathrm{LogNormal}(0, 0.5)$. Each condition-A sample puts a share $\rho$ of
+its abundance on `r if (have_sim) kf$design$n_enriched` treatment proteins,
+each from an MMseqs2 30% cluster that no other sample uses (a fresh draw per
+replicate); condition B has $\rho = 0$. So no sequence family is enriched in
+more than one sample, while the function is enriched in every A sample.
 
-```{r count-model}
+```{r count-model, eval = have_sim}
 depth <- 2e4
-nb_counts_kofam <- function(ids, group, rho, enrich_set, levels_ab = c("A", "B")) {
-    n <- length(group)
-    pi <- setNames(rlnorm(length(ids)), ids)
-    pi <- pi / sum(pi)
-    s <- rlnorm(n, 0, 0.25)
-    e <- rlnorm(length(ids), 0, 0.5)
-    p <- matrix(pi, n, length(ids), byrow = TRUE, dimnames = list(names(group), ids))
-    is_a <- group == levels_ab[1]
-    p[is_a, ] <- (1 - rho) * p[is_a, ]
-    p[is_a, enrich_set] <- p[is_a, enrich_set] + rho / length(enrich_set)
-    mu <- s * depth * p
-    phi <- (0.1 + 1 / mu) * rep(e, each = n)
-    matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), n, dimnames = dimnames(p))
+treat_ids <- ann$protein[treat]
+draw_enriched <- function(n_per_group) {
+    k <- kf$design$n_enriched
+    cl <- unique(mm30[treat_ids])
+    cl <- cl[sample.int(length(cl), k * n_per_group)]
+    p <- vapply(cl, function(c) {
+        m <- treat_ids[mm30[treat_ids] == c]
+        m[sample.int(length(m), 1L)]
+    }, "")
+    unname(split(p, rep(seq_len(n_per_group), each = k)))
 }
-```
-
-$\rho \in \{0, 1\%, 2\%, 5\%\}$; $\rho = 0$ is the global null (Section 6).
-Sample size per condition $n \in \{10, 20\}$ (`KOFAM_SIM_PLAN.md`'s planning
-caps); `r if (isTRUE(smoke)) "the smoke build uses n = 4 and 2 replicates" else "the full grid uses 50 replicates per (rho, n)"`.
-
-```{r design, eval = have_kofam}
+simulate <- function(seed, rho, n_per_group) {
+    set.seed(seed)
+    ids <- ann$protein
+    up <- draw_enriched(n_per_group)
+    samples <- sprintf("s%02d", seq_len(2 * n_per_group))
+    pi <- rlnorm(length(ids))
+    pi <- pi / sum(pi)
+    s <- rlnorm(length(samples), 0, 0.25)
+    e <- rlnorm(length(ids), 0, 0.5)
+    p <- matrix(pi, length(samples), length(ids), byrow = TRUE,
+        dimnames = list(samples, ids))
+    p[seq_len(n_per_group), ] <- (1 - rho) * p[seq_len(n_per_group), ]
+    for (j in seq_len(n_per_group)) {
+        p[j, up[[j]]] <- p[j, up[[j]]] + rho / length(up[[j]])
+    }
+    mu <- s * depth * p
+    phi <- (0.1 + 1 / mu) * rep(e, each = length(samples))
+    list(counts = matrix(rnbinom(length(mu), mu = mu, size = 1 / phi),
+            length(samples), dimnames = dimnames(p)),
+        group = factor(rep(c("A", "B"), each = n_per_group)),
+        enriched = unlist(up))
+}
 rhos <- c(0, 0.01, 0.02, 0.05)
 n_grid <- if (isTRUE(smoke)) 4L else c(10L, 20L)
 n_rep <- if (isTRUE(smoke)) 2L else 50L
-treatment_proteins <- ann$protein[ann$role == "treatment"]
-simulate_kofam <- function(seed, rho, n_per_group) {
-    set.seed(seed)
-    group <- factor(rep(c("A", "B"), each = n_per_group), c("A", "B"))
-    names(group) <- sprintf("s%02d", seq_along(group))
-    counts <- nb_counts_kofam(ann$protein, group, rho, treatment_proteins)
-    list(counts = counts, group = group)
-}
 ```
 
-# Method variants
+$\rho \in \{0, 1\%, 2\%, 5\%\}$, $n \in$ `r if (have_sim) paste(n_grid, collapse = ", ")`
+per condition, `r if (have_sim) n_rep` replicates, the same seed at every
+$\rho$ for one replicate.
 
-All four variants start from the same universe and, for the three graph
-variants, the same `protein_similarity()` call, so differences are not
-confounded by re-alignment (`KOFAM_SIM_PLAN.md` section 7):
+# Differential abundance and beta diversity
 
-1. **Combined** (package default): `max_evalue = 0.01`, edge weight = TM-Vec
-   cosine, `bin_proteins()`.
-2. **Embedding only**: `max_evalue = Inf` (no homology gate), same cosine
-   weights, `bin_proteins()`.
-3. **Homology only**: the combined graph's support (E $\le$ 0.01 edges),
-   reweighted to 1 (unweighted), because `bin_proteins()` requires a
-   similarity in $[0, 1]$ and the package discards bit scores. The optional
-   bit-score sensitivity of `KOFAM_SIM_PLAN.md` section 7 needs cached
-   alignments and is not computed here (see `IMPLEMENTATION_NOTES.md`).
-4. **Naive KO baseline**: counts summed by the protein's own KO annotation
-   (already known, no embedding), tested the same way as the bin-level
-   variants. This is the "just count KOs" comparator.
+Counts are summed per unit (protein, MMseqs2 30% cluster, `bin_glom()` bin,
+or COG) and tested with DESeq2 [@love2014deseq2] as in the
+[case study](case_study.html#differential-abundance): `~ group`,
+`poscounts`, Wald, adjusted p $\le$ 0.05. A call is a true positive if the
+unit holds an enriched protein and most of its abundance is on treatment-COG
+proteins. Power: share of replicates with a true positive; Type I: share of
+$\rho = 0$ replicates with any call; FDR: share of calls at $\rho > 0$ that
+are not true positives. Beta diversity: PERMANOVA [@anderson2001permanova;
+@oksanen2025vegan] (999 permutations) on MMD [@gretton2012mmd] and on
+Bray-Curtis over proteins and over MMseqs2 30% clusters.
 
-```{r bins, eval = have_kofam}
-n_cores <- BiocParallel::multicoreWorkers()
-S_combined <- protein_similarity(kofam_proteins, n_cores = n_cores)
-S_embed <- protein_similarity(kofam_proteins, max_evalue = Inf)
-S_homology <- matrix(0, nrow(S_combined), ncol(S_combined), dimnames = dimnames(S_combined))
-S_homology[S_combined > 0] <- 1
-diag(S_homology) <- 1
-graphs <- list(combined = S_combined, `embedding only` = S_embed,
-    `homology only` = S_homology)
-bins <- lapply(graphs, bin_proteins)
-ko_of <- setNames(ann$ko, ann$protein)
-glom_ko <- function(counts) t(rowsum(t(counts), ko_of[colnames(counts)]))
-```
-
-# Differential abundance
-
-Raw counts are summed within each bin (or KO, for the naive baseline) with
-`bin_glom()` and tested with DESeq2 [@love2014deseq2], as in the
-[case study](case_study.html#differential-abundance): design `~ group`,
-`poscounts` size factors, Wald test, contrast A vs B. A unit is called at
-adjusted p $\le$ 0.05. It is a true positive only if a majority of its
-total abundance in that replicate's counts comes from treatment-reaction
-proteins (a purity rule, recorded here, not tuned on the result); an
-empirical FDR is the share of calls that fail this rule.
-
-```{r da-helper, eval = have_kofam}
-da_call <- function(agg_counts, group) {
-    keep <- colSums(agg_counts) > 0
-    dds <- DESeq2::DESeqDataSetFromMatrix(round(t(agg_counts[, keep, drop = FALSE])),
+```{r helpers, eval = have_sim}
+da_call <- function(agg, group) {
+    agg <- agg[, colSums(agg) > 0, drop = FALSE]
+    dds <- function() DESeq2::DESeqDataSetFromMatrix(round(t(agg)),
         data.frame(group = group), ~ group)
-    # The parametric and "mean" dispersion fits can both fail on a small
-    # KOFAM_SMOKE universe (tens of proteins, few bins), with DESeq2's
-    # own message that gene-wise estimates should be used as the final
-    # dispersions. Rebuild the DESeqDataSet inside each attempt so a
-    # failed fit does not leave a half-modified object.
-    fit <- function(fitType = NULL) {
-        d <- DESeq2::DESeqDataSetFromMatrix(round(t(agg_counts[, keep, drop = FALSE])),
-            data.frame(group = group), ~ group)
-        if (is.null(fitType)) {
-            DESeq2::DESeq(d, sfType = "poscounts", quiet = TRUE)
-        } else {
-            DESeq2::DESeq(d, sfType = "poscounts", fitType = fitType, quiet = TRUE)
-        }
-    }
+    fit <- function(...) DESeq2::DESeq(dds(), sfType = "poscounts", quiet = TRUE, ...)
+    # Small (smoke) universes can fail both dispersion fits; then use the
+    # gene-wise estimates as final, as DESeq2's own message suggests.
     gene_wise <- function() {
-        d <- DESeq2::DESeqDataSetFromMatrix(round(t(agg_counts[, keep, drop = FALSE])),
-            data.frame(group = group), ~ group)
-        d <- DESeq2::estimateSizeFactors(d, type = "poscounts")
+        d <- DESeq2::estimateSizeFactors(dds(), type = "poscounts")
         d <- DESeq2::estimateDispersionsGeneEst(d)
         DESeq2::dispersions(d) <- S4Vectors::mcols(d)$dispGeneEst
         DESeq2::nbinomWaldTest(d, quiet = TRUE)
     }
-    dds <- tryCatch(fit(),
-        error = function(e) tryCatch(fit("mean"), error = function(e2) gene_wise()))
-    res <- as.data.frame(DESeq2::results(dds, contrast = c("group", "A", "B"), alpha = 0.05))
-    res$unit <- colnames(agg_counts)[keep]
-    res
+    d <- tryCatch(fit(), error = function(e) tryCatch(fit(fitType = "mean"),
+        error = function(e2) gene_wise()))
+    r <- DESeq2::results(d, contrast = c("group", "A", "B"), alpha = 0.05)
+    setNames(!is.na(r$padj) & r$padj <= 0.05, colnames(agg))
 }
-is_treatment <- setNames(ann$role == "treatment", ann$protein)
-# Share of a unit's (bin's or KO's) total abundance in this replicate's
-# counts that sits on treatment-reaction proteins, from the protein-level
-# counts and a protein -> unit membership (not the aggregated counts, which
-# no longer distinguish treatment from background proteins within a unit).
-purity <- function(counts, membership) {
-    ids <- colnames(counts)
-    tot <- colSums(counts)
-    treat <- tot * is_treatment[ids]
-    unit <- membership[ids]
-    tapply(treat, unit, sum) / tapply(tot, unit, sum)
-}
-da_one_replicate <- function(sim) {
-    membership <- lapply(bins, function(b) b$membership)
-    membership$`naive KO` <- ko_of
-    agg <- list(
-        combined = bin_glom(sim$counts, bins$combined),
-        `embedding only` = bin_glom(sim$counts, bins$`embedding only`),
-        `homology only` = bin_glom(sim$counts, bins$`homology only`),
-        `naive KO` = glom_ko(sim$counts)
-    )
-    do.call(rbind, lapply(names(agg), function(m) {
-        res <- da_call(agg[[m]], sim$group)
-        share <- purity(sim$counts, membership[[m]])
-        res$treatment_share <- share[res$unit]
-        res$method <- m
-        res
+glom <- function(counts, m) t(rowsum(t(counts), m[colnames(counts)]))
+units <- list(protein = setNames(ann$protein, ann$protein), `MMseqs2 30%` = mm30,
+    bin = bins$membership, `COG (oracle)` = cog)
+one_replicate <- function(sim) {
+    tot <- colSums(sim$counts)
+    da <- do.call(rbind, lapply(names(units), function(u) {
+        m <- units[[u]]
+        agg <- if (u == "bin") bin_glom(sim$counts, bins) else glom(sim$counts, m)
+        called <- da_call(agg, sim$group)
+        share <- tapply(tot * treat, m[names(tot)], sum) / tapply(tot, m[names(tot)], sum)
+        hit <- names(called) %in% m[sim$enriched]
+        tp <- called & hit & share[names(called)] > 0.5
+        data.frame(level = u, called = sum(called), tp = sum(tp))
     }))
-}
-```
-
-## Representative replicate
-
-$\rho$ = 2%, fixed before any result (the same value used in Simulations 1-2,
-chosen there from the case study's glycoside hydrolase enrichment
-[@blakeleyruiz2025diet]).
-
-```{r kofam-example, eval = have_kofam}
-sim <- simulate_kofam(1, 0.02, n_grid[1])
-res <- da_one_replicate(sim)
-called <- res[!is.na(res$padj) & res$padj <= 0.05, ]
-tp <- called$treatment_share > 0.5
-knitr::kable(do.call(rbind, lapply(split(res, res$method), function(d) {
-    c(units = nrow(d),
-        called = sum(!is.na(d$padj) & d$padj <= 0.05),
-        `true positive` = sum(tp[res$method[!is.na(res$padj) & res$padj <= 0.05] == d$method[1]]))
-})), caption = "Units called at adjusted p <= 0.05 and the true positives among them")
-```
-
-## All replicates
-
-Repeated at every $\rho$, `r if (isTRUE(smoke)) "the smoke n_rep (2)" else "n_rep = 50"`
-times, with the same seed at every $\rho$ for one replicate. Power is the
-share of replicates with at least one true-positive call; empirical FDR is
-the share of calls (at $\rho > 0$) that are not true positives. The $\rho =
-0$ column is the Type I sanity check.
-
-```{r kofam-benchmark, eval = have_kofam}
-bench <- do.call(rbind, lapply(n_grid, function(n_per_group) {
-    do.call(rbind, lapply(rhos, function(rho) {
-        do.call(rbind, lapply(seq_len(n_rep), function(r) {
-            sim <- simulate_kofam(r, rho, n_per_group)
-            res <- da_one_replicate(sim)
-            data.frame(n = n_per_group, rho = rho, replicate = r, res,
-                row.names = NULL)
-        }))
+    rel <- sim$counts / rowSums(sim$counts)
+    d <- list(MMD = sample_mmd(rel, proteins),
+        `Bray-Curtis, proteins` = vegdist(rel, "bray"),
+        `Bray-Curtis, MMseqs2 30%` = vegdist(glom(rel, mm30), "bray"))
+    beta <- do.call(rbind, lapply(names(d), function(k) {
+        set.seed(1)
+        a <- adonis2(d[[k]] ~ group, data = data.frame(group = sim$group), permutations = 999)
+        data.frame(distance = k, R2 = a$R2[1], p = a$`Pr(>F)`[1])
     }))
-}))
-bench$called <- !is.na(bench$padj) & bench$padj <= 0.05
-bench$tp <- bench$called & bench$treatment_share > 0.5
-summ <- do.call(rbind, lapply(split(bench, list(bench$method, bench$n, bench$rho)), function(d) {
-    if (!nrow(d)) return(NULL)
-    power <- mean(tapply(d$tp, d$replicate, any))
-    fdr <- if (sum(d$called)) mean(!d$tp[d$called]) else NA_real_
-    data.frame(method = d$method[1], n = d$n[1], rho = d$rho[1],
-        power = power, FDR = fdr)
-}))
-knitr::kable(summ[order(summ$method, summ$n, summ$rho), ], digits = 3,
-    row.names = FALSE)
+    list(da = da, beta = beta)
+}
 ```
 
-# MMD
+```{r grid, eval = have_sim}
+t0 <- Sys.time()
+grid <- expand.grid(replicate = seq_len(n_rep), rho = rhos, n = n_grid)
+runs <- lapply(seq_len(nrow(grid)), function(g) {
+    r <- one_replicate(simulate(grid$replicate[g], grid$rho[g], grid$n[g]))
+    list(da = cbind(grid[g, ], r$da, row.names = NULL),
+        beta = cbind(grid[g, ], r$beta, row.names = NULL))
+})
+da <- do.call(rbind, lapply(runs, `[[`, "da"))
+beta <- do.call(rbind, lapply(runs, `[[`, "beta"))
+knit_minutes <- as.numeric(difftime(Sys.time(), t0, units = "mins"))
+```
 
-`sample_mmd()`, the maximum mean discrepancy between samples under a
-Gaussian kernel on the embeddings [@gretton2012mmd], on the same relative
-abundances, plus PERMANOVA [@anderson2001permanova; @oksanen2025vegan] on
-the representative replicate and across the grid (999 permutations).
-
-```{r kofam-mmd, eval = have_kofam}
-mmd_test <- function(sim) {
-    D <- sample_mmd(sim$counts / rowSums(sim$counts), kofam_proteins)
-    set.seed(1)
-    a <- vegan::adonis2(D ~ group, data = data.frame(group = sim$group), permutations = 999)
-    c(R2 = a$R2[1], p = a$`Pr(>F)`[1])
-}
-mmd_bench <- do.call(rbind, lapply(n_grid, function(n_per_group) {
-    do.call(rbind, lapply(rhos, function(rho) {
-        r <- do.call(rbind, lapply(seq_len(n_rep), function(rep_i) {
-            mmd_test(simulate_kofam(rep_i, rho, n_per_group))
-        }))
-        data.frame(n = n_per_group, rho = rho, `power (p<=0.05)` = mean(r[, "p"] <= 0.05),
-            `median R2` = median(r[, "R2"]), check.names = FALSE)
+```{r da-table, eval = have_sim}
+wide <- function(d, key, stat) {
+    out <- do.call(rbind, lapply(split(d, d[key], drop = TRUE), function(x) {
+        v <- vapply(rhos, function(r) stat(x[x$rho == r, ], r), 1)
+        data.frame(x[1, key, drop = FALSE], t(setNames(v, paste0("rho=", rhos))),
+            check.names = FALSE)
     }))
-}))
-knitr::kable(mmd_bench, digits = 3, row.names = FALSE)
+    rownames(out) <- NULL
+    out
+}
+da_stat <- function(x, r) if (r == 0) mean(x$called > 0) else mean(x$tp > 0)
+fdr <- tapply(seq_len(nrow(da)), da[c("level", "n")], function(i) {
+    i <- i[da$rho[i] > 0]
+    if (sum(da$called[i])) 1 - sum(da$tp[i]) / sum(da$called[i]) else NA
+})
+da_tab <- wide(da, c("level", "n"), da_stat)
+da_tab$`FDR (rho>0)` <- fdr[cbind(da_tab$level, as.character(da_tab$n))]
+knitr::kable(da_tab, digits = 2, caption = paste("Differential abundance:",
+    "the rho=0 column is Type I, the others power"))
 ```
 
-# Protein clustering against the KO labels
-
-The MCL bins depend only on the universe and its graph, not on any
-simulated counts, so they are scored once per method against two labellings
-of `r if (have_kofam) length(kofam_proteins)` proteins: the two-way label
-(treatment-reaction vs background) and the fine-grained KO label. Score is
-the pairwise similarity (cosine for the combined/embedding graphs, 0/1 for
-the unweighted homology graph) as a predictor of "both proteins are
-treatment-reaction members"; AUPRC is from `PRROC::pr.curve()`. ARI and NMI compare the MCL bins to each
-labelling with `aricode`.
-
-```{r kofam-clustering, eval = have_kofam}
-two_way <- setNames(ifelse(ann$role == "treatment", "treatment", "background"), ann$protein)
-clust_metrics <- function(S, bin) {
-    ids <- rownames(S)
-    pos <- outer(two_way[ids] == "treatment", two_way[ids] == "treatment", "&")
-    score <- S[upper.tri(S)]
-    label <- pos[upper.tri(pos)]
-    pr <- PRROC::pr.curve(scores.class0 = score[label], scores.class1 = score[!label],
-        curve = FALSE)
-    # aricode::ARI/NMI coerce labels with as.numeric(); character labels
-    # such as "bin1" or "treatment" become NA. Map to integer codes first.
-    codes <- function(x) as.integer(factor(x))
-    c(AUPRC = pr$auc.integral,
-        `ARI (2-way)` = aricode::ARI(codes(bin$membership[ids]), codes(two_way[ids])),
-        `NMI (2-way)` = aricode::NMI(codes(bin$membership[ids]), codes(two_way[ids])),
-        `ARI (KO)` = aricode::ARI(codes(bin$membership[ids]), codes(ko_of[ids])),
-        `NMI (KO)` = aricode::NMI(codes(bin$membership[ids]), codes(ko_of[ids])))
-}
-clust_scores <- t(mapply(clust_metrics, graphs, bins))
-knitr::kable(clust_scores, digits = 3)
+```{r beta-table, eval = have_sim}
+knitr::kable(wide(beta, c("distance", "n"), function(x, r) mean(x$p <= 0.05)),
+    digits = 2, caption = "PERMANOVA (p <= 0.05): the rho=0 column is Type I, the others power")
 ```
 
 # Summary
 
 ```{r summary-values, include = FALSE}
-if (have_kofam) {
-    pw <- function(m, rho_val, n_val) {
-        summ$power[summ$method == m & summ$rho == rho_val & summ$n == n_val]
-    }
-    n1 <- n_grid[1]
+if (have_sim) {
+    sc <- rbind(bins = pair_scores(bins$membership), mm = pair_scores(mm30))
+    pw <- function(l, r) da_tab[da_tab$level == l & da_tab$n == n_grid[1], paste0("rho=", r)]
 }
 ```
 
-- **Treatment group.** `r if (have_kofam) treatment_reaction else "(no build)"`
-  with `r if (have_kofam) length(unique(ann$ko[ann$role == 'treatment'])) else NA`
-  KOs passed the subunit-language screen, the minimum-proteins-per-KO rule
-  and the cross-KO homology/leakage check.
-- **Differential abundance.** At $\rho$ = 2%, $n$ = `r if (have_kofam) n1 else NA`,
-  power was `r if (have_kofam) sprintf('%.2f', pw("combined", 0.02, n1)) else "NA"`
-  for the combined graph's bins,
-  `r if (have_kofam) sprintf('%.2f', pw("homology only", 0.02, n1)) else "NA"`
-  for homology-only bins and
-  `r if (have_kofam) sprintf('%.2f', pw("naive KO", 0.02, n1)) else "NA"`
-  for the naive KO baseline, against a Type I rate ($\rho$ = 0) of
-  `r if (have_kofam) sprintf('%.2f', pw("combined", 0, n1)) else "NA"`,
-  `r if (have_kofam) sprintf('%.2f', pw("homology only", 0, n1)) else "NA"` and
-  `r if (have_kofam) sprintf('%.2f', pw("naive KO", 0, n1)) else "NA"`
-  respectively.
-- **Clustering.** `r if (have_kofam) "See the AUPRC/ARI/NMI table above for how each graph's pairwise similarity and MCL bins track the treatment-reaction label and the finer KO label." else "(no build)"`
+- **Regime.** `r if (have_sim) sprintf("%.0f%%", 100 * beyond(ann$protein[treat]))`
+  of treatment-COG pairs are beyond 30% identity (background COGs: median
+  `r if (have_sim) sprintf("%.0f%%", 100 * median(bg_beyond))`).
+- **Bins.** Treatment recall `r if (have_sim) sprintf("%.2f", sc["bins", 1])`
+  for bins vs `r if (have_sim) sprintf("%.2f", sc["mm", 1])` for MMseqs2 30%,
+  at purity `r if (have_sim) sprintf("%.2f", sc["bins", 2])` vs
+  `r if (have_sim) sprintf("%.2f", sc["mm", 2])`.
+- **Differential abundance** at $\rho$ = 2%, $n$ = `r if (have_sim) n_grid[1]`:
+  power `r if (have_sim) sprintf("%.2f", pw("bin", 0.02))` for bins,
+  `r if (have_sim) sprintf("%.2f", pw("MMseqs2 30%", 0.02))` for MMseqs2 30%,
+  `r if (have_sim) sprintf("%.2f", pw("protein", 0.02))` for proteins and
+  `r if (have_sim) sprintf("%.2f", pw("COG (oracle)", 0.02))` for the COG oracle.
 
-`r if (isTRUE(smoke)) "This page's object is a KOFAM_SMOKE=1 pipeline check (random embeddings, tens of proteins); none of the numbers above are a result." else ""`
-
-The naive KO baseline already knows every protein's KO, so it is a strong
-comparator whenever KO annotation is complete; the open question this page
-asks is whether the embedding graph's bins recover the same reaction-level
-unit *without* being told the KO labels, and whether MMD detects the
-contrast at all. [MCL parameters](parameters.html) and
-[Simulation 2](simulation_ec.html) discuss the same bins under enzyme-class
-and threshold questions.
+`r if (isTRUE(smoke)) "This page was knit from a KOFAM_SMOKE=1 object; none of the numbers above are results." else ""`
 
 ```{r session}
+if (have_sim) c(knit_minutes = knit_minutes, build_align_minutes = kf$provenance$align_minutes)
 sessionInfo()
 ```
 
