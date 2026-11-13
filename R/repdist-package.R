@@ -19,7 +19,8 @@
 #' samples by Gaussian-kernel maximum mean discrepancy. Counts have samples in
 #' rows and proteins in columns, matched to the proteins by name.
 #'
-#' See `vignette("repdist")`.
+#' See `vignette("repdist")` for beta diversity and `vignette("clustering")`
+#' for protein bins and differential abundance.
 #'
 #' @references Gretton et al. (2012). A Kernel Two-Sample Test. JMLR 13,
 #' 723-773. <https://jmlr.org/papers/v13/gretton12a.html>.
