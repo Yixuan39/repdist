@@ -4,13 +4,17 @@ title: "Simulations"
 
 The simulation page has been split. The benchmarks are now:
 
-- [Simulation 1: Hidden coherence across distinct proteins](simulation_funfam.html):
-  a controlled positive benchmark on CATH FunFam domains.
-- [Simulation 2: Sequence-disjoint functional contrasts](simulation_ec.html):
-  enzyme classes carried by different sequence clusters in every sample, and
-  how the MCL bins group the same enzymes.
+- [Simulation 4: Interchangeable enzymes of one KEGG reaction](simulation_kofam.html):
+  proteins of several KOs that KEGG's ko-rn table assigns to one shared
+  reaction, scored against a naive "count by KO" baseline.
 - [Simulation 3: MMD, optimal transport and UniFrac](simulation_distances.html):
   MMD, optimal transport on the embeddings and on the MCL graph, and
   weighted UniFrac on an MCL tree, on one FunFam contrast.
 - [MCL parameters](parameters.html): how the graph thresholds and inflation
   shape the bins.
+
+The earlier Simulation 1 (CATH FunFam domains) and Simulation 2 (EC3 enzyme
+classes) pages are no longer linked from the navigation: FunFam's unit is a
+domain, not Korect's full-length protein, and a four-level EC number can
+group structurally unrelated, convergent enzymes. Their files and curated
+data are still on the `gh-pages` branch for reference.

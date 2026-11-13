@@ -40,14 +40,10 @@ yeast vs 20% casein diet comparison in mice: beta diversity, the
 representation space, MCL bins and bin-level differential abundance with
 DESeq2.
 
-**[Hidden coherence](simulation_funfam.html)**: Simulation 1, a controlled
-positive benchmark on CATH FunFam domains, where one group's enriched
-proteins share a hidden family but no accession or sequence cluster.
-
-**[Sequence-disjoint functions](simulation_ec.html)**: Simulation 2,
-contrasts between enzyme classes (EC3) of experimentally characterised
-Swiss-Prot enzymes carried by different sequence clusters in every sample,
-and how the MCL bins group those enzymes.
+**[Interchangeable enzymes (KOfam)](simulation_kofam.html)**: a controlled
+benchmark on KEGG Orthology (KO) groups: proteins of several different KOs
+that KEGG's ko-rn table assigns to one shared reaction, scored against a
+naive "count by KO" baseline.
 
 **[MCL parameters](parameters.html)**: how `min_sim`, `min_coverage` and the
 MCL inflation trade fragmentation against functional coherence of the bins.

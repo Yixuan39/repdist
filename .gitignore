@@ -11,6 +11,9 @@
 
 # downloaded source tables and other local inputs, never committed
 /data
+# KEGG REST cache for simulation_kofam.R specifically (not an open-licensed
+# database); already covered by /data above, listed here for clarity
+/data/kegg/
 
 # curated inputs are committed; any other .rds is a local artifact
 *.rds

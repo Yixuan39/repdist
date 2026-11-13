@@ -1,21 +1,27 @@
 # Curated inputs for the site
 
-The analysis pages read four curated objects in `curated/`. Each is rebuilt
-by one script here, run from the branch root with the current `repdist`
-installed. The three source scripts compute protein embeddings from the
-sequences with `embed_proteins(model = "tmvec")` (see `known_models()`); the
-MMseqs2 script clusters the simulation universe's sequences. The pages then
-compute every result from these objects at render time. Nothing else is
-cached.
+The analysis pages read curated objects in `curated/`. Each is rebuilt by one
+script here, run from the branch root with the current `repdist` installed.
+Most source scripts compute protein embeddings from the sequences with
+`embed_proteins(model = "tmvec")` (see `known_models()`); the MMseqs2 script
+clusters the simulation universe's sequences. The pages then compute every
+result from these objects at render time. Nothing else is cached.
 
 | Object | Script | Used by |
 | --- | --- | --- |
+| `curated/simulation_kofam.rds` | `simulation_kofam.R` | `simulation_kofam.Rmd` |
 | `curated/simulation_universe.rds` | `simulation_universe.R` | `reference.Rmd`, `simulation_ec.Rmd`, `simulation_distances.Rmd`, `parameters.Rmd` |
 | `curated/simulation_mmseqs2.rds` | `simulation_mmseqs2.R` | `simulation_ec.Rmd`, `simulation_distances.Rmd` |
 | `curated/simulation_funfam.rds` | `simulation_funfam.R` | `simulation_funfam.Rmd`, `simulation_distances.Rmd` |
 | `curated/diet_series.rds` | `diet_series.R` | `case_study.Rmd` |
 
+`simulation_ec.Rmd` and `simulation_funfam.Rmd` (Simulations 1-2) are no
+longer linked from the site navigation (see `simulation.Rmd`); their scripts
+and curated objects are kept, unchanged, for `simulation_distances.Rmd` and
+for reference.
+
 ```sh
+Rscript data-raw/simulation_kofam.R
 Rscript data-raw/simulation_universe.R
 Rscript data-raw/simulation_mmseqs2.R
 Rscript data-raw/simulation_funfam.R
@@ -26,6 +32,46 @@ Rscript -e 'rmarkdown::render_site()'
 Embeddings are stored rounded to six decimal places (cosine error below
 1e-5). Each object carries a `provenance` list with the source, the filtering
 counts, the model specification and the R session that built it.
+
+## `simulation_kofam.rds`
+
+Source: KEGG REST (<https://rest.kegg.jp>; copyright Kanehisa Laboratories,
+not an open-licensed database, academic use only, rate-limited to <= 3
+calls/s) for the KO-reaction (`ko-rn`) link table and the BRITE `ko00001`
+hierarchy (auxiliary annotation only; `ko01000` is never fetched or used as
+a grouping key), and UniProtKB/Swiss-Prot through
+<https://rest.uniprot.org> (CC BY 4.0) for sequences and metadata. See
+`KOFAM_SIM_PLAN.md` and `kofam-official-sources.md` for the endpoints,
+licence notes and the open question about public redistribution of
+KEGG-derived labels (`KOFAM_SIM_PLAN.md` section 11); raw KEGG downloads are
+cached, untracked, in `data/kegg/` and never committed.
+
+1. Fetch `ko-rn` and rank reactions with >= 2 distinct KOs (interchangeable
+   alternative enzymes), preferring ones annotated under BRITE Metabolism.
+2. Reject candidates whose KO or reaction entries contain "subunit" (a
+   multisubunit-complex screen) and candidates with fewer than two KOs
+   having >= 3 qualifying Bacteria/Archaea, reviewed, non-fragment,
+   50-1000 residue Swiss-Prot proteins (mapped KO -> KEGG genes -> UniProt
+   accession, not a bulk Swiss-Prot scan).
+3. Reject candidates with any cross-KO MMseqs2 hit (E <= 1e-3, 80% coverage)
+   or shared 30%-identity cluster among their own proteins; the first
+   surviving candidate (by KO count, then reaction id) is the treatment
+   group. Every other protein is background (effect size 0 by design);
+   background proteins that hit a treatment protein under the same filter
+   are removed (leakage).
+4. Exclude proteins reached from more than one KO (ambiguous label), cap at
+   20 proteins/KO and 3000 proteins total, and embed with `tmvec`.
+
+Fields: `proteins` (AAStringSet with embeddings), `annotation` (accession,
+organism, taxon, length, KO, reaction id(s), BRITE top category, role,
+treatment group), `ko_rn` (KO/reaction pairs for the KOs in this universe,
+not the full KEGG table), `candidates` (every reaction actually probed, with
+its outcome and reason), `filters`, `provenance`.
+
+`KOFAM_SMOKE=1 Rscript data-raw/simulation_kofam.R` runs the same algorithm
+on a tens-of-proteins scale (smaller per-KO and background caps, random
+unit-vector embeddings instead of TM-Vec) and is the build that was actually
+run for this branch; see `IMPLEMENTATION_NOTES.md`.
 
 ## `simulation_universe.rds`
 

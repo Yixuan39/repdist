@@ -14,10 +14,8 @@ navbar:
       href: case_study.html
     - text: "Simulations"
       menu:
-        - text: "Hidden coherence"
-          href: simulation_funfam.html
-        - text: "Sequence-disjoint functions"
-          href: simulation_ec.html
+        - text: "Interchangeable enzymes (KOfam)"
+          href: simulation_kofam.html
         - text: "MMD, OT and UniFrac"
           href: simulation_distances.html
         - text: "MCL parameters"
