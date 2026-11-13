@@ -1,5 +1,8 @@
 # repdist
 
+[![R-CMD-check](https://github.com/Yixuan39/repdist/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/Yixuan39/repdist/actions/workflows/R-CMD-check.yaml)
+[![Codecov test coverage](https://codecov.io/gh/Yixuan39/repdist/branch/main/graph/badge.svg)](https://codecov.io/gh/Yixuan39/repdist)
+
 **Measure, analyze and compare protein representation distances**
 
 `repdist` represents each sample as an abundance-weighted distribution over
@@ -48,9 +51,11 @@ Linux. Embeddings from the
 `tmvec` command-line tool can be read with `read_embeddings()` instead.
 
 **New to repdist? Start with the
-[vignette](https://yixuan39.github.io/repdist/vignette.html)**, a worked
-example on simulated data with a known answer: beta diversity, MCL
-protein bins and differential abundance.
+[vignette](https://yixuan39.github.io/repdist/vignette.html)**
+(`vignette("repdist")`), a worked beta-diversity example on simulated data
+with a known answer. Protein clustering and differential abundance
+(`protein_similarity()`, `bin_proteins()`, `bin_glom()`) have their own
+`vignette("clustering")`.
 
 ## Simulated example data
 
@@ -101,32 +106,54 @@ remotes::install_github("Yixuan39/repdist", dependencies = TRUE)
 
 ## Quick start
 
+This runs as shown, on the bundled `simulate_ec` data, with no model
+download and no file of your own:
+
 ```r
 library(repdist)
 
-proteins <- embed_proteins("proteins.fasta", model = "tmvec")
-# or, from the tmvec command-line tool:
-# proteins <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
+data(simulate_ec, package = "repdist")
+proteins <- simulate_ec$proteins # AAStringSet, embeddings in mcols()$embedding
+counts <- simulate_ec$counts     # 20 samples x 1160 proteins
+meta <- simulate_ec$samples      # one row per sample; `group` is "A" or "B"
+
+# On your own data, instead of data(simulate_ec):
+# proteins <- embed_proteins(
+#     system.file("extdata", "quickstart_proteins.fasta", package = "repdist")
+# )
+# proteins <- read_embeddings(
+#     system.file("extdata", "metaproteomics.npz", package = "repdist"),
+#     system.file("extdata", "metaproteomics.fasta", package = "repdist")
+# )
 
 # Beta diversity between samples
 D <- sample_mmd(counts, proteins)
-vegan::adonis2(D ~ condition, data = meta)
+vegan::adonis2(D ~ group, data = meta)
 
-# Structure-level protein clusters, e.g. for biomarker discovery
-S <- protein_similarity(proteins, max_evalue = 0.01)
+# Structure-level protein clusters, e.g. for biomarker discovery (a 100-protein
+# subset here, for speed: protein_similarity() aligns every pair)
+keep <- names(proteins)[1:100]
+S <- protein_similarity(proteins[keep], max_evalue = 0.01)
 bins <- bin_proteins(S, inflation = 2)
-bin_counts <- bin_glom(counts, bins) # samples x bins
+bin_counts <- bin_glom(counts[, keep], bins) # samples x bins
 ```
 
 `proteins` is an `AAStringSet` of the sequences with the embeddings in
-`mcols(proteins)$embedding`. `protein_similarity()` aligns every pair and
-keeps the predicted TM-score of those whose alignment E-value is at most
-`max_evalue`, so its time grows with the square of the number of proteins.
-`bin_proteins()` runs MCL on the remaining edges. The gate applies to edges,
-not all pairs: a bin can hold pairs that did not pass it. Structural similarity
-alone does not guarantee shared function, so weigh annotation agreement
-against how much of the catalog the non-singleton bins hold, and how far
-families fragment, before transferring labels.
+`mcols(proteins)$embedding`; `simulate_ec` ships with its embeddings already
+computed, so loading it needs no model download. `protein_similarity()`
+aligns every pair and keeps the predicted TM-score of those whose alignment
+E-value is at most `max_evalue`, so its time grows with the square of the
+number of proteins. `bin_proteins()` runs MCL on the remaining edges. The
+gate applies to edges, not all pairs: a bin can hold pairs that did not pass
+it. Structural similarity alone does not guarantee shared function, so weigh
+annotation agreement against how much of the catalog the non-singleton bins
+hold, and how far families fragment, before transferring labels.
+
+`inst/extdata` also ships a small example of the three typical input files
+(sequences with no embedding, a counts table, sample metadata) for reading
+from disk instead of `data()`, e.g.
+`read_fasta(system.file("extdata", "quickstart_proteins.fasta", package = "repdist"))`;
+see the vignette for the full file-reading pattern.
 
 ## License
 

@@ -23,6 +23,20 @@ GH92-annotated proteins seen on the 20% yeast and 20% casein diets, then the 88
 most abundant other proteins on those diets.
 `inst/scripts/make_metaproteomics_example.R` writes both files.
 
+## quickstart_proteins.fasta, quickstart_counts.tsv, quickstart_metadata.tsv
+
+A small, self-contained example of the three typical repdist input files
+(sequences with no embedding, a counts table, sample metadata), for the
+README and vignette file-reading examples. Cut from `data(simulate_ec)`:
+6 samples (the first 3 of group A, the first 3 of group B), and 30 proteins
+-- the 12 proteins enriched in those 6 samples plus 18 random background
+proteins. `quickstart_proteins.fasta` holds the raw sequences (no
+embeddings, as if never run through `embed_proteins()`); `quickstart_counts.tsv`
+is samples x proteins, tab-separated, with sample names in the first column;
+`quickstart_metadata.tsv` has one row per sample, columns `sample` and
+`group`. Same source and licence as `simulate_ec` below.
+`inst/scripts/make_quickstart_example.R` writes all three.
+
 ## data/simulate_ec.rda
 
 The vignette's dataset (`data(simulate_ec)`): 20 simulated samples over 1,160
@@ -44,3 +58,12 @@ enzymes, and simulates negative-binomial counts on that universe. Embeddings
 are rounded to 4 decimals. Seeds, design, source checksum and commands are in
 `simulate_ec$provenance`. The website's simulated data page describes each
 step.
+
+## simulate_ec_similarity.rds
+
+`protein_similarity(simulate_ec$proteins)`, as a sparse `Matrix`, for the
+clustering vignette: all-pairs alignment of the 1,160 proteins takes about
+20 minutes on one core, so this ships the result instead of recomputing it on
+every vignette build. The gate is deterministic regardless of `n_cores` (see
+`tests/testthat/test-binning.R`), so it can be regenerated with any core
+count. `inst/scripts/make_simulate_ec_similarity.R` writes it.

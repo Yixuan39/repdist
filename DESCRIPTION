@@ -28,7 +28,7 @@ BugReports: https://github.com/Yixuan39/repdist/issues
 Encoding: UTF-8
 StagedInstall: no
 biocViews: Proteomics, Metagenomics, Microbiome, Clustering,
-    QualityControl, Software
+    QualityControl, Alignment, Software
 Roxygen: list(markdown = TRUE)
 Depends: R (>= 4.5.0)
 Imports:
