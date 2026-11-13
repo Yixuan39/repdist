@@ -199,3 +199,49 @@ test_that("sample_mmd reports its bandwidth and holds it when passed", {
     fixed <- sample_mmd(cc7, x, sigma = sigma6)
     expect_equal(as.matrix(fixed)[1:6, 1:6], d6)
 })
+
+test_that("plot_pcoa with every protein is the PCoA of sample_mmd", {
+    skip_if_not_installed("ggplot2")
+    p <- plot_pcoa(counts, x, top = 1)
+    expect_s3_class(p, "ggplot")
+    ref <- stats::cmdscale(sample_mmd(counts, x), k = 2)
+    # distances between points do not depend on the axes' signs
+    expect_equal(as.numeric(stats::dist(p$data[, c("PCo1", "PCo2")])),
+        as.numeric(stats::dist(ref)))
+})
+
+test_that("plot_pcoa drops the region held at a steady share first", {
+    skip_if_not_installed("ggplot2")
+    # cluster 1 (p1-p10) is half of every sample, split evenly
+    rel <- cbind(matrix(0.05, 6, 10), 0.5 * counts[, 11:30] /
+        rowSums(counts[, 11:30]))
+    colnames(rel) <- colnames(counts)
+    sigma <- attr(sample_mmd(rel, x), "sigma")
+    ref <- stats::cmdscale(sample_mmd(rel[, 11:30], x, sigma = sigma), k = 2)
+    for (top in list(20, 20 / 30)) {
+        p <- plot_pcoa(rel, x, top = top, min_sim = 0.9)
+        expect_equal(as.numeric(stats::dist(p$data[, c("PCo1", "PCo2")])),
+            as.numeric(stats::dist(ref)))
+        expect_match(p$labels$subtitle, "20 most variable of 30")
+    }
+    alone <- rel
+    alone[1, 11:30] <- 0 # s1 holds only the steady region
+    expect_error(plot_pcoa(alone, x, top = 20), "s1; raise `top`")
+})
+
+test_that("plot_pcoa outlines groups matched by sample name", {
+    skip_if_not_installed("ggplot2")
+    group <- stats::setNames(rep(c("a", "b"), each = 3), rownames(counts))
+    p <- plot_pcoa(counts, x, group = rev(group))
+    expect_identical(as.character(p$data$group), unname(group))
+    expect_s3_class(p$layers[[1]]$geom, "GeomPolygon")
+    expect_error(plot_pcoa(counts, x, group = c("a", "b")), "one label")
+})
+
+test_that("plot_pcoa rejects a bad top or min_sim", {
+    for (top in list(0, -1, 2.5, 31, NA, c(0.5, 0.9))) {
+        expect_error(plot_pcoa(counts, x, top = top), "`top`")
+    }
+    expect_error(plot_pcoa(counts, x, min_sim = 1.5), "`min_sim`")
+    expect_error(plot_pcoa(counts[1:2, ], x), "at least 3")
+})

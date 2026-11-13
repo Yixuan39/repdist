@@ -4,8 +4,8 @@
   language model (`embed_proteins()`) or the tmvec command-line tool
   (`read_embeddings()`), abundance-weighted RBF-MMD sample distances
   (`sample_mmd()`), structural bins by Markov clustering of a graph
-  thresholded on similarity and alignment coverage (`protein_similarity()`,
-  `bin_proteins()`, `bin_glom()`) and two quality-control plots
-  (`plot_tsne()`, `plot_bin_similarity()`).
+  gated on alignment E-value (`protein_similarity()`, `bin_proteins()`,
+  `bin_glom()`) and quality-control plots (`plot_tsne()`,
+  `plot_bin_similarity()`, `plot_pcoa()`).
 * The vignette runs on `data(simulate_ec)`, a simulated metaproteome with
   precomputed TM-Vec embeddings.

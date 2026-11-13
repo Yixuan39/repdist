@@ -24,7 +24,7 @@ PERMDISP, 999 permutations:
 | Distance | PERMANOVA R² | PERMANOVA p | PERMDISP p |
 | --- | --- | --- | --- |
 | MMD | 0.133 | 0.001 | 0.468 |
-| Bray-Curtis (repdist MCL bins) | 0.063 | 0.020 | 0.186 |
+| Bray-Curtis (repdist MCL bins) | 0.065 | 0.010 | 0.288 |
 | Bray-Curtis (MMseqs2 30%) | 0.052 | 0.580 | 0.461 |
 | Bray-Curtis (protein) | 0.050 | 0.787 | 0.458 |
 
@@ -95,7 +95,7 @@ BiocManager::install(c("basilisk", "BiocFileCache", "BiocParallel",
     "Biostrings", "pwalign", "rhdf5", "S4Vectors", "MCL"))
 if (!requireNamespace("remotes", quietly = TRUE))
     install.packages("remotes")
-# dependencies = TRUE also installs vegan, ggplot2, Rtsne and DESeq2 for the vignette
+# dependencies = TRUE also installs vegan, ggplot2, Rtsne, limma and DEqMS for the vignette
 remotes::install_github("Yixuan39/repdist", dependencies = TRUE)
 ```
 
@@ -113,16 +113,17 @@ D <- sample_mmd(counts, proteins)
 vegan::adonis2(D ~ condition, data = meta)
 
 # Structure-level protein clusters, e.g. for biomarker discovery
-S <- protein_similarity(proteins, min_sim = 0.7, min_coverage = 0.5)
+S <- protein_similarity(proteins, max_evalue = 0.01)
 bins <- bin_proteins(S, inflation = 2)
 bin_counts <- bin_glom(counts, bins) # samples x bins
 ```
 
 `proteins` is an `AAStringSet` of the sequences with the embeddings in
-`mcols(proteins)$embedding`. `protein_similarity()` sets pairs below `min_sim`
-to 0, and pairs whose alignment covers less than `min_coverage` of either
-sequence. `bin_proteins()` runs MCL on the remaining edges. The floor applies
-to edges, not all pairs: a bin can hold pairs below it. Structural similarity
+`mcols(proteins)$embedding`. `protein_similarity()` aligns every pair and
+keeps the predicted TM-score of those whose alignment E-value is at most
+`max_evalue`, so its time grows with the square of the number of proteins.
+`bin_proteins()` runs MCL on the remaining edges. The gate applies to edges,
+not all pairs: a bin can hold pairs that did not pass it. Structural similarity
 alone does not guarantee shared function, so weigh annotation agreement
 against how much of the catalog the non-singleton bins hold, and how far
 families fragment, before transferring labels.

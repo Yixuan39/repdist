@@ -14,10 +14,9 @@ or read embeddings made with the tmvec tool with
 }
 \details{
 \code{\link[=protein_similarity]{protein_similarity()}} builds the
-protein-by-protein similarity graph, gated on similarity and alignment
-coverage, and \code{\link[=bin_proteins]{bin_proteins()}} groups proteins into
-structural bins by Markov clustering of it;
-\code{\link[=bin_glom]{bin_glom()}} sums a count table to those bins.
+protein-by-protein similarity graph, gated on alignment E-value, and
+\code{\link[=bin_proteins]{bin_proteins()}} groups proteins into structural bins by Markov clustering
+of it; \code{\link[=bin_glom]{bin_glom()}} sums a count table to those bins.
 \code{\link[=plot_tsne]{plot_tsne()}} maps the embeddings and \code{\link[=plot_bin_similarity]{plot_bin_similarity()}} shows the
 pairwise similarities inside one bin.
 

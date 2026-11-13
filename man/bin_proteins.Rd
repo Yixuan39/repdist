@@ -30,13 +30,12 @@ size.}
 Partitions the similarity graph from
 \code{\link[=protein_similarity]{protein_similarity()}}
 by Markov clustering (MCL, via the \code{MCL} package). Every nonzero pair is an
-edge weighted by its similarity, so the edge floor is the matrix's
-\code{min_sim}. Bins are named \code{bin1}, \code{bin2}, ... from largest to
-smallest; proteins with no edge are singleton bins.
+edge weighted by its similarity. Bins are named \code{bin1}, \code{bin2}, ... from
+largest to smallest; proteins with no edge are singleton bins.
 }
 \details{
-The floor applies to edges, not to all pairs: a bin can hold pairs joined
-only through shared neighbours (see
+The E-value gate applies to edges, not to all pairs: a bin can hold pairs
+joined only through shared neighbours (see
 \code{\link[=plot_bin_similarity]{plot_bin_similarity()}}).
 Collapse a counts table to bins with \code{\link[=bin_glom]{bin_glom()}}.
 }

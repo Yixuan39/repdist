@@ -1,87 +1,84 @@
 #' Protein similarity matrix from embeddings
 #'
 #' Cosine similarity between proteins -- for TM-Vec embeddings, the predicted
-#' TM-score -- with every pair below `min_sim` set to 0: the weighted graph
-#' [bin_proteins()] clusters.
+#' TM-score -- kept only for pairs whose sequences align: the weighted graph
+#' [bin_proteins()] clusters. Negative similarities are set to 0.
 #'
-#' Pairs that pass `min_sim` are then aligned (local, `substitutionMatrix`,
-#' gap opening 11, extension 1, via [pwalign::pairwiseAlignment()]) and set to
-#' 0 unless the alignment covers at least `min_coverage` of both sequences.
-#' Pairs below `min_sim` are never aligned.
+#' Every pair with a positive similarity is aligned (local, BLOSUM62, gap
+#' opening 11, extension 1, via
+#' [pwalign::pairwiseAlignment()])
+#' and set to 0 unless the alignment's E-value is at most `max_evalue`. The
+#' E-value is BLAST's for the shorter protein searched against all of `x`,
+#' from the Karlin-Altschul statistics of BLOSUM62 with these gaps (lambda
+#' 0.267, K 0.041) and without length correction or composition-based
+#' statistics. It grows with the total length of `x`, so one
+#' `max_evalue` is stricter on a larger `x`. The number of alignments grows
+#' with the square of the number of proteins: 5,000 proteins take about
+#' 40 minutes on 10 cores.
 #'
 #' @param x Proteins with embeddings, from
 #'   [embed_proteins()] or
 #'   [read_embeddings()].
-#' @param min_sim Similarity floor in `[0, 1]` (default 0.7).
-#' @param min_coverage Coverage floor in `[0, 1]` (default 0.5); 0 skips
-#'   alignment.
-#' @param substitutionMatrix Substitution matrix for the alignments, by name
-#'   or as a matrix; see [pwalign::pairwiseAlignment()].
+#' @param max_evalue Largest alignment E-value kept (default 0.01); `Inf`
+#'   skips alignment and keeps every pair.
 #' @param n_cores Number of cores for the alignments (default 1). Above 1 the
 #'   alignments run in forked processes, which Windows does not support: there
 #'   they run on one core with a warning.
 #' @return Symmetric numeric matrix of similarities, 1 on the diagonal and 0
 #'   for every gated pair.
-#' @usage protein_similarity(
-#'     x,
-#'     min_sim = 0.7,
-#'     min_coverage = 0.5,
-#'     substitutionMatrix = "BLOSUM62",
-#'     n_cores = 1L
-#' )
+#' @references Karlin S, Altschul SF (1990). Methods for assessing the
+#'   statistical significance of molecular sequence features by using general
+#'   scoring schemes. PNAS 87, 2264-2268.
 #' @examples
 #' x <- Biostrings::AAStringSet(c(
-#'     p1 = "MKTAYIAKQRQISFVKSHFSRQ", p2 = "AYIAKQRQIS", p3 = "MKVLAA"
+#'     p1 = "MKTAYIAKQRQISFVKSHFSRQ", p2 = "MKTAYIAKQRQISFVKSHFSRA",
+#'     p3 = "MKVLAA"
 #' ))
 #' S4Vectors::mcols(x)$embedding <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1))
-#' protein_similarity(x, min_coverage = 0)
+#' protein_similarity(x, max_evalue = Inf)
 #' protein_similarity(x)
 #' @export
-protein_similarity <- function(x, min_sim = 0.7, min_coverage = 0.5,
-    substitutionMatrix = "BLOSUM62", n_cores = 1L) {
+protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L) {
     Z <- .embeddings(x)
     stopifnot(
-        is.numeric(min_sim), length(min_sim) == 1L,
-        min_sim >= 0, min_sim <= 1,
-        is.numeric(min_coverage), length(min_coverage) == 1L,
-        min_coverage >= 0, min_coverage <= 1,
+        is.numeric(max_evalue), length(max_evalue) == 1L,
+        !is.na(max_evalue), max_evalue > 0,
         is.numeric(n_cores), length(n_cores) == 1L,
         n_cores >= 1, n_cores == round(n_cores)
     )
-    S <- pmin(tcrossprod(Z), 1)
-    S[S < min_sim] <- 0
+    S <- pmax(pmin(tcrossprod(Z), 1), 0)
     diag(S) <- 1
-    if (min_coverage > 0) {
+    if (is.finite(max_evalue)) {
         S4Vectors::mcols(x) <- NULL # pwalign drops them with a warning
         ij <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
-        message("Aligning ", nrow(ij), " protein pairs with similarity >= ",
-            min_sim, " to check coverage.")
+        message("Aligning ", nrow(ij), " protein pairs for their E-values.")
         BPPARAM <- if (n_cores > 1) {
             BiocParallel::MulticoreParam(n_cores)
         } else {
             BiocParallel::SerialParam()
         }
-        cov <- BiocParallel::bpvec(seq_len(nrow(ij)), .coverage, ij = ij,
-            seqs = x, substitutionMatrix = substitutionMatrix,
-            BPPARAM = BPPARAM)
-        low <- ij[unlist(cov) < min_coverage, , drop = FALSE]
-        S[rbind(low, low[, 2:1])] <- 0
+        E <- BiocParallel::bpvec(seq_len(nrow(ij)), .evalue, ij = ij,
+            seqs = x, BPPARAM = BPPARAM)
+        weak <- ij[unlist(E) > max_evalue, , drop = FALSE]
+        S[rbind(weak, weak[, 2:1])] <- 0
     }
     S
 }
 
-# Alignment coverage of the protein pairs in rows `rows` of `ij`, a two-column
-# matrix of indices into `seqs`: for each pair, the share of the less-covered
-# sequence that their local alignment spans. Top level so workers are not sent
-# the similarity matrix; no argument may be named `i`, which bpvec() uses.
-.coverage <- function(rows, ij, seqs, substitutionMatrix) {
+# E-values of the local alignments of the protein pairs in rows `rows` of
+# `ij`, a two-column matrix of indices into `seqs`: BLAST's E for the shorter
+# protein searched against all of `seqs`, from the BLOSUM62 gap 11/1
+# Karlin-Altschul lambda and K of NCBI BLAST. Top level so workers are not
+# sent the similarity matrix; no argument may be named `i`, which bpvec()
+# uses.
+.evalue <- function(rows, ij, seqs) {
     p <- seqs[ij[rows, 1]]
     s <- seqs[ij[rows, 2]]
-    a <- pwalign::pairwiseAlignment(p, s,
-        substitutionMatrix = substitutionMatrix, type = "local",
-        gapOpening = 11, gapExtension = 1)
-    pmin(Biostrings::width(pwalign::pattern(a)) / Biostrings::width(p),
-        Biostrings::width(pwalign::subject(a)) / Biostrings::width(s))
+    score <- pwalign::pairwiseAlignment(p, s, substitutionMatrix = "BLOSUM62",
+        type = "local", gapOpening = 11, gapExtension = 1, scoreOnly = TRUE)
+    bits <- (0.267 * score - log(0.041)) / log(2)
+    pmin(Biostrings::width(p), Biostrings::width(s)) *
+        sum(Biostrings::width(seqs)) * 2^-bits
 }
 
 # A protein_similarity() result, or any symmetric named similarity matrix in
@@ -127,12 +124,11 @@ protein_similarity <- function(x, min_sim = 0.7, min_coverage = 0.5,
 #' Partitions the similarity graph from
 #' [protein_similarity()]
 #' by Markov clustering (MCL, via the `MCL` package). Every nonzero pair is an
-#' edge weighted by its similarity, so the edge floor is the matrix's
-#' `min_sim`. Bins are named `bin1`, `bin2`, ... from largest to
-#' smallest; proteins with no edge are singleton bins.
+#' edge weighted by its similarity. Bins are named `bin1`, `bin2`, ... from
+#' largest to smallest; proteins with no edge are singleton bins.
 #'
-#' The floor applies to edges, not to all pairs: a bin can hold pairs joined
-#' only through shared neighbours (see
+#' The E-value gate applies to edges, not to all pairs: a bin can hold pairs
+#' joined only through shared neighbours (see
 #' [plot_bin_similarity()]).
 #' Collapse a counts table to bins with [bin_glom()].
 #'
@@ -229,7 +225,7 @@ bin_proteins <- function(S, inflation = 2) {
 #' @examples
 #' x <- Biostrings::AAStringSet(c(p1 = "MKVLAA", p2 = "MKVLAG", p3 = "WWPPGG"))
 #' S4Vectors::mcols(x)$embedding <- rbind(c(1, 0), c(0.95, 0.05), c(0, 1))
-#' b <- bin_proteins(protein_similarity(x, min_coverage = 0))
+#' b <- bin_proteins(protein_similarity(x, max_evalue = Inf))
 #' counts <- rbind(s1 = c(p1 = 5, p2 = 3, p3 = 1), s2 = c(0, 2, 7))
 #' bin_glom(counts, b)
 #' @export

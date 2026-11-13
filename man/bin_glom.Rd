@@ -25,7 +25,7 @@ count-based differential abundance.
 \examples{
 x <- Biostrings::AAStringSet(c(p1 = "MKVLAA", p2 = "MKVLAG", p3 = "WWPPGG"))
 S4Vectors::mcols(x)$embedding <- rbind(c(1, 0), c(0.95, 0.05), c(0, 1))
-b <- bin_proteins(protein_similarity(x, min_coverage = 0))
+b <- bin_proteins(protein_similarity(x, max_evalue = Inf))
 counts <- rbind(s1 = c(p1 = 5, p2 = 3, p3 = 1), s2 = c(0, 2, 7))
 bin_glom(counts, b)
 }

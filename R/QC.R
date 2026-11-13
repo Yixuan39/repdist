@@ -80,7 +80,7 @@ plot_tsne <- function(x, perplexity = NULL, color = NULL) {
 #' is the similarity before any gate, from the embeddings; a cross marks each
 #' pair that is not an edge of `S`, the graph MCL clustered. An MCL bin joins
 #' members through shared neighbours, so a pair inside it need not be an edge,
-#' and a pair above `min_sim` is not one if it failed the coverage gate.
+#' and a pair of similar proteins is not one if it failed the E-value gate.
 #'
 #' @param bins Result of [bin_proteins()].
 #' @param bin Bin name, e.g. `"bin1"`.
@@ -127,7 +127,7 @@ plot_bin_similarity <- function(bins, bin, S, x, label_max = 20L,
     if (!all(members %in% rownames(Z))) {
         stop("`x` must hold every member of `", bin, "`.", call. = FALSE)
     }
-    # as protein_similarity(x, min_sim = 0, min_coverage = 0) gives it
+    # as protein_similarity(x, max_evalue = Inf) gives it
     R <- pmax(pmin(tcrossprod(Z[members, , drop = FALSE]), 1), 0)
     medoid <- bins$representatives[[bin]]
     members <- members[order(members != medoid, -R[medoid, members])]

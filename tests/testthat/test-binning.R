@@ -7,7 +7,7 @@ Z <- do.call(rbind, lapply(1:3, function(k) {
 Z <- Z / sqrt(rowSums(Z^2))
 rownames(Z) <- paste0("p", 1:15)
 family <- rep(1:3, each = 5)
-S <- protein_similarity(as_proteins(Z), min_sim = 0.5)
+S <- cosine_graph(Z, 0.5)
 
 unit <- function(W) W / sqrt(rowSums(W^2))
 
@@ -59,7 +59,7 @@ test_that("every protein appears in exactly one bin", {
     W <- unit(matrix(rnorm(80 * 6), 80, 6))
     rownames(W) <- paste0("q", 1:80)
     for (t in c(0.3, 0.6, 0.9)) {
-        out <- bin_proteins(protein_similarity(as_proteins(W), min_sim = t))
+        out <- bin_proteins(cosine_graph(W, t))
         members <- unlist(out$clusters, use.names = FALSE)
         expect_setequal(members, rownames(W))
         expect_false(anyDuplicated(members) > 0)
@@ -80,7 +80,7 @@ test_that("sparse MCL agrees with a dense reference", {
         48, 8))
     rownames(W) <- paste0("q", 1:48)
     for (t in c(0.3, 0.5)) {
-        G <- protein_similarity(as_proteins(W), min_sim = t)
+        G <- cosine_graph(W, t)
         for (inflation in c(1.4, 2, 4)) {
             out <- bin_proteins(G, inflation = inflation)
             expect_true(same_partition(
@@ -94,7 +94,7 @@ test_that("isolated proteins stay separate singleton bins", {
     W <- unit(rbind(
         a1 = c(1, 0, 0), a2 = c(0.99, 0.14, 0), b = c(0, 1, 0), c = c(0, 0, 1)
     ))
-    out <- bin_proteins(protein_similarity(as_proteins(W), min_sim = 0.9))
+    out <- bin_proteins(cosine_graph(W, 0.9))
     expect_setequal(
         lapply(out$clusters, sort),
         list(c("a1", "a2"), "b", "c")
@@ -114,7 +114,7 @@ test_that("MCL never merges disconnected components", {
     W <- unit(centres[rep(1:4, each = 6), ] + matrix(rnorm(96, 0, 0.02), 24))
     rownames(W) <- paste0("q", 1:24)
     side <- rep(1:2, each = 12)
-    G <- protein_similarity(as_proteins(W), min_sim = 0.5)
+    G <- cosine_graph(W, 0.5)
     for (inflation in c(1.1, 1.4, 2, 6)) {
         out <- bin_proteins(G, inflation = inflation)
         expect_equal(out$graph[["components"]], 2)
@@ -132,7 +132,7 @@ test_that("a higher inflation splits what a lower one merges", {
         matrix(rep(c(0.6, 0.8, 0), 8), 8, byrow = TRUE)
     ) + matrix(rnorm(48, 0, 0.02), 16))
     rownames(W) <- paste0("q", 1:16)
-    G <- protein_similarity(as_proteins(W), min_sim = 0.5)
+    G <- cosine_graph(W, 0.5)
     count <- function(inflation) length(bin_proteins(G, inflation)$clusters)
     expect_equal(count(1.2), 1)
     expect_equal(count(6), 2)
@@ -142,7 +142,7 @@ test_that("clustering is deterministic", {
     set.seed(6)
     W <- unit(matrix(rnorm(120 * 5), 120, 5))
     rownames(W) <- paste0("q", 1:120)
-    G <- protein_similarity(as_proteins(W), min_sim = 0.4)
+    G <- cosine_graph(W, 0.4)
     expect_identical(bin_proteins(G), bin_proteins(G))
 })
 
@@ -150,7 +150,7 @@ test_that("representatives are members and within-bin medoids", {
     set.seed(7)
     W <- unit(matrix(rnorm(60 * 4), 60, 4))
     rownames(W) <- paste0("q", 1:60)
-    G <- protein_similarity(as_proteins(W), min_sim = 0.6)
+    G <- cosine_graph(W, 0.6)
     out <- bin_proteins(G)
     expect_named(out$representatives, names(out$clusters))
     for (bin in names(out$clusters)) {
@@ -170,7 +170,7 @@ test_that("bin_proteins agrees with the mcl program", {
     W <- unit(centres[rep(1:6, each = 20), ] + matrix(rnorm(120 * 10, 0, 0.4),
         120, 10))
     rownames(W) <- paste0("q", 1:120)
-    G <- protein_similarity(as_proteins(W), min_sim = 0.5)
+    G <- cosine_graph(W, 0.5)
     e <- which(upper.tri(G) & G > 0, arr.ind = TRUE)
     abc <- tempfile(fileext = ".abc")
     out <- tempfile()
@@ -198,67 +198,73 @@ test_that("an MCL failure is an error, not a message", {
     expect_error(bin_proteins(S), "did not converge")
 })
 
-test_that("protein_similarity is cosine similarity gated at min_sim", {
+test_that("protein_similarity is cosine similarity clipped to [0, 1]", {
     set.seed(14)
     W <- matrix(rnorm(50 * 4), 50, 4, dimnames = list(paste0("p", 1:50), NULL))
     W <- W / sqrt(rowSums(W^2))
     cosine <- tcrossprod(W)
     off <- upper.tri(cosine)
-    for (t in c(0, 0.3, 0.7)) {
-        G <- protein_similarity(as_proteins(W), min_sim = t)
-        expect_true(isSymmetric(G))
-        expect_identical(dimnames(G), list(rownames(W), rownames(W)))
-        expect_equal(unname(diag(G)), rep(1, 50))
-        expect_equal(G[off], ifelse(cosine[off] >= t, cosine[off], 0))
-    }
+    G <- suppressMessages(protein_similarity(as_proteins(W)))
+    expect_true(isSymmetric(G))
+    expect_identical(dimnames(G), list(rownames(W), rownames(W)))
+    expect_equal(unname(diag(G)), rep(1, 50))
+    # one shared sequence, so every positive pair passes the E-value gate
+    expect_equal(G[off], pmax(cosine[off], 0))
+    expect_error(protein_similarity(as_proteins(W), min_sim = 0.7), "unused")
     # rows are normalised, with similarity clipped at 1
     rounded <- rbind(a = c(1 + 1e-7, 0), b = c(3, 0), c = c(-1, 0))
-    expect_equal(unname(protein_similarity(as_proteins(rounded))),
-        rbind(c(1, 1, 0), c(1, 1, 0), c(0, 0, 1)))
+    G_rounded <- suppressMessages(protein_similarity(as_proteins(rounded)))
+    expect_equal(unname(G_rounded), rbind(c(1, 1, 0), c(1, 1, 0), c(0, 0, 1)))
     expect_error(protein_similarity(W), "AAStringSet")
     expect_error(protein_similarity(as_proteins(unname(W))), "names")
     expect_error(protein_similarity(as_proteins(rbind(W[1:3, ], dead = 0))),
         "is.finite")
     for (bad in list(-0.1, 1.5, NA, c(0.5, 0.7), "0.5")) {
-        expect_error(protein_similarity(as_proteins(W), min_sim = bad), "min_sim")
-        expect_error(protein_similarity(as_proteins(W), min_coverage = bad),
-            "min_coverage")
         expect_error(protein_similarity(as_proteins(W), n_cores = bad),
             "n_cores")
     }
+    for (bad in list(-1, 0, NA, c(1e-3, 1), "1e-3")) {
+        expect_error(protein_similarity(as_proteins(W), max_evalue = bad),
+            "max_evalue")
+    }
 })
 
-test_that("coverage is the share of the less-covered sequence aligned", {
-    aa <- Biostrings::AAStringSet(c(long = "MKTAYIAKQRQISFVKSHFSRQ",
-        short = "AYIAKQRQIS"))
-    ij <- rbind(c(1L, 2L), c(1L, 1L))
-    expect_equal(repdist:::.coverage(1:2, ij, aa, "BLOSUM62"), c(10 / 22, 1))
+test_that("E-values match BLAST's bit scores", {
+    aa <- Biostrings::AAStringSet(c(
+        long = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKAL",
+        short = "GGKTAYIAKQRQISFVKAHFSRQLEERLGLIEVQAPWLSRVGDGTQ"))
+    E <- repdist:::.evalue(1L, rbind(1:2), aa)
+    w <- Biostrings::width(aa)
+    bits <- -log2(E / (min(w) * sum(w)))
+    # blastp -comp_based_stats 0 on this pair: raw score 205, 83.6 bits
+    expect_equal(bits, 83.6, tolerance = 0.05 / 83.6)
 })
 
-test_that("the coverage gate needs both sequences half covered", {
+test_that("the E-value gate cuts similar embeddings of unrelated sequences", {
     W <- rbind(a = c(1, 0), b = c(0.95, 0.05), c = c(0.9, 0.1), d = c(0, 1))
     seqs <- c(a = "MKTAYIAKQRQISFVKSHFSRQ", b = "MKTAYIAKQRQISFVKSHFSRA",
-        c = "AYIAKQRQIS", d = "WWWWWW")
+        c = "WWGGPPCCWWGGPPCC", d = "WWWWWW")
     x <- as_proteins(W, seqs)
-    plain <- protein_similarity(x, min_coverage = 0)
-    gated <- protein_similarity(x)
+    plain <- protein_similarity(x, max_evalue = Inf)
+    gated <- suppressMessages(protein_similarity(x))
     ab <- c("a", "b")
     expect_equal(gated[ab, ab], plain[ab, ab])
-    # c is wholly covered, but covers less than half of a and b
+    expect_gt(plain["a", "c"], 0)
     expect_equal(gated[ab, "c"], c(a = 0, b = 0))
-    expect_gt(protein_similarity(x, min_coverage = 0.4)["a", "c"], 0)
+    lenient <- suppressMessages(protein_similarity(x, max_evalue = 1e6))
+    expect_gt(lenient["a", "c"], 0)
     expect_true(isSymmetric(gated))
-    # only pairs that pass min_sim are aligned
+    # only pairs with a positive similarity are aligned
     aligned <- 0L
-    testthat::local_mocked_bindings(.coverage = function(k, ...) {
+    testthat::local_mocked_bindings(.evalue = function(k, ...) {
         aligned <<- aligned + length(k)
-        rep(1, length(k))
+        rep(0, length(k))
     })
-    expect_equal(protein_similarity(x), plain)
+    expect_equal(suppressMessages(protein_similarity(x)), plain)
     expect_equal(aligned, sum(plain[upper.tri(plain)] > 0))
 })
 
-test_that("parallel and serial coverage gates agree", {
+test_that("parallel and serial E-value gates agree", {
     skip_on_os("windows")
     set.seed(2)
     W <- matrix(rnorm(12 * 3), 12, 3, dimnames = list(paste0("p", 1:12), NULL))
@@ -268,8 +274,8 @@ test_that("parallel and serial coverage gates agree", {
     names(seqs) <- rownames(W)
     x <- as_proteins(abs(W), seqs)
     expect_identical(
-        protein_similarity(x, 0.5, 0.3, n_cores = 2),
-        protein_similarity(x, 0.5, 0.3)
+        suppressMessages(protein_similarity(x, max_evalue = 10, n_cores = 2)),
+        suppressMessages(protein_similarity(x, max_evalue = 10))
     )
 })
 

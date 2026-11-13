@@ -9,7 +9,7 @@ test_that("plot_bin_similarity shows one bin's pairwise similarities", {
         p1 = c(1, 0), p2 = c(0.99, 0.14), p3 = c(0.97, 0.24), p4 = c(0, 1)
     ))
     x <- as_proteins(W)
-    G <- protein_similarity(x, min_sim = 0.9)
+    G <- cosine_graph(W, 0.9)
     b <- bin_proteins(G)
     p <- plot_bin_similarity(b, "bin1", G, x)
     expect_s3_class(p, "ggplot")
@@ -46,13 +46,13 @@ test_that("an MCL bin can hold pairs that are not edges", {
     W <- cbind(cos(ang), sin(ang))
     rownames(W) <- paste0("c", 1:4)
     x <- as_proteins(W)
-    G <- protein_similarity(x, min_sim = 0.8)
+    G <- cosine_graph(W, 0.8)
     b <- bin_proteins(G, inflation = 1.4)
     expect_length(b$clusters, 1L)
     p <- plot_bin_similarity(b, "bin1", G, x)
     # every cell carries its ungated similarity; the 3 pairs that are not
     # edges are crossed, two strokes per cell on both sides of the diagonal
-    S_all <- protein_similarity(x, min_sim = 0, min_coverage = 0)
+    S_all <- protein_similarity(x, max_evalue = Inf)
     expect_equal(p$data$similarity, as.numeric(S_all[
         levels(p$data$protein), levels(p$data$protein)]))
     expect_gt(min(p$data$similarity), 0)

@@ -4,26 +4,15 @@
 \alias{protein_similarity}
 \title{Protein similarity matrix from embeddings}
 \usage{
-protein_similarity(
-    x,
-    min_sim = 0.7,
-    min_coverage = 0.5,
-    substitutionMatrix = "BLOSUM62",
-    n_cores = 1L
-)
+protein_similarity(x, max_evalue = 0.01, n_cores = 1L)
 }
 \arguments{
 \item{x}{Proteins with embeddings, from
 \code{\link[=embed_proteins]{embed_proteins()}} or
 \code{\link[=read_embeddings]{read_embeddings()}}.}
 
-\item{min_sim}{Similarity floor in \verb{[0, 1]} (default 0.7).}
-
-\item{min_coverage}{Coverage floor in \verb{[0, 1]} (default 0.5); 0 skips
-alignment.}
-
-\item{substitutionMatrix}{Substitution matrix for the alignments, by name
-or as a matrix; see \code{\link[pwalign:pairwiseAlignment]{pwalign::pairwiseAlignment()}}.}
+\item{max_evalue}{Largest alignment E-value kept (default 0.01); \code{Inf}
+skips alignment and keeps every pair.}
 
 \item{n_cores}{Number of cores for the alignments (default 1). Above 1 the
 alignments run in forked processes, which Windows does not support: there
@@ -35,20 +24,33 @@ for every gated pair.
 }
 \description{
 Cosine similarity between proteins -- for TM-Vec embeddings, the predicted
-TM-score -- with every pair below \code{min_sim} set to 0: the weighted graph
-\code{\link[=bin_proteins]{bin_proteins()}} clusters.
+TM-score -- kept only for pairs whose sequences align: the weighted graph
+\code{\link[=bin_proteins]{bin_proteins()}} clusters. Negative similarities are set to 0.
 }
 \details{
-Pairs that pass \code{min_sim} are then aligned (local, \code{substitutionMatrix},
-gap opening 11, extension 1, via \code{\link[pwalign:pairwiseAlignment]{pwalign::pairwiseAlignment()}}) and set to
-0 unless the alignment covers at least \code{min_coverage} of both sequences.
-Pairs below \code{min_sim} are never aligned.
+Every pair with a positive similarity is aligned (local, BLOSUM62, gap
+opening 11, extension 1, via
+\code{\link[pwalign:pairwiseAlignment]{pwalign::pairwiseAlignment()}})
+and set to 0 unless the alignment's E-value is at most \code{max_evalue}. The
+E-value is BLAST's for the shorter protein searched against all of \code{x},
+from the Karlin-Altschul statistics of BLOSUM62 with these gaps (lambda
+0.267, K 0.041) and without length correction or composition-based
+statistics. It grows with the total length of \code{x}, so one
+\code{max_evalue} is stricter on a larger \code{x}. The number of alignments grows
+with the square of the number of proteins: 5,000 proteins take about
+40 minutes on 10 cores.
 }
 \examples{
 x <- Biostrings::AAStringSet(c(
-    p1 = "MKTAYIAKQRQISFVKSHFSRQ", p2 = "AYIAKQRQIS", p3 = "MKVLAA"
+    p1 = "MKTAYIAKQRQISFVKSHFSRQ", p2 = "MKTAYIAKQRQISFVKSHFSRA",
+    p3 = "MKVLAA"
 ))
 S4Vectors::mcols(x)$embedding <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1))
-protein_similarity(x, min_coverage = 0)
+protein_similarity(x, max_evalue = Inf)
 protein_similarity(x)
+}
+\references{
+Karlin S, Altschul SF (1990). Methods for assessing the
+statistical significance of molecular sequence features by using general
+scoring schemes. PNAS 87, 2264-2268.
 }

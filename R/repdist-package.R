@@ -7,10 +7,9 @@
 #' `mcols()`.
 #'
 #' [protein_similarity()] builds the
-#' protein-by-protein similarity graph, gated on similarity and alignment
-#' coverage, and [bin_proteins()] groups proteins into
-#' structural bins by Markov clustering of it;
-#' [bin_glom()] sums a count table to those bins.
+#' protein-by-protein similarity graph, gated on alignment E-value, and
+#' [bin_proteins()] groups proteins into structural bins by Markov clustering
+#' of it; [bin_glom()] sums a count table to those bins.
 #' [plot_tsne()] maps the embeddings and [plot_bin_similarity()] shows the
 #' pairwise similarities inside one bin.
 #'

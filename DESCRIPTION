@@ -12,8 +12,8 @@ Description: Structure-aware protein distances from pretrained protein
     it is defined for every amino-acid sequence, including proteins with no
     annotation and no place in a reference tree. Embeddings made with the
     'tmvec' command-line tool can be read in instead. Markov clustering of
-    the graph joining protein pairs above a similarity and
-    alignment-coverage floor groups proteins into structural bins, with
+    the graph joining protein pairs whose alignment E-value is significant,
+    weighted by similarity, groups proteins into structural bins, with
     plots of the embedding space and of the similarities inside a bin; bin
     membership collapses a protein table to bin level for downstream
     testing. For beta diversity, each sample is represented as an
@@ -49,9 +49,10 @@ Imports:
     utils
 Suggests:
     BiocStyle,
-    DESeq2,
+    DEqMS,
     ggplot2,
     knitr,
+    limma,
     rmarkdown,
     Rtsne,
     testthat (>= 3.0.0),
