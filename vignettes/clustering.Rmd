@@ -1,0 +1,177 @@
+---
+title: "Protein clustering and differential abundance with repdist"
+author: "Yixuan Yang"
+package: repdist
+output:
+  BiocStyle::html_document:
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{Protein clustering and differential abundance with repdist}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE, comment = "#>", message = FALSE, warning = FALSE,
+    # BiocStyle registers a "crop" hook that runs unconditionally whenever a
+    # `crop` chunk option is present (its value is never actually checked),
+    # and needs magick, not a dependency here; crop = NULL removes the
+    # option so the hook does not fire. crop = FALSE does NOT work.
+    crop = NULL
+)
+```
+
+# Introduction
+
+`repdist` represents proteins in the embedding space of a protein language
+model, by default TM-Vec, where cosine similarity between two proteins is
+their predicted TM-score. This vignette does two things with that
+representation:
+
+- **Group proteins.** `protein_similarity()` and `bin_proteins()` cluster
+    structurally similar proteins into bins by Markov clustering (MCL).
+- **Find what changed.** `bin_glom()` sums counts within bins, for
+    differential abundance testing.
+
+See the [beta-diversity vignette](repdist.html), `vignette("repdist")`, for
+`sample_mmd()` and the installation instructions, and for what `simulate_ec`
+is. This vignette clusters the same proteins.
+
+```{r libs}
+library(repdist)
+```
+
+# Data
+
+```{r data}
+data(simulate_ec, package = "repdist")
+proteins <- simulate_ec$proteins
+counts <- simulate_ec$counts
+annotation <- simulate_ec$annotation
+```
+
+# Protein similarity
+
+`protein_similarity()` joins two proteins when their alignment has an
+E-value of at most 0.01, weighting the edge by their predicted TM-score. It
+aligns every pair, so its time grows with the square of the number of
+proteins: the 1,160 proteins of `simulate_ec` take about 20 minutes on one
+core (`n_cores` parallelises it over several). To keep this vignette fast,
+the result below is precomputed and shipped in `inst/extdata`; see
+`inst/scripts/make_simulate_ec_similarity.R` for how it was made, with this
+call:
+
+```{r similarity, eval = FALSE}
+S <- protein_similarity(proteins) # about 20 minutes for 1,160 proteins
+```
+
+```{r load-similarity}
+S <- as.matrix(readRDS(
+    system.file("extdata", "simulate_ec_similarity.rds", package = "repdist")
+))
+```
+
+# Protein bins
+
+`bin_proteins()` splits the similarity graph by MCL.
+
+```{r bins}
+bins <- bin_proteins(S) # Markov clustering
+sizes <- lengths(bins$clusters)
+table(cut(sizes, c(0, 1, 2, 5, 10, Inf), c("1", "2", "3-5", "6-10", ">10")))
+```
+
+`plot_tsne()` draws the embeddings in two dimensions, here coloured by the 12
+largest bins. Each bin is a tight group of points; t-SNE keeps neighbourhoods,
+not the distances between them.
+
+```{r tsne}
+#| fig.width: 7
+#| fig.height: 5
+#| fig.alt: "t-SNE of the protein embeddings, the 12 largest bins coloured"
+set.seed(1)
+plot_tsne(proteins, color = bins$membership)
+```
+
+The EC labels were not used to build the bins, so they can check them: the
+share of multi-member bins whose enzymes all share one EC3 class.
+
+```{r purity}
+ec3 <- setNames(annotation$ec3, annotation$protein)
+multi <- bins$clusters[sizes > 1]
+mean(vapply(multi, function(m) length(unique(ec3[m])) == 1, logical(1)))
+```
+
+The [simulation page](https://yixuan39.github.io/repdist/simulation.html)
+scores the bins in full: purity, pairwise precision, recall, specificity, F1
+and coverage, against MMseqs2 sequence clusters.
+
+# Differential abundance
+
+`bin_glom()` sums the counts within each bin, and the bin table goes to any
+differential abundance method; here DEqMS, made for mass spectrometry. It
+fits limma's linear model to log2 counts scaled to a common sample depth
+and, since a protein measured
+by more spectra has a less variable abundance, shrinks each bin's variance
+towards a prior that depends on its spectral count. For repeated samples of
+a subject, add the subject to the design (`~ subject + group`). Bins seen in
+fewer than 10% of samples are not tested.
+
+```{r deqms}
+samples <- simulate_ec$samples
+bin_counts <- bin_glom(counts, bins) # samples x bins
+seen <- colMeans(bin_counts > 0) >= 0.1
+depth <- rowSums(bin_counts)
+y <- t(log2(bin_counts[, seen] / depth * mean(depth) + 1)) # bins x samples
+fit <- limma::eBayes(limma::lmFit(y, model.matrix(~ group, samples)))
+fit$count <- apply(bin_counts[, seen], 2, median) + 1 # spectra per sample
+fit <- DEqMS::spectraCounteBayes(fit)
+res <- DEqMS::outputResult(fit, coef_col = "groupB")
+head(res[, c("logFC", "count", "sca.adj.pval")], 3)
+sum(res$sca.adj.pval < 0.1) # bins at 10% FDR
+```
+
+No bin passes. Each enriched enzyme is abundant in a single sample, and the
+enriched enzymes are spread over many bins:
+
+```{r enriched}
+enriched <- annotation$protein[!is.na(annotation$enriched_in)]
+length(unique(bins$membership[enriched])) # bins holding the 40 enriched
+```
+
+A bin of enriched enzymes rises in a few samples of its group, not on average
+across all of them, so a per-bin test sees little of the signal; `sample_mmd`
+in the beta-diversity vignette tests the whole of it.
+
+# Notes
+
+`protein_similarity()` holds a protein-by-protein matrix and aligns every
+pair, so on real data use the proteins identified in your samples, never a
+whole search database: 20,000 proteins take about 3 GB and the square of
+20,000 alignments; use `n_cores`. Structural similarity does not guarantee
+shared function: proteins of unrelated folds can catalyse the same
+reaction, and `repdist` measures structure.
+
+# References
+
+- Hamamsy et al. (2024). Protein remote homology detection and structural
+    alignment using deep learning. <https://doi.org/10.1038/s41587-023-01917-2>.
+- Karlin and Altschul (1990). Methods for assessing the statistical
+    significance of molecular sequence features by using general scoring
+    schemes. <https://doi.org/10.1073/pnas.87.6.2264>.
+- Ritchie et al. (2015). limma powers differential expression analyses for
+    RNA-sequencing and microarray studies. <https://doi.org/10.1093/nar/gkv007>.
+- The UniProt Consortium (2025). UniProt: the Universal Protein Knowledgebase
+    in 2025. <https://doi.org/10.1093/nar/gkae1010>.
+- van Dongen (2000). Graph clustering by flow simulation. PhD thesis,
+    University of Utrecht.
+- Zhu et al. (2020). DEqMS: a method for accurate variance estimation in
+    differential protein expression analysis.
+    <https://doi.org/10.1074/mcp.TIR119.001646>.
+
+# Session information
+
+```{r session}
+sessionInfo()
+```
