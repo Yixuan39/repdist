@@ -39,12 +39,9 @@ yeast vs 20% casein diet comparison in mice: beta diversity, the
 representation space, MCL bins and bin-level differential abundance with
 DESeq2.
 
-**[One function, remote homologs (COG)](simulation_kofam.html)**: one COG
-enriched from MMseqs2 30% clusters that no other sample uses; bins against
-proteins, MMseqs2 30% clusters and the COG label.
-
-**[MCL parameters](parameters.html)**: how `min_sim`, `min_coverage` and the
-MCL inflation trade fragmentation against functional coherence of the bins.
+**[Simulated data](data_simulation.html)**: how the vignette's dataset was
+built from NCBI COG 2024: ten GrpE proteins from ten different 30%-identity
+clusters, spiked into group A over 100 background proteins.
 
 # Installation {#installation}
 

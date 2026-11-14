@@ -354,26 +354,8 @@ div.tocify {
 <li>
   <a href="case_study.html">Case study</a>
 </li>
-<li class="dropdown">
-  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Simulations
-     
-    <span class="caret"></span>
-  </a>
-  <ul class="dropdown-menu" role="menu">
-    <li>
-      <a href="simulation_funfam.html">Hidden coherence</a>
-    </li>
-    <li>
-      <a href="simulation_ec.html">Sequence-disjoint functions</a>
-    </li>
-    <li>
-      <a href="simulation_distances.html">MMD, OT and UniFrac</a>
-    </li>
-    <li>
-      <a href="parameters.html">MCL parameters</a>
-    </li>
-  </ul>
+<li>
+  <a href="data_simulation.html">Simulated data</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -500,9 +482,9 @@ class="math inline">\(i\)</span>.</p>
 <pre class="r"><code>library(repdist)
 library(ggplot2)</code></pre>
 <p>The executable examples use the three largest enzyme classes (EC3) of
-the <a href="simulation_ec.html">Simulation 2</a> universe:
-experimentally characterised Swiss-Prot enzymes whose embeddings were
-computed with <code>embed_proteins()</code>.</p>
+an enzyme universe built for an earlier simulation: experimentally
+characterised Swiss-Prot enzymes whose embeddings were computed with
+<code>embed_proteins()</code>.</p>
 <p><strong>Data.</strong> The input file is <a
 href="https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds"><code>curated/simulation_universe.rds</code></a>
 (7.3 MB), in the repository’s <a

@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Simulated test dataset: one function across remote homologs</title>
+
+<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+<style type="text/css">
+/* for pandoc --citeproc since 2.11 */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">repdist</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="vignette.html">Get started</a>
+</li>
+<li>
+  <a href="index.html#installation">Install</a>
+</li>
+<li>
+  <a href="reference.html">Reference</a>
+</li>
+<li>
+  <a href="case_study.html">Case study</a>
+</li>
+<li>
+  <a href="data_simulation.html">Simulated data</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Yixuan39/repdist">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Simulated test dataset: one function across
+remote homologs</h1>
+<h3 class="subtitle">GrpE (COG0576) spiked into group A, one 30% cluster
+per sample</h3>
+
+</div>
+
+
+<p><strong>Design.</strong> 20 samples, 10 in group A and 10 in group B.
+All samples share 100 background proteins drawn at random from other
+COGs. Each group-A sample also carries one GrpE protein (COG0576) of its
+own, and the 10 GrpE proteins come from 10 different MMseqs2 30%
+clusters <span class="citation">(<a
+href="#ref-steinegger2017mmseqs2">Steinegger and Söding
+2017</a>)</span>. So group A is enriched for one function, while no
+sequence family is enriched in more than one sample. The FASTA therefore
+holds 110 proteins (100 + 10); an A sample has 101, a B sample 100.</p>
+<table>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Treatment COG</td>
+<td>COG0576, GrpE</td>
+</tr>
+<tr class="even">
+<td>Samples</td>
+<td>10 A + 10 B</td>
+</tr>
+<tr class="odd">
+<td>Background proteins (all samples)</td>
+<td>100</td>
+</tr>
+<tr class="even">
+<td>GrpE proteins (one per A sample)</td>
+<td>10, from 10 different 30% clusters</td>
+</tr>
+<tr class="odd">
+<td>Perturbation <span class="math inline">\(\rho\)</span> (GrpE share
+in its A sample)</td>
+<td>5%</td>
+</tr>
+<tr class="even">
+<td>Depth</td>
+<td><span class="math inline">\(2 \times 10^4\)</span></td>
+</tr>
+<tr class="odd">
+<td>Seed</td>
+<td><code>20261112</code> (proteins), <code>1</code> (counts)</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>treatment_cog &lt;- &quot;COG0576&quot;
+n_per_group &lt;- 10L
+n_background &lt;- 100L
+rho &lt;- 0.05
+depth &lt;- 2e4
+length_range &lt;- c(50L, 1000L)
+cog_dir &lt;- file.path(&quot;data&quot;, &quot;cog&quot;)
+out_dir &lt;- &quot;data_simulation&quot;
+dir.create(cog_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(out_dir, showWarnings = FALSE)</code></pre>
+<div id="source-ncbi-cog-2024" class="section level1">
+<h1>1. Source: NCBI COG 2024</h1>
+<p>The COG 2024 release <span class="citation">(<a
+href="#ref-galperin2025cog">Galperin et al. 2025</a>)</span>:
+protein-to-COG assignments, the protein sequences of its 2,296 genomes,
+COG names and functional categories. About 2.2 GB, downloaded once into
+<code>data/cog/</code> and checked against the release’s MD5 sums.</p>
+<pre class="r"><code>base &lt;- &quot;https://ftp.ncbi.nih.gov/pub/COG/COG2024/data/&quot;
+files &lt;- c(&quot;checksums.md5&quot;, &quot;cog-24.def.tab&quot;, &quot;cog-24.fun.tab&quot;, &quot;cog-24.cog.csv&quot;,
+    &quot;COGorg24.faa.gz&quot;)
+for (f in files) {
+    p &lt;- file.path(cog_dir, f)
+    if (!file.exists(p)) curl::curl_download(paste0(base, f), p)
+}
+md5 &lt;- read.table(file.path(cog_dir, &quot;checksums.md5&quot;), col.names = c(&quot;md5&quot;, &quot;file&quot;))
+md5 &lt;- md5[md5$file %in% files, ]
+stopifnot(identical(unname(tools::md5sum(file.path(cog_dir, md5$file))), md5$md5))</code></pre>
+</div>
+<div id="one-label-pool" class="section level1">
+<h1>2. One-label pool</h1>
+<p>A protein qualifies if it has exactly one COG, every assignment row
+for it is membership class 0 (the COG covers most of the protein and
+most of the COG profile, so the label is full-length), and it is 50-1000
+residues long.</p>
+<pre class="r"><code>a &lt;- read.csv(file.path(cog_dir, &quot;cog-24.cog.csv&quot;), header = FALSE,
+    colClasses = c(&quot;NULL&quot;, &quot;NULL&quot;, &quot;character&quot;, &quot;integer&quot;, &quot;NULL&quot;, &quot;NULL&quot;,
+        &quot;character&quot;, &quot;NULL&quot;, &quot;integer&quot;, rep(&quot;NULL&quot;, 4)))
+names(a) &lt;- c(&quot;protein&quot;, &quot;length&quot;, &quot;cog&quot;, &quot;class&quot;)
+pc &lt;- unique(a[c(&quot;protein&quot;, &quot;cog&quot;)])
+multi &lt;- unique(pc$protein[duplicated(pc$protein)])
+pool &lt;- unique(a[!a$protein %in% c(multi, a$protein[a$class != 0L]),
+    c(&quot;protein&quot;, &quot;length&quot;, &quot;cog&quot;)])
+pool &lt;- pool[pool$length &gt;= length_range[1] &amp; pool$length &lt;= length_range[2], ]
+rm(a, pc)
+c(proteins = nrow(pool), COGs = length(unique(pool$cog)),
+    GrpE = sum(pool$cog == treatment_cog))
+#&gt; proteins     COGs     GrpE 
+#&gt;  3906828     4952     1942</code></pre>
+</div>
+<div id="sequences" class="section level1">
+<h1>3. Sequences</h1>
+<p>All GrpE proteins, plus 300 random background candidates (slack for
+the filters below), are read from the release FASTA. Sequences must use
+the 20 standard residues; identical sequences keep the lowest protein
+id.</p>
+<pre class="r"><code>set.seed(20261112L)
+bg_cand &lt;- pool[pool$cog != treatment_cog, ]
+bg_cand &lt;- bg_cand[sample.int(nrow(bg_cand), 3L * n_background), ]
+cand &lt;- rbind(pool[pool$cog == treatment_cog, ], bg_cand)
+ids &lt;- tempfile(fileext = &quot;.txt&quot;)
+fa &lt;- tempfile(fileext = &quot;.fa&quot;)
+writeLines(cand$protein, ids)
+stopifnot(system(sprintf(paste(&quot;gzip -dc %s | awk &#39;NR==FNR {k[$1]; next}&quot;,
+    &quot;/^&gt;/ {p = (substr($1, 2) in k)} p&#39; %s - &gt; %s&quot;),
+    shQuote(file.path(cog_dir, &quot;COGorg24.faa.gz&quot;)), shQuote(ids), shQuote(fa))) == 0L)
+s &lt;- Biostrings::readAAStringSet(fa)
+keep &lt;- !duplicated(sub(&quot; .*&quot;, &quot;&quot;, names(s)))
+s &lt;- s[keep]
+hdr &lt;- names(s)
+names(s) &lt;- sub(&quot; .*&quot;, &quot;&quot;, hdr)
+cand$sequence &lt;- as.character(s)[cand$protein]
+cand$organism &lt;- sub(&quot;.*\\[(.*)\\]$&quot;, &quot;\\1&quot;, hdr[match(cand$protein, names(s))])
+cand &lt;- cand[!is.na(cand$sequence) &amp; grepl(&quot;^[ACDEFGHIKLMNPQRSTVWY]+$&quot;, cand$sequence), ]
+cand &lt;- cand[order(cand$protein), ]
+cand &lt;- cand[!duplicated(cand$sequence), ]
+table(role = ifelse(cand$cog == treatment_cog, &quot;GrpE&quot;, &quot;background candidate&quot;))
+#&gt; role
+#&gt; background candidate                 GrpE 
+#&gt;                  300                 1936</code></pre>
+</div>
+<div id="grpe-one-protein-from-each-of-10-different-30-clusters"
+class="section level1">
+<h1>4. GrpE: one protein from each of 10 different 30% clusters</h1>
+<p>Every qualifying GrpE protein is clustered with MMseqs2 at 30%
+identity and 80% coverage of both sequences (<code>-s 7.5</code>, the
+settings of the other simulations). Clusters are visited in random order
+and one random member is taken from each, but only if it has no
+alignment of <span class="math inline">\(\ge\)</span> 30% identity over
+70% of both proteins with a GrpE protein already taken. Greedy
+clustering depends on which sequences are present, so this pairwise rule
+is what keeps the 10 in 10 clusters when clustered with the background;
+the margin (70%, not 80%) is there because <code>easy-search</code> and
+<code>easy-cluster</code> align slightly differently (one pair at 48%
+identity covered 76-79% in the search but was clustered together).</p>
+<pre class="r"><code>mmseqs_cluster &lt;- function(seqs) {
+    tmp &lt;- tempfile(&quot;mm&quot;)
+    dir.create(tmp)
+    f &lt;- file.path(tmp, &quot;x.fasta&quot;)
+    Biostrings::writeXStringSet(Biostrings::AAStringSet(seqs), f)
+    stopifnot(system2(&quot;mmseqs&quot;, c(&quot;easy-cluster&quot;, f, file.path(tmp, &quot;c&quot;), file.path(tmp, &quot;w&quot;),
+        &quot;--min-seq-id&quot;, 0.3, &quot;-c&quot;, 0.8, &quot;--cov-mode&quot;, 0, &quot;--cluster-mode&quot;, 0, &quot;-s&quot;, 7.5),
+        stdout = FALSE, stderr = FALSE) == 0L)
+    m &lt;- read.delim(file.path(tmp, &quot;c_cluster.tsv&quot;), header = FALSE)
+    unlink(tmp, recursive = TRUE)
+    setNames(m$V1, m$V2)[names(seqs)]
+}
+mmseqs_search &lt;- function(seqs) {
+    tmp &lt;- tempfile(&quot;mm&quot;)
+    dir.create(tmp)
+    f &lt;- file.path(tmp, &quot;x.fasta&quot;)
+    Biostrings::writeXStringSet(Biostrings::AAStringSet(seqs), f)
+    stopifnot(system2(&quot;mmseqs&quot;, c(&quot;easy-search&quot;, f, f, file.path(tmp, &quot;h.m8&quot;),
+        file.path(tmp, &quot;w&quot;), &quot;-s&quot;, 7.5, &quot;-e&quot;, &quot;1e-3&quot;, &quot;--max-seqs&quot;, 10000,
+        &quot;--format-output&quot;, &quot;query,target,fident,qcov,tcov,evalue&quot;),
+        stdout = FALSE, stderr = FALSE) == 0L)
+    h &lt;- read.delim(file.path(tmp, &quot;h.m8&quot;), header = FALSE,
+        col.names = c(&quot;query&quot;, &quot;target&quot;, &quot;fident&quot;, &quot;qcov&quot;, &quot;tcov&quot;, &quot;evalue&quot;))
+    unlink(tmp, recursive = TRUE)
+    h[h$query != h$target, ]
+}
+grpe &lt;- cand[cand$cog == treatment_cog, ]
+grpe$c30 &lt;- mmseqs_cluster(setNames(grpe$sequence, grpe$protein))
+c(GrpE = nrow(grpe), clusters_30pct = length(unique(grpe$c30)))
+#&gt;           GrpE clusters_30pct 
+#&gt;           1936             95
+hits &lt;- mmseqs_search(setNames(grpe$sequence, grpe$protein))
+hits &lt;- hits[hits$fident &gt;= 0.3 &amp; hits$qcov &gt;= 0.7 &amp; hits$tcov &gt;= 0.7, ]
+close &lt;- c(paste(hits$query, hits$target), paste(hits$target, hits$query))
+set.seed(20261112L)
+taken &lt;- character()
+for (cl in sample(unique(grpe$c30))) {
+    m &lt;- grpe$protein[grpe$c30 == cl]
+    p &lt;- m[sample.int(length(m), 1L)]
+    if (!any(paste(p, taken) %in% close)) taken &lt;- c(taken, p)
+    if (length(taken) == n_per_group) break
+}
+stopifnot(length(taken) == n_per_group)
+treat &lt;- grpe[match(taken, grpe$protein), ]
+treat$c30 &lt;- NULL</code></pre>
+</div>
+<div id="background-100-random-proteins" class="section level1">
+<h1>5. Background: 100 random proteins</h1>
+<p>Background candidates with an MMseqs2 hit to any of the 10 GrpE
+proteins (E <span class="math inline">\(\le\)</span> 10<sup>-3</sup> and
+80% coverage of both) are dropped, so no background protein is a close
+homolog of the treatment; the first 100 remaining, in the random order
+of the draw, are kept.</p>
+<pre class="r"><code>bg &lt;- cand[cand$cog != treatment_cog, ]
+bg &lt;- bg[match(bg_cand$protein, bg$protein, nomatch = 0L), ]
+h &lt;- mmseqs_search(setNames(c(treat$sequence, bg$sequence), c(treat$protein, bg$protein)))
+h &lt;- h[h$qcov &gt;= 0.8 &amp; h$tcov &gt;= 0.8, ]
+leak &lt;- unique(c(h$query[h$target %in% treat$protein], h$target[h$query %in% treat$protein]))
+leak &lt;- intersect(leak, bg$protein)
+bg &lt;- head(bg[!bg$protein %in% leak, ], n_background)
+c(leak_removed = length(leak), background = nrow(bg), background_COGs = length(unique(bg$cog)))
+#&gt;    leak_removed      background background_COGs 
+#&gt;               0             100              99</code></pre>
+</div>
+<div id="check-the-110-proteins-at-30-identity" class="section level1">
+<h1>6. Check: the 110 proteins at 30% identity</h1>
+<p>Clustered together, the 10 GrpE proteins must still fall in 10
+different 30% clusters. The highest identity between any two of them
+(MMseqs2 local alignments, E <span class="math inline">\(\le\)</span>
+10<sup>-3</sup>) shows how remote they are.</p>
+<pre class="r"><code>treat$role &lt;- &quot;GrpE&quot;
+treat$enriched_in &lt;- sprintf(&quot;A%02d&quot;, seq_len(n_per_group))
+bg$role &lt;- &quot;background&quot;
+bg$enriched_in &lt;- NA_character_
+u &lt;- rbind(treat, bg)
+u$mmseqs30 &lt;- unname(mmseqs_cluster(setNames(u$sequence, u$protein)))
+stopifnot(!anyDuplicated(u$mmseqs30[u$role == &quot;GrpE&quot;]))
+hg &lt;- mmseqs_search(setNames(treat$sequence, treat$protein))
+c(GrpE_clusters = length(unique(u$mmseqs30[u$role == &quot;GrpE&quot;])),
+    universe_clusters = length(unique(u$mmseqs30)),
+    GrpE_pairs = choose(n_per_group, 2),
+    GrpE_pairs_with_hit = length(unique(paste(pmin(hg$query, hg$target),
+        pmax(hg$query, hg$target)))),
+    max_GrpE_identity = if (nrow(hg)) max(hg$fident) else NA)
+#&gt;       GrpE_clusters   universe_clusters          GrpE_pairs GrpE_pairs_with_hit 
+#&gt;              10.000             110.000              45.000              24.000 
+#&gt;   max_GrpE_identity 
+#&gt;               0.459</code></pre>
+</div>
+<div id="functional-labels-and-fasta" class="section level1">
+<h1>7. Functional labels and FASTA</h1>
+<pre class="r"><code>def &lt;- read.delim(file.path(cog_dir, &quot;cog-24.def.tab&quot;), header = FALSE, quote = &quot;&quot;,
+    fileEncoding = &quot;latin1&quot;, col.names = c(&quot;cog&quot;, &quot;category&quot;, &quot;name&quot;, &quot;gene&quot;,
+        &quot;pathway&quot;, &quot;pubmed&quot;, &quot;pdb&quot;))
+fun &lt;- read.delim(file.path(cog_dir, &quot;cog-24.fun.tab&quot;), header = FALSE, quote = &quot;&quot;,
+    col.names = c(&quot;category&quot;, &quot;group&quot;, &quot;color&quot;, &quot;description&quot;))
+d &lt;- def[match(u$cog, def$cog), ]
+labels &lt;- data.frame(protein = u$protein, role = u$role, enriched_in = u$enriched_in,
+    cog = u$cog, cog_name = d$name, gene = d$gene, category = d$category,
+    category_name = fun$description[match(substr(d$category, 1, 1), fun$category)],
+    length = nchar(u$sequence), organism = u$organism, mmseqs30 = u$mmseqs30)
+write.table(labels, file.path(out_dir, &quot;labels.tsv&quot;), sep = &quot;\t&quot;, quote = FALSE,
+    row.names = FALSE, na = &quot;&quot;)
+Biostrings::writeXStringSet(Biostrings::AAStringSet(setNames(u$sequence, u$protein)),
+    file.path(out_dir, &quot;proteins.fasta&quot;))
+knitr::kable(labels[labels$role == &quot;GrpE&quot;, c(&quot;protein&quot;, &quot;enriched_in&quot;, &quot;length&quot;,
+    &quot;organism&quot;, &quot;mmseqs30&quot;)], row.names = FALSE, caption = &quot;The 10 GrpE proteins&quot;)</code></pre>
+<table>
+<caption>The 10 GrpE proteins</caption>
+<colgroup>
+<col width="17%" />
+<col width="13%" />
+<col width="8%" />
+<col width="43%" />
+<col width="17%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">protein</th>
+<th align="left">enriched_in</th>
+<th align="right">length</th>
+<th align="left">organism</th>
+<th align="left">mmseqs30</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">UXE58635.1</td>
+<td align="left">A01</td>
+<td align="right">211</td>
+<td align="left">Woronichinia naegeliana WA131</td>
+<td align="left">UXE58635.1</td>
+</tr>
+<tr class="even">
+<td align="left">CDZ16608.1</td>
+<td align="left">A02</td>
+<td align="right">218</td>
+<td align="left">Candidatus Evansia muelleri</td>
+<td align="left">CDZ16608.1</td>
+</tr>
+<tr class="odd">
+<td align="left">WP_306719158.1</td>
+<td align="left">A03</td>
+<td align="right">219</td>
+<td align="left">Kineothrix sp. MB12-C1</td>
+<td align="left">WP_306719158.1</td>
+</tr>
+<tr class="even">
+<td align="left">WP_231158789.1</td>
+<td align="left">A04</td>
+<td align="right">186</td>
+<td align="left">Candidatus Gromoviella agglomerans</td>
+<td align="left">WP_231158789.1</td>
+</tr>
+<tr class="odd">
+<td align="left">WP_196817319.1</td>
+<td align="left">A05</td>
+<td align="right">217</td>
+<td align="left">Candidatus Nitrosocosmicus oleophilus</td>
+<td align="left">WP_196817319.1</td>
+</tr>
+<tr class="even">
+<td align="left">WP_103425579.1</td>
+<td align="left">A06</td>
+<td align="right">227</td>
+<td align="left">Salinigranum rubrum</td>
+<td align="left">WP_103425579.1</td>
+</tr>
+<tr class="odd">
+<td align="left">WP_210757851.1</td>
+<td align="left">A07</td>
+<td align="right">193</td>
+<td align="left">Croceimicrobium hydrocarbonivorans</td>
+<td align="left">WP_210757851.1</td>
+</tr>
+<tr class="even">
+<td align="left">QXD24127.1</td>
+<td align="left">A08</td>
+<td align="right">221</td>
+<td align="left">Opitutae bacterium ISCC 51</td>
+<td align="left">QXD24127.1</td>
+</tr>
+<tr class="odd">
+<td align="left">WP_015245349.1</td>
+<td align="left">A09</td>
+<td align="right">232</td>
+<td align="left">Singulisphaera acidiphila</td>
+<td align="left">WP_015245349.1</td>
+</tr>
+<tr class="even">
+<td align="left">WP_009958761.1</td>
+<td align="left">A10</td>
+<td align="right">248</td>
+<td align="left">Verrucomicrobium spinosum</td>
+<td align="left">WP_009958761.1</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>knitr::kable(head(sort(table(labels$category_name[labels$role == &quot;background&quot;]),
+    decreasing = TRUE), 10), col.names = c(&quot;COG category&quot;, &quot;background proteins&quot;))</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">COG category</th>
+<th align="right">background proteins</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Carbohydrate transport and metabolism</td>
+<td align="right">13</td>
+</tr>
+<tr class="even">
+<td align="left">Cell wall/membrane/envelope biogenesis</td>
+<td align="right">10</td>
+</tr>
+<tr class="odd">
+<td align="left">Inorganic ion transport and metabolism</td>
+<td align="right">10</td>
+</tr>
+<tr class="even">
+<td align="left">Amino acid transport and metabolism</td>
+<td align="right">9</td>
+</tr>
+<tr class="odd">
+<td align="left">Coenzyme transport and metabolism</td>
+<td align="right">7</td>
+</tr>
+<tr class="even">
+<td align="left">Lipid transport and metabolism</td>
+<td align="right">7</td>
+</tr>
+<tr class="odd">
+<td align="left">General function prediction only</td>
+<td align="right">6</td>
+</tr>
+<tr class="even">
+<td align="left">Translation, ribosomal structure and biogenesis</td>
+<td align="right">6</td>
+</tr>
+<tr class="odd">
+<td align="left">Transcription</td>
+<td align="right">5</td>
+</tr>
+<tr class="even">
+<td align="left">Energy production and conversion</td>
+<td align="right">4</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="count-table" class="section level1">
+<h1>8. Count table</h1>
+<p>A negative-binomial model, as in the other simulations. Background
+abundances <span class="math inline">\(\pi\)</span> are log-normal and
+shared by all samples; sample <span class="math inline">\(i\)</span> has
+size factor <span class="math inline">\(s_i \sim \mathrm{LogNormal}(0,
+0.25)\)</span> and protein <span class="math inline">\(j\)</span> has
+dispersion <span class="math inline">\(\phi_{ij} = (0.1 + 1/\mu_{ij})\,
+e_j\)</span>, <span class="math inline">\(e_j \sim
+\mathrm{LogNormal}(0, 0.5)\)</span>. Group-A sample <span
+class="math inline">\(i\)</span> puts a share <span
+class="math inline">\(\rho = 5\%\)</span> of its abundance on its own
+GrpE protein and <span class="math inline">\(1 - \rho\)</span> on the
+background; group B and every other GrpE protein get 0. The counts are
+drawn with seed 1.</p>
+<pre class="r"><code>samples &lt;- data.frame(sample = c(sprintf(&quot;A%02d&quot;, seq_len(n_per_group)),
+    sprintf(&quot;B%02d&quot;, seq_len(n_per_group))), group = rep(c(&quot;A&quot;, &quot;B&quot;), each = n_per_group))
+samples$grpe_protein &lt;- treat$protein[match(samples$sample, treat$enriched_in)]
+write.table(samples, file.path(out_dir, &quot;samples.tsv&quot;), sep = &quot;\t&quot;, quote = FALSE,
+    row.names = FALSE, na = &quot;&quot;)
+set.seed(20261112L)
+pi &lt;- setNames(rlnorm(nrow(bg)), bg$protein)
+pi &lt;- pi / sum(pi)
+s &lt;- rlnorm(nrow(samples), 0, 0.25)
+e &lt;- setNames(rlnorm(nrow(u), 0, 0.5), u$protein)
+p &lt;- matrix(0, nrow(samples), nrow(u), dimnames = list(samples$sample, u$protein))
+p[, bg$protein] &lt;- matrix(pi, nrow(samples), nrow(bg), byrow = TRUE)
+a &lt;- samples$group == &quot;A&quot;
+p[a, ] &lt;- (1 - rho) * p[a, ]
+p[cbind(which(a), match(samples$grpe_protein[a], u$protein))] &lt;- rho
+mu &lt;- s * depth * p
+phi &lt;- (0.1 + 1 / mu) * rep(e, each = nrow(samples))
+set.seed(1)
+counts &lt;- matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), nrow(mu),
+    dimnames = dimnames(mu))
+counts[mu == 0] &lt;- 0L # rnbinom gives NaN at mu = 0, size = 0
+storage.mode(counts) &lt;- &quot;integer&quot;
+write.table(data.frame(sample = rownames(counts), counts, check.names = FALSE),
+    file.path(out_dir, &quot;counts.tsv&quot;), sep = &quot;\t&quot;, quote = FALSE, row.names = FALSE)
+share &lt;- rowSums(counts[a, treat$protein]) / rowSums(counts[a, ])
+c(median_depth = median(rowSums(counts)), GrpE_share_in_A_median = median(share),
+    GrpE_share_in_A_min = min(share), GrpE_share_in_A_max = max(share),
+    GrpE_counts_in_B = sum(counts[!a, treat$protein]))
+#&gt;           median_depth GrpE_share_in_A_median    GrpE_share_in_A_min 
+#&gt;           1.897500e+04           4.743455e-02           3.626943e-02 
+#&gt;    GrpE_share_in_A_max       GrpE_counts_in_B 
+#&gt;           6.930146e-02           0.000000e+00</code></pre>
+</div>
+<div id="output-files" class="section level1">
+<h1>Output files</h1>
+<pre class="r"><code>f &lt;- list.files(out_dir, full.names = TRUE)
+data.frame(file = f, bytes = file.size(f))</code></pre>
+<div class="kable-table">
+<table>
+<thead>
+<tr class="header">
+<th align="left">file</th>
+<th align="right">bytes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">data_simulation/counts.tsv</td>
+<td align="right">9095</td>
+</tr>
+<tr class="even">
+<td align="left">data_simulation/labels.tsv</td>
+<td align="right">19597</td>
+</tr>
+<tr class="odd">
+<td align="left">data_simulation/proteins.fasta</td>
+<td align="right">34740</td>
+</tr>
+<tr class="even">
+<td align="left">data_simulation/samples.tsv</td>
+<td align="right">294</td>
+</tr>
+</tbody>
+</table>
+</div>
+<table>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>File</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>proteins.fasta</code></td>
+<td>the 110 proteins</td>
+</tr>
+<tr class="even">
+<td><code>labels.tsv</code></td>
+<td>protein, role (GrpE or background), the A sample it is spiked into,
+COG id, name, gene, functional category, length, organism, MMseqs2 30%
+cluster</td>
+</tr>
+<tr class="odd">
+<td><code>samples.tsv</code></td>
+<td>sample, group, its GrpE protein</td>
+</tr>
+<tr class="even">
+<td><code>counts.tsv</code></td>
+<td>counts, samples × proteins</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>sessionInfo()
+#&gt; R version 4.5.2 (2025-10-31)
+#&gt; Platform: aarch64-apple-darwin20
+#&gt; Running under: macOS 27.0.1
+#&gt; 
+#&gt; Matrix products: default
+#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+#&gt; 
+#&gt; locale:
+#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt; 
+#&gt; time zone: America/New_York
+#&gt; tzcode source: internal
+#&gt; 
+#&gt; attached base packages:
+#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
+#&gt; 
+#&gt; loaded via a namespace (and not attached):
+#&gt;  [1] crayon_1.5.3        cli_3.6.6           knitr_1.51         
+#&gt;  [4] rlang_1.3.0         xfun_0.58           otel_0.2.0         
+#&gt;  [7] generics_0.1.4      jsonlite_2.0.0      S4Vectors_0.48.1   
+#&gt; [10] Biostrings_2.78.0   htmltools_0.5.9     sass_0.4.10        
+#&gt; [13] stats4_4.5.2        rmarkdown_2.31      Seqinfo_1.0.0      
+#&gt; [16] evaluate_1.0.5      jquerylib_0.1.4     fontawesome_0.5.3  
+#&gt; [19] fastmap_1.2.0       yaml_2.3.12         IRanges_2.44.0     
+#&gt; [22] lifecycle_1.0.5     compiler_4.5.2      XVector_0.50.0     
+#&gt; [25] digest_0.6.39       R6_2.6.1            bslib_0.11.0       
+#&gt; [28] tools_4.5.2         BiocGenerics_0.56.0 cachem_1.1.0</code></pre>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-galperin2025cog" class="csl-entry">
+Galperin, Michael Y., Roberto Vera Alvarez, Svetlana Karamycheva, et al.
+2025. <span>“<span>COG</span> Database Update 2024.”</span> <em>Nucleic
+Acids Research</em> 53 (D1): D356–63. <a
+href="https://doi.org/10.1093/nar/gkae983">https://doi.org/10.1093/nar/gkae983</a>.
+</div>
+<div id="ref-steinegger2017mmseqs2" class="csl-entry">
+Steinegger, Martin, and Johannes Söding. 2017.
+<span>“<span>MMseqs2</span> Enables Sensitive Protein Sequence Searching
+for the Analysis of Massive Data Sets.”</span> <em>Nature
+Biotechnology</em> 35 (11): 1026–28. <a
+href="https://doi.org/10.1038/nbt.3988">https://doi.org/10.1038/nbt.3988</a>.
+</div>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

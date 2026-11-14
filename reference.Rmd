@@ -44,9 +44,10 @@ library(repdist)
 library(ggplot2)
 ```
 
-The executable examples use the three largest enzyme classes (EC3) of the
-[Simulation 2](simulation_ec.html) universe: experimentally characterised
-Swiss-Prot enzymes whose embeddings were computed with `embed_proteins()`.
+The executable examples use the three largest enzyme classes (EC3) of an
+enzyme universe built for an earlier simulation: experimentally
+characterised Swiss-Prot enzymes whose embeddings were computed with
+`embed_proteins()`.
 
 **Data.** The input file is [`curated/simulation_universe.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds) (7.3 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch, built by `data-raw/simulation_universe.R`. To run the code on this page, save it in a `curated/` folder next to your working directory.
 

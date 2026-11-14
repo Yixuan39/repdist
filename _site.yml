@@ -12,14 +12,8 @@ navbar:
       href: reference.html
     - text: "Case study"
       href: case_study.html
-    - text: "Simulations"
-      menu:
-        - text: "One function, remote homologs (COG)"
-          href: simulation_kofam.html
-        - text: "MMD, OT and UniFrac"
-          href: simulation_distances.html
-        - text: "MCL parameters"
-          href: parameters.html
+    - text: "Simulated data"
+      href: data_simulation.html
   right:
     - icon: fa-github fa-lg
       href: https://github.com/Yixuan39/repdist

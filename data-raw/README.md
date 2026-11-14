@@ -1,66 +1,25 @@
 # Curated inputs for the site
 
-The analysis pages read curated objects in `curated/`. Each is rebuilt by one
-script here, run from the branch root with the current `repdist` installed.
-Most source scripts compute protein embeddings from the sequences with
-`embed_proteins(model = "tmvec")` (see `known_models()`); the MMseqs2 script
-clusters the simulation universe's sequences. The pages then compute every
-result from these objects at render time. Nothing else is cached.
+The reference and case-study pages read curated objects in `curated/`. Each
+is rebuilt by one script here, run from the branch root with the current
+`repdist` installed; both compute protein embeddings with
+`embed_proteins(model = "tmvec")` (see `known_models()`). The pages compute
+every result from these objects at render time. The vignette's dataset is
+built by `data_simulation.Rmd` at the branch root instead.
 
 | Object | Script | Used by |
 | --- | --- | --- |
-| `curated/simulation_kofam.rds` | `simulation_kofam.R` | `simulation_kofam.Rmd` |
-| `curated/simulation_universe.rds` | `simulation_universe.R` | `reference.Rmd`, `simulation_ec.Rmd`, `simulation_distances.Rmd`, `parameters.Rmd` |
-| `curated/simulation_mmseqs2.rds` | `simulation_mmseqs2.R` | `simulation_ec.Rmd`, `simulation_distances.Rmd` |
-| `curated/simulation_funfam.rds` | `simulation_funfam.R` | `simulation_funfam.Rmd`, `simulation_distances.Rmd` |
+| `curated/simulation_universe.rds` | `simulation_universe.R` | `reference.Rmd` |
 | `curated/diet_series.rds` | `diet_series.R` | `case_study.Rmd` |
 
-`simulation_ec.Rmd` and `simulation_funfam.Rmd` (Simulations 1-2) are no
-longer linked from the site navigation (see `simulation.Rmd`); their scripts
-and curated objects are kept, unchanged, for `simulation_distances.Rmd` and
-for reference.
-
 ```sh
-KOFAM_COG=COGxxxx Rscript data-raw/simulation_kofam.R
 Rscript data-raw/simulation_universe.R
-Rscript data-raw/simulation_mmseqs2.R
-Rscript data-raw/simulation_funfam.R
 Rscript data-raw/diet_series.R
-Rscript -e 'rmarkdown::render_site()'
 ```
 
 Embeddings are stored rounded to six decimal places (cosine error below
 1e-5). Each object carries a `provenance` list with the source, the filtering
 counts, the model specification and the R session that built it.
-
-## `simulation_kofam.rds`
-
-Source: NCBI COG 2024 release (<https://ftp.ncbi.nih.gov/pub/COG/COG2024/data/>:
-`cog-24.cog.csv`, `COGorg24.faa.gz`, `cog-24.def.tab`, md5-checked against
-`checksums.md5`), ~2.2 GB downloaded once into `data/cog/` (untracked). Needs
-MMseqs2, gzip and awk. Design: `KOFAM_SIM_PLAN.md`.
-
-| Step | Rule |
-| --- | --- |
-| Pool | exactly one COG per protein, every row membership class 0, 50-1000 aa |
-| Sequences | standard residues, lowest protein id per unique sequence |
-| Treatment | `KOFAM_COG`, seeded draw of 300 |
-| Background | shuffled COGs with >= 60 members, 20 proteins each |
-| Leakage | drop background with an MMseqs2 hit to treatment (E <= 1e-3, 80% coverage of both) |
-| Cap | whole background COGs up to 3000 proteins |
-| Embedding | `tmvec`, length-sorted |
-| Graph | `protein_similarity(n_cores = 1)` (E <= 0.01, cosine weights) |
-
-Fields: `proteins` (AAStringSet with embeddings), `annotation` (protein,
-length, COG, role, MMseqs2 30% cluster, COG name), `similarity` (upper-triangle
-edges i, j, s of the graph), `mmseqs` (best hit per pair with `cov80` and
-`id30_cov80` flags over both directions; commands, version), `design`,
-`steps`, `provenance`.
-
-```sh
-KOFAM_COG=COGxxxx Rscript data-raw/simulation_kofam.R
-KOFAM_SMOKE=1 KOFAM_COG=COGxxxx Rscript data-raw/simulation_kofam.R  # 60 proteins, random embeddings
-```
 
 ## `simulation_universe.rds`
 
@@ -82,47 +41,6 @@ Source: UniProtKB/Swiss-Prot through the REST API
 Fields: `proteins` (AAStringSet with `mcols(proteins)$embedding`),
 `annotation` (accession, EC4, EC3, name, organism, taxon id, superkingdom,
 length, UniRef50 cluster), `provenance`.
-
-## `simulation_mmseqs2.rds`
-
-Source: the sequences of `simulation_universe.rds`, with MMseqs2 (version
-recorded in `provenance$mmseqs_version`) on the `PATH`. Rerun it whenever
-`simulation_universe.rds` changes; `provenance$universe_md5` records the file
-it was computed from, and `simulation_ec.Rmd` stops if they differ.
-
-1. `mmseqs easy-cluster` at 50% identity (primary) and at 30% (sensitivity),
-   both with 80% coverage of query and target (`-c 0.8 --cov-mode 0`),
-   greedy set cover (`--cluster-mode 0`) and `-s 7.5`.
-2. `mmseqs easy-search` all against all (`-s 7.5 -e 1e-3 --max-seqs
-   10000`), keeping the best hit per unordered pair.
-
-Fields: `clusters` (accession, `mmseqs50` and `mmseqs30` cluster
-representatives), `hits` (p1, p2, fident, alnlen, qcov, tcov, evalue),
-`provenance` (the exact commands, cluster counts, universe MD5, session).
-
-## `simulation_funfam.rds`
-
-Source: CATH v4.3 [FunFam](https://www.cathdb.info) seed alignments (CC BY
-4.0), through `https://www.cathdb.info/version/v4_3_0`; downloads are kept in
-`data/cath_v4_3/`. Needs MMseqs2 on the `PATH`.
-
-1. Take the 300 superfamilies with the most S35 representatives
-   (`cath-superfamily-list-v4_3_0.txt`).
-2. In each, take the FunFam with the most members among those whose seed
-   alignment has DOPS >= 70 (`api/rest/superfamily/<sf>/funfam`).
-3. Read its Stockholm seed alignment; an ungapped row is the domain
-   sequence. Keep Bacteria and Archaea, 50-1000 residues, the 20 standard
-   residues, unique sequences.
-4. Cluster all domains with `mmseqs easy-cluster --min-seq-id 0.5 -c 0.8
-   --cov-mode 0 --cluster-mode 0 -s 7.5`; drop clusters spanning two
-   FunFams and keep the lowest domain id per cluster, then one domain per
-   UniProt accession.
-5. Keep at most 100 domains per FunFam (seeded draw); embed with `tmvec`.
-
-Fields: `proteins` (AAStringSet with embeddings), `annotation` (domain,
-family, UniProt accession, kingdom, organism, length, 50% cluster, FunFam
-name), `families` (superfamily, FunFam number, name, members, DOPS, domains
-before and after the cap), `provenance`.
 
 ## `diet_series.rds`
 
