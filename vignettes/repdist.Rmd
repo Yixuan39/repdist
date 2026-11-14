@@ -1,12 +1,12 @@
 ---
-title: "Structure-aware beta diversity with repdist"
+title: "Structure-aware beta diversity and protein bins with repdist"
 author: "Yixuan Yang"
 package: repdist
 output:
   BiocStyle::html_document:
     toc_float: true
 vignette: >
-  %\VignetteIndexEntry{Structure-aware beta diversity with repdist}
+  %\VignetteIndexEntry{Structure-aware beta diversity and protein bins with repdist}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -20,27 +20,41 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-Bray-Curtis and its relatives compare metaproteomes by accession: two
-different proteins count as unrelated even when they share fold and function.
-`repdist` compares them in the representation space of a protein language
-model, by default TM-Vec, where the cosine similarity of two proteins is their
-predicted TM-score. This vignette covers its beta-diversity side:
+Metaproteomes are usually compared by accession: Bray-Curtis, or a test per
+protein, treats two different proteins as unrelated even when they share fold
+and function. Proteins of one function in different organisms are often too
+far apart in sequence for a sequence clustering to join them. `repdist`
+compares proteins by their embeddings from a protein language model, by
+default TM-Vec, where the cosine similarity of two proteins is their
+predicted TM-score. On that representation it
 
-- **Compare samples.** `sample_mmd()` gives a sample-by-sample distance, the
-    maximum mean discrepancy (MMD), for PERMANOVA and ordination.
+- measures **beta diversity**: `sample_mmd()` gives a sample-by-sample
+    distance, the maximum mean discrepancy (MMD) between the samples'
+    abundance-weighted distributions over the embeddings;
+- **bins proteins**: `protein_similarity()` and `bin_proteins()` group
+    structurally similar proteins by Markov clustering;
+- feeds **differential abundance**: `bin_glom()` sums counts within bins.
 
-Protein-level clustering and differential abundance
-(`protein_similarity()`, `bin_proteins()`, `bin_glom()`) have their own
-[clustering vignette](clustering.html), `vignette("clustering")`.
+The goal is to see a change in what the proteins do, not only in which
+accessions are present.
 
-This vignette runs the workflow on simulated data with a known answer; the
-[inputs](#inputs) section shows the files you would start from instead. The
-[simulation page](https://yixuan39.github.io/repdist/simulation.html)
-benchmarks it over many such contrasts, and the
-[case study](https://yixuan39.github.io/repdist/case_study.html) applies it to
-a real metaproteome.
+## The simulated data
 
-# Installation
+`simulate_cog` is built from the NCBI COG 2024 release (Galperin et al. 2025)
+so that the answer is known:
+
+| | |
+| --- | --- |
+| Samples | 20: 10 in group A, 10 in group B |
+| Background | 100 proteins from other COGs, in every sample |
+| Treatment | 10 GrpE proteins (COG0576), one per group-A sample |
+| Remote homology | the 10 GrpE proteins fall in 10 different MMseqs2 30%-identity clusters |
+| Perturbation | 5% of each group-A sample's abundance on its GrpE protein |
+| Counts | negative binomial, depth 20,000 |
+
+Group A is enriched for one function, GrpE, but no protein and no sequence
+family is enriched in more than one sample. `?simulate_cog` gives the
+details, and `inst/scripts/make_simulate_cog.R` how it was built.
 
 ```{r install, eval = FALSE}
 if (!requireNamespace("BiocManager", quietly = TRUE)) {
@@ -54,209 +68,164 @@ BiocManager::install("repdist", dependencies = TRUE)
 library(repdist)
 library(vegan)
 library(ggplot2)
+data(simulate_cog, package = "repdist")
+samples <- simulate_cog$samples
+annotation <- simulate_cog$annotation
 ```
 
-# Data
+# Protein embeddings
 
-## The experiment
+Everything starts from a FASTA file of the proteins identified in the
+samples. `embed_proteins()` reads it and returns an `AAStringSet` with one
+embedding per protein in `mcols(proteins)$embedding`. Its first call
+downloads the model (up to a few GB), so it does not run here;
+`simulate_cog` ships the result. Once the model is downloaded, the 110
+proteins take about 40 seconds on a laptop with an Apple M-series GPU. `known_models()` lists the models,
+`read_fasta()` reads and checks a FASTA file, and `read_embeddings()` reads
+embeddings that the `tmvec` command-line tool already made.
 
-Picture two groups of ten microbial community metaproteomes. Every sample
-holds the same thousand-odd background enzymes at similar abundances; the
-groups differ in one extra function. Each sample of group A carries a little
-more nucleotidyltransferase activity (EC 2.7.7), each sample of group B a
-little more aminoacyltransferase activity (EC 2.3.2), and every sample gets
-that extra activity from different enzymes of the class, unrelated in
-sequence. So the groups differ in what their proteins do, not in which
-proteins they hold. A distance that compares accessions, like Bray-Curtis,
-cannot see that; a distance that knows two enzymes of one class look alike
-should.
-
-`simulate_ec` builds this from 1,160 bacterial and archaeal Swiss-Prot
-enzymes with experimentally supported EC numbers: every enzyme of the two
-classes, plus 1,000 other enzymes as background. Every enzyme has a positive
-expected abundance in all 20 samples, and in each sample 5% of the abundance
-goes to two extra enzymes of its group's class, with negative-binomial counts
-drawn around that. No two of these 40 enriched enzymes share a 50%-identity
-sequence cluster. `?simulate_ec` and the
-[data provenance](https://github.com/Yixuan39/repdist/blob/main/inst/scripts/DATA_PROVENANCE.md)
-give the details.
-
-## Inputs
-
-`repdist` needs three inputs, each usually a file:
-
-- **Protein sequences**: a FASTA file, one record per protein, the protein
-    ID first in the header. `embed_proteins()` reads it and adds the
-    embeddings; `read_embeddings()` reads embeddings the `tmvec`
-    command-line tool already made.
-- **Counts**: a tab-separated table, samples in rows, sample IDs in the
-    first column and protein IDs as column names; PSM or spectral counts.
-- **Sample metadata**: a tab-separated table, one row per sample, a
-    `sample` column plus the variables to test.
-
-`inst/extdata` ships one of each, 100 proteins of a mouse gut metaproteome
-(Blakeley-Ruiz et al. 2025) in 23 samples on two diets, along with the
-proteins' embeddings as the `tmvec` command-line tool writes them:
-
-```{r files}
-ex <- function(f) system.file("extdata", f, package = "repdist")
-readLines(ex("metaproteomics.fasta"), n = 2)
-read.delim(ex("metaproteomics_counts.tsv"), row.names = 1,
-    check.names = FALSE)[1:3, 1:3]
-head(read.delim(ex("metaproteomics_samples.tsv")), 3)
+```{r embed, eval = FALSE}
+fasta <- system.file("extdata", "simulate_cog.fasta", package = "repdist")
+proteins <- embed_proteins(fasta) # model = "tmvec"
 ```
-
-The rest of this vignette takes the same three inputs from `simulate_ec`.
-Each step below runs on it; its commented-out lines show the same step on
-files of your own.
-
-## Protein sequences and embeddings
-
-`sample_mmd()` compares proteins by their embeddings, one vector per protein
-from the protein language model. `embed_proteins()` computes them from a
-FASTA file; it does not run in this vignette, because its first call
-downloads the model (up to a few GB). `simulate_ec` ships its embeddings
-precomputed.
 
 ```{r proteins}
-data(simulate_ec, package = "repdist")
-proteins <- simulate_ec$proteins
-# proteins <- embed_proteins("path/on/your/proteins.fasta")
-# or, embeddings from the tmvec command-line tool:
-# proteins <- read_embeddings("path/on/your/db.npz",
-#     "path/on/your/proteins.fasta")
+proteins <- simulate_cog$proteins
 proteins
 dim(S4Vectors::mcols(proteins)$embedding)
 ```
 
-`proteins` is an `AAStringSet` of the sequences. `names(proteins)` are the
-protein IDs, which must match the count table's column names, and
-`mcols(proteins)$embedding` is the embedding matrix, one unit-norm row per
-protein.
+The names of `proteins` must match the column names of the count table.
 
-## Counts
+# Beta diversity
 
-```{r counts}
-counts <- simulate_ec$counts
-# counts <- as.matrix(read.delim("path/on/your/counts.tsv", row.names = 1,
-#     check.names = FALSE))
-counts[1:3, 1:4]
-```
+The count table has samples in rows and proteins in columns. `sample_mmd()`
+and Bray-Curtis both compare relative abundances.
 
-`counts` is a samples-by-proteins matrix of PSM-like counts.
-
-## Sample metadata
-
-```{r samples}
-samples <- simulate_ec$samples
-# samples <- read.delim("path/on/your/samples.tsv")
-head(samples, 3)
-```
-
-`samples` has one row per sample, in the order of `rownames(counts)`. `group`
-is what the test below compares; `enriched_ec3` is the class the sample was
-enriched for.
-
-## Annotation
-
-```{r annotation}
-annotation <- simulate_ec$annotation
-head(annotation[, c("protein", "ec3", "mmseqs30", "enriched_in")], 3)
-```
-
-`annotation` has one row per protein: its name, organism and length, EC
-labels (`ec3`, `ec4`), MMseqs2 sequence clusters at 50% and 30% identity
-(`mmseqs50`, `mmseqs30`), and `enriched_in`, the sample an enriched enzyme
-was added to (`NA` for background). It is the simulation's ground truth:
-below, only the Bray-Curtis baseline reads it, for `mmseqs30`. `repdist`
-itself never needs an annotation.
-
-# Relative abundance
-
-`sample_mmd()` and Bray-Curtis both compare relative abundances. Bray-Curtis
-also gets a sequence-cluster version: counts summed within MMseqs2 clusters
-at 30% identity (`annotation$mmseqs30`), its analogue of a repdist protein
-bin.
-
-```{r relabund}
+```{r distances}
+counts <- simulate_cog$counts
 relative <- counts / rowSums(counts)
-mmseqs30 <- t(rowsum(t(relative), annotation[colnames(relative), "mmseqs30"]))
+D <- list(MMD = sample_mmd(relative, proteins),
+    `Bray-Curtis` = vegdist(relative, "bray"))
 ```
 
-# Distance
-
-`sample_mmd()` compares the samples' abundance-weighted distributions over
-the embeddings.
-
-```{r distance}
-D <- list(
-    MMD = sample_mmd(relative, proteins),
-    `Bray-Curtis, MMseqs2 30%` = vegdist(mmseqs30, "bray"),
-    `Bray-Curtis, protein` = vegdist(relative, "bray")
-)
-```
-
-# PERMANOVA
-
-`adonis2()` tests whether the groups differ under each distance.
+PERMANOVA (`adonis2()`, 999 permutations) tests whether the groups differ.
 
 ```{r permanova}
-perm <- t(vapply(D, function(Dk) {
-    set.seed(1)
-    a <- adonis2(Dk ~ group, data = samples, permutations = 999)
-    c(R2 = a$R2[1], p = a$`Pr(>F)`[1])
-}, numeric(2)))
-round(perm, 3)
+set.seed(1)
+mmd <- adonis2(D$MMD ~ group, data = samples)
+set.seed(1)
+bc <- adonis2(D$`Bray-Curtis` ~ group, data = samples)
+knitr::kable(data.frame(distance = names(D), R2 = c(mmd$R2[1], bc$R2[1]),
+    p = c(mmd$`Pr(>F)`[1], bc$`Pr(>F)`[1])), digits = 3)
 ```
 
-# PCoA
-
-`cmdscale()` draws each distance's principal coordinates; ellipses are 95%
-data ellipses per group.
+Principal coordinates (`cmdscale()`); each group's outermost samples are
+joined by a line (its convex hull).
 
 ```{r pcoa}
-#| fig.width: 9
+#| fig.width: 8
 #| fig.height: 3.8
-#| fig.alt: "PCoA of MMD and two Bray-Curtis distances, 95% group ellipses"
+#| fig.alt: "PCoA of the samples under MMD and Bray-Curtis, group convex hulls"
 pcoa <- do.call(rbind, lapply(names(D), function(k) {
-    pc <- cmdscale(D[[k]], k = 2, eig = TRUE)
-    pct <- round(100 * pc$eig[1:2] / sum(pc$eig[pc$eig > 0]))
-    data.frame(samples, PCo1 = pc$points[, 1], PCo2 = pc$points[, 2],
-        distance = sprintf("%s\nPCo1 %d%%, PCo2 %d%%", k, pct[1], pct[2]))
+    data.frame(samples, cmdscale(D[[k]], k = 2), distance = k)
 }))
-pcoa$distance <- factor(pcoa$distance, unique(pcoa$distance))
-ggplot(pcoa, aes(PCo1, PCo2, colour = group)) +
+pcoa$distance <- factor(pcoa$distance, names(D))
+hull <- do.call(rbind, lapply(split(pcoa, ~ distance + group), function(d) {
+    d[chull(d$X1, d$X2), ]
+}))
+ggplot(pcoa, aes(X1, X2, colour = group)) +
     geom_point(size = 2) +
-    stat_ellipse(level = 0.95) + # 95% data ellipse per group
+    geom_polygon(data = hull, fill = NA) +
     facet_wrap(~distance, scales = "free") +
+    labs(x = "PCo1", y = "PCo2") +
     theme_bw()
 ```
 
-MMD separates the groups and Bray-Curtis does not, on proteins or on sequence
-clusters: no enriched protein is shared, and the 40 enriched enzymes fall in 37
-different 30% clusters, so to Bray-Curtis every enrichment looks like noise.
-MMD credits enzymes of one class for being close in the embedding space.
+MMD separates the groups and Bray-Curtis does not. Bray-Curtis compares
+accessions, and each GrpE protein is in one sample only, so to it the
+enrichment is noise; MMD credits the ten GrpE proteins for being close in
+the embedding space.
+
+# Protein bins and differential abundance
+
+`protein_similarity()` joins two proteins when their alignment has an
+E-value of at most 0.01, weighting the edge by their predicted TM-score.
+`bin_proteins()` splits that graph by Markov clustering and returns each
+protein's bin (`membership`), the proteins of each bin (`clusters`) and
+each bin's medoid (`representatives`).
+
+```{r bins}
+S <- protein_similarity(proteins) # aligns every pair: quadratic in proteins
+bins <- bin_proteins(S)
+table(size = lengths(bins$clusters))
+```
+
+The GrpE labels were not used to build the bins, so they can score them:
+coherence is the share of the GrpE proteins in the bin that holds most of
+them, and purity the share of that bin's proteins that are GrpE.
+
+```{r scores}
+grpe <- annotation$protein[annotation$role == "GrpE"]
+grpe_bin <- names(which.max(table(bins$membership[grpe])))
+c(coherence = mean(bins$membership[grpe] == grpe_bin),
+    purity = mean(bins$clusters[[grpe_bin]] %in% grpe))
+```
+
+`bin_glom()` sums the counts within each bin. Any differential abundance
+method can take the bin table; here a linear model per bin on the centred
+log-ratio (CLR) of the counts, with a pseudo count of 1, and
+Benjamini-Hochberg adjustment. LFC is the log2 fold change of group A over
+group B. Bins with p < 0.05:
+
+```{r da}
+bin_counts <- bin_glom(counts, bins) # samples x bins
+clr <- log2(bin_counts + 1)
+clr <- clr - rowMeans(clr)
+group <- factor(samples$group, c("B", "A"))
+fit <- t(apply(clr, 2, function(y) {
+    summary(lm(y ~ group))$coefficients["groupA", c("Estimate", "Pr(>|t|)")]
+}))
+res <- data.frame(bin = rownames(fit), LFC = fit[, 1], p = fit[, 2],
+    q = p.adjust(fit[, 2], "BH"))
+res <- res[res$p < 0.05, ]
+knitr::kable(transform(res, LFC = round(LFC, 2),
+    p = formatC(p, format = "g", digits = 2), q = formatC(q, format = "g", digits = 2)),
+    row.names = FALSE)
+```
+
+The GrpE bin, `r grpe_bin`, stands out, although each GrpE protein is
+abundant in one sample only.
 
 # Notes
 
-`sample_mmd()` holds a protein-by-protein kernel matrix, so on real data use
-the proteins identified in your samples, never a whole search database:
-20,000 proteins take about 3 GB. The
-[clustering vignette](clustering.html) covers protein-level clustering and
-differential abundance, built on the same embeddings.
+`protein_similarity()` aligns every pair and `sample_mmd()` holds a
+protein-by-protein kernel, so on real data use the proteins identified in
+your samples, never a whole search database: 20,000 proteins take about 3 GB.
+`protein_similarity()` parallelises with `n_cores`. Structural similarity
+does not guarantee shared function: the GrpE bin also holds a DnaK protein,
+GrpE's HSP-70 partner.
 
 # References
 
-- Blakeley-Ruiz et al. (2025). Dietary protein source alters gut microbiota
-    composition and function. <https://doi.org/10.1093/ismejo/wraf048>.
+- Aitchison (1982). The statistical analysis of compositional data.
+    <https://doi.org/10.1111/j.2517-6161.1982.tb01195.x>.
 - Anderson (2001). A new method for non-parametric multivariate analysis of
     variance. <https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x>.
+- Galperin et al. (2025). COG database update 2024.
+    <https://doi.org/10.1093/nar/gkae983>.
 - Gretton et al. (2012). A Kernel Two-Sample Test.
     <https://jmlr.org/papers/v13/gretton12a.html>.
 - Hamamsy et al. (2024). Protein remote homology detection and structural
     alignment using deep learning. <https://doi.org/10.1038/s41587-023-01917-2>.
-- The UniProt Consortium (2025). UniProt: the Universal Protein Knowledgebase
-    in 2025. <https://doi.org/10.1093/nar/gkae1010>.
+- Karlin and Altschul (1990). Methods for assessing the statistical
+    significance of molecular sequence features by using general scoring
+    schemes. <https://doi.org/10.1073/pnas.87.6.2264>.
+- Steinegger and Söding (2017). MMseqs2 enables sensitive protein sequence
+    searching for the analysis of massive data sets.
+    <https://doi.org/10.1038/nbt.3988>.
+- van Dongen (2000). Graph clustering by flow simulation. PhD thesis,
+    University of Utrecht.
 
 # Session information
 

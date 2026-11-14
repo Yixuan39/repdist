@@ -48,11 +48,23 @@ are rounded to 4 decimals. Seeds, design, source checksum and commands are in
 `simulate_ec$provenance`. The website's simulated data page describes each
 step.
 
-## simulate_ec_similarity.rds
+## data/simulate_cog.rda and simulate_cog.fasta
 
-`protein_similarity(simulate_ec$proteins)`, as a sparse `Matrix`, for the
-clustering vignette: all-pairs alignment of the 1,160 proteins takes about
-20 minutes on one core, so this ships the result instead of recomputing it on
-every vignette build. The gate is deterministic regardless of `n_cores` (see
-`tests/testthat/test-binning.R`), so it can be regenerated with any core
-count. `inst/scripts/make_simulate_ec_similarity.R` writes it.
+The vignette's dataset (`data(simulate_cog)`): 20 simulated samples over 110
+bacterial and archaeal proteins of the NCBI COG 2024 release
+(https://ftp.ncbi.nih.gov/pub/COG/COG2024/data/; Galperin et al. 2025,
+https://doi.org/10.1093/nar/gkae983). NCBI places no restrictions on the use
+or distribution of its data (https://www.ncbi.nlm.nih.gov/home/about/policies/).
+
+The proteins, labels and counts come from `data_simulation.Rmd` on the
+repository's `gh-pages` branch: proteins with exactly one COG, assigned over
+their full length (membership class 0), 50-1000 residues; 10 GrpE (COG0576)
+proteins from 10 different MMseqs2 30%-identity clusters, none sharing a 30%
+alignment over 70% of both proteins; 100 random background proteins from
+other COGs with no MMseqs2 hit (E <= 1e-3, 80% coverage) to a GrpE protein.
+Each group-A sample puts 5% of its abundance on its own GrpE protein, with
+negative-binomial counts. `inst/scripts/make_simulate_cog.R` reads those
+files, adds TM-Vec embeddings from `embed_proteins()` (rounded to 4
+decimals), and writes `data/simulate_cog.rda` and
+`inst/extdata/simulate_cog.fasta` (the sequences alone, for the vignette's
+embedding step). Design, seeds and session are in `simulate_cog$provenance`.

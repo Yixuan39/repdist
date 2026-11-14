@@ -26,8 +26,8 @@ as an abundance-weighted distribution over the same embeddings and compares
 samples by Gaussian-kernel maximum mean discrepancy. Counts have samples in
 rows and proteins in columns, matched to the proteins by name.
 
-See \code{vignette("repdist")} for beta diversity and \code{vignette("clustering")}
-for protein bins and differential abundance.
+See \code{vignette("repdist")} for beta diversity, protein bins and
+differential abundance.
 }
 \references{
 Gretton et al. (2012). A Kernel Two-Sample Test. JMLR 13,

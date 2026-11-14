@@ -56,10 +56,8 @@ Linux. Embeddings from the
 
 **New to repdist? Start with the
 [vignette](https://yixuan39.github.io/repdist/vignette.html)**
-(`vignette("repdist")`), a worked beta-diversity example on simulated data
-with a known answer. Protein clustering and differential abundance
-(`protein_similarity()`, `bin_proteins()`, `bin_glom()`) have their own
-`vignette("clustering")`.
+(`vignette("repdist")`), a worked example on simulated data with a known
+answer: embeddings, beta diversity, protein bins and differential abundance.
 
 ## Simulated example data
 
