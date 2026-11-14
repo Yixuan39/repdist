@@ -14,6 +14,13 @@ skipped unless the `REPDIST_CHECK_MODEL` environment variable names a model
 (see the comment at the top of that file), since that is the only test that
 downloads model weights.
 
+## Continuous integration
+
+`.github/workflows/R-CMD-check.yaml` runs `R CMD check` on every push and pull
+request to `main`. A passing push to `main` also uploads coverage to Codecov
+and republishes both vignettes to the `gh-pages` site (`vignette.html`,
+`clustering.html`).
+
 ## Vignettes
 
 `tools::buildVignettes()` or `devtools::build_vignettes()`. Each vignette

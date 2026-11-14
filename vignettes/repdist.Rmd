@@ -14,11 +14,7 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
     collapse = TRUE, comment = "#>", message = FALSE, warning = FALSE,
-    # BiocStyle registers a "crop" hook that runs unconditionally whenever a
-    # `crop` chunk option is present (its value is never actually checked),
-    # and needs magick, not a dependency here; crop = NULL removes the
-    # option so the hook does not fire. crop = FALSE does NOT work.
-    crop = NULL
+    crop = NULL # BiocStyle's crop hook needs magick; FALSE still fires it
 )
 ```
 
@@ -37,9 +33,8 @@ Protein-level clustering and differential abundance
 (`protein_similarity()`, `bin_proteins()`, `bin_glom()`) have their own
 [clustering vignette](clustering.html), `vignette("clustering")`.
 
-You need protein sequences (a FASTA file, named by protein ID), a count table
-with samples in rows and proteins in columns, and sample metadata. This
-vignette runs the workflow on simulated data with a known answer. The
+This vignette runs the workflow on simulated data with a known answer; the
+[inputs](#inputs) section shows the files you would start from instead. The
 [simulation page](https://yixuan39.github.io/repdist/simulation.html)
 benchmarks it over many such contrasts, and the
 [case study](https://yixuan39.github.io/repdist/case_study.html) applies it to
@@ -63,60 +58,118 @@ library(ggplot2)
 
 # Data
 
-`simulate_ec` holds 1,160 bacterial and archaeal Swiss-Prot enzymes with
-experimentally supported EC numbers: every enzyme of two classes, EC 2.7.7
-(nucleotidyltransferases) and EC 2.3.2 (aminoacyltransferases), and 1,000
-other enzymes as background. Every enzyme has a positive expected abundance
-in each of 20 samples. In each sample of group A, 5% of the abundance goes to
-two extra EC 2.7.7 enzymes; in group B, to two EC 2.3.2 enzymes. No two
-enriched enzymes share a 50%-identity sequence cluster, so no two samples of
-a group share an enriched protein or sequence family: the groups differ in
-function, not in any shared protein. The
-[simulated data page](https://yixuan39.github.io/repdist/simulation_data.html)
-shows how the dataset was built.
+## The experiment
 
-```{r data}
+Picture two groups of ten microbial community metaproteomes. Every sample
+holds the same thousand-odd background enzymes at similar abundances; the
+groups differ in one extra function. Each sample of group A carries a little
+more nucleotidyltransferase activity (EC 2.7.7), each sample of group B a
+little more aminoacyltransferase activity (EC 2.3.2), and every sample gets
+that extra activity from different enzymes of the class, unrelated in
+sequence. So the groups differ in what their proteins do, not in which
+proteins they hold. A distance that compares accessions, like Bray-Curtis,
+cannot see that; a distance that knows two enzymes of one class look alike
+should.
+
+`simulate_ec` builds this from 1,160 bacterial and archaeal Swiss-Prot
+enzymes with experimentally supported EC numbers: every enzyme of the two
+classes, plus 1,000 other enzymes as background. Every enzyme has a positive
+expected abundance in all 20 samples, and in each sample 5% of the abundance
+goes to two extra enzymes of its group's class, with negative-binomial counts
+drawn around that. No two of these 40 enriched enzymes share a 50%-identity
+sequence cluster. `?simulate_ec` and the
+[data provenance](https://github.com/Yixuan39/repdist/blob/main/inst/scripts/DATA_PROVENANCE.md)
+give the details.
+
+## Inputs
+
+`repdist` needs three inputs, each usually a file:
+
+- **Protein sequences**: a FASTA file, one record per protein, the protein
+    ID first in the header. `embed_proteins()` reads it and adds the
+    embeddings; `read_embeddings()` reads embeddings the `tmvec`
+    command-line tool already made.
+- **Counts**: a tab-separated table, samples in rows, sample IDs in the
+    first column and protein IDs as column names; PSM or spectral counts.
+- **Sample metadata**: a tab-separated table, one row per sample, a
+    `sample` column plus the variables to test.
+
+`inst/extdata` ships one of each, 100 proteins of a mouse gut metaproteome
+(Blakeley-Ruiz et al. 2025) in 23 samples on two diets, along with the
+proteins' embeddings as the `tmvec` command-line tool writes them:
+
+```{r files}
+ex <- function(f) system.file("extdata", f, package = "repdist")
+readLines(ex("metaproteomics.fasta"), n = 2)
+read.delim(ex("metaproteomics_counts.tsv"), row.names = 1,
+    check.names = FALSE)[1:3, 1:3]
+head(read.delim(ex("metaproteomics_samples.tsv")), 3)
+```
+
+The rest of this vignette takes the same three inputs from `simulate_ec`.
+Each step below runs on it; its commented-out lines show the same step on
+files of your own.
+
+## Protein sequences and embeddings
+
+`sample_mmd()` compares proteins by their embeddings, one vector per protein
+from the protein language model. `embed_proteins()` computes them from a
+FASTA file; it does not run in this vignette, because its first call
+downloads the model (up to a few GB). `simulate_ec` ships its embeddings
+precomputed.
+
+```{r proteins}
 data(simulate_ec, package = "repdist")
-proteins <- simulate_ec$proteins # sequences, embeddings in mcols()$embedding
-counts <- simulate_ec$counts # samples x proteins
+proteins <- simulate_ec$proteins
+# proteins <- embed_proteins("path/on/your/proteins.fasta")
+# or, embeddings from the tmvec command-line tool:
+# proteins <- read_embeddings("path/on/your/db.npz",
+#     "path/on/your/proteins.fasta")
+proteins
+dim(S4Vectors::mcols(proteins)$embedding)
+```
+
+`proteins` is an `AAStringSet` of the sequences. `names(proteins)` are the
+protein IDs, which must match the count table's column names, and
+`mcols(proteins)$embedding` is the embedding matrix, one unit-norm row per
+protein.
+
+## Counts
+
+```{r counts}
+counts <- simulate_ec$counts
+# counts <- as.matrix(read.delim("path/on/your/counts.tsv", row.names = 1,
+#     check.names = FALSE))
+counts[1:3, 1:4]
+```
+
+`counts` is a samples-by-proteins matrix of PSM-like counts.
+
+## Sample metadata
+
+```{r samples}
 samples <- simulate_ec$samples
-annotation <- simulate_ec$annotation # EC labels and the truth
-dim(counts)
-table(samples$group, samples$enriched_ec3)
+# samples <- read.delim("path/on/your/samples.tsv")
+head(samples, 3)
 ```
 
-`proteins` is an `AAStringSet`: `names(proteins)` are the protein IDs that
-match `colnames(counts)`, `as.character(proteins)` are the sequences, and
-`mcols(proteins)$embedding` is the matrix of precomputed TM-Vec embeddings
-that `sample_mmd()` reads, one unit-norm row per protein. `counts` is a plain
-samples-by-proteins matrix (here PSM-like integer counts), and `samples` is
-one row per sample with the group labels the beta-diversity test below
-uses. `annotation` carries the simulation's ground truth -- `ec3`/`ec4`
-EC labels, `mmseqs50`/`mmseqs30` sequence-cluster membership, and
-`enriched_in` -- used only to interpret the result, never to build it.
+`samples` has one row per sample, in the order of `rownames(counts)`. `group`
+is what the test below compares; `enriched_ec3` is the class the sample was
+enriched for.
 
-On your own data, instead of `data(simulate_ec)`, read protein sequences, a
-counts table and sample metadata from files; `inst/extdata` ships a small
-example of each:
+## Annotation
 
-```{r read, eval = FALSE}
-proteins <- embed_proteins( # downloads a model on first use
-    system.file("extdata", "quickstart_proteins.fasta", package = "repdist")
-)
-# or, from the tmvec command-line tool:
-proteins <- read_embeddings(
-    system.file("extdata", "metaproteomics.npz", package = "repdist"),
-    system.file("extdata", "metaproteomics.fasta", package = "repdist")
-)
-
-counts <- as.matrix(read.delim(
-    system.file("extdata", "quickstart_counts.tsv", package = "repdist"),
-    row.names = 1, check.names = FALSE
-))
-samples <- read.delim(
-    system.file("extdata", "quickstart_metadata.tsv", package = "repdist")
-)
+```{r annotation}
+annotation <- simulate_ec$annotation
+head(annotation[, c("protein", "ec3", "mmseqs30", "enriched_in")], 3)
 ```
+
+`annotation` has one row per protein: its name, organism and length, EC
+labels (`ec3`, `ec4`), MMseqs2 sequence clusters at 50% and 30% identity
+(`mmseqs50`, `mmseqs30`), and `enriched_in`, the sample an enriched enzyme
+was added to (`NA` for background). It is the simulation's ground truth:
+below, only the Bray-Curtis baseline reads it, for `mmseqs30`. `repdist`
+itself never needs an annotation.
 
 # Relative abundance
 
@@ -158,6 +211,9 @@ round(perm, 3)
 
 # PCoA
 
+`cmdscale()` draws each distance's principal coordinates; ellipses are 95%
+data ellipses per group.
+
 ```{r pcoa}
 #| fig.width: 9
 #| fig.height: 3.8
@@ -191,6 +247,8 @@ differential abundance, built on the same embeddings.
 
 # References
 
+- Blakeley-Ruiz et al. (2025). Dietary protein source alters gut microbiota
+    composition and function. <https://doi.org/10.1093/ismejo/wraf048>.
 - Anderson (2001). A new method for non-parametric multivariate analysis of
     variance. <https://doi.org/10.1111/j.1442-9993.2001.01070.pp.x>.
 - Gretton et al. (2012). A Kernel Two-Sample Test.

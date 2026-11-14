@@ -38,11 +38,15 @@ repeats the design over 28 pairs of enzyme classes.
 
 ## What you need
 
-| Input | Form |
-| --- | --- |
-| Protein sequences | FASTA file, or a named character vector; the names are protein IDs |
-| Protein counts | matrix with samples in rows and proteins in columns, column names matching the protein IDs (e.g. PSM or spectral counts) |
-| Sample metadata | data frame with one row per sample, row names matching the count rows |
+| Input | Typical file | Read with |
+| --- | --- | --- |
+| Protein sequences | FASTA, one record per protein, the protein ID first in the header | `embed_proteins()`, or `read_embeddings()` for `tmvec` output |
+| Protein counts | tab-separated, samples in rows, sample IDs in the first column, protein IDs as column names (e.g. PSM or spectral counts) | `as.matrix(read.delim(f, row.names = 1, check.names = FALSE))` |
+| Sample metadata | tab-separated, one row per sample, in the count table's row order | `read.delim()` |
+
+`inst/extdata` ships one of each, 100 proteins of a mouse gut metaproteome in
+23 samples on two diets, plus their `tmvec` embeddings; the
+[Quick start](#quick-start) runs from them.
 
 Python, conda and git do not need to be installed: the first
 `embed_proteins()` call downloads a standalone Python and sets up a private,
@@ -66,9 +70,9 @@ dim(simulate_ec$counts) # 20 samples by 1160 enzymes
 
 `simulate_ec` holds the enzyme sequences with precomputed TM-Vec embeddings,
 simulated counts, sample groups, EC annotations with the enriched proteins,
-and source provenance. Loading it needs no model download. The [simulated
-data page](https://yixuan39.github.io/repdist/simulation_data.html) explains
-how it was built.
+and source provenance. Loading it needs no model download.
+[DATA_PROVENANCE.md](inst/scripts/DATA_PROVENANCE.md) explains how it was
+built.
 
 ## Install
 
@@ -117,15 +121,6 @@ proteins <- simulate_ec$proteins # AAStringSet, embeddings in mcols()$embedding
 counts <- simulate_ec$counts     # 20 samples x 1160 proteins
 meta <- simulate_ec$samples      # one row per sample; `group` is "A" or "B"
 
-# On your own data, instead of data(simulate_ec):
-# proteins <- embed_proteins(
-#     system.file("extdata", "quickstart_proteins.fasta", package = "repdist")
-# )
-# proteins <- read_embeddings(
-#     system.file("extdata", "metaproteomics.npz", package = "repdist"),
-#     system.file("extdata", "metaproteomics.fasta", package = "repdist")
-# )
-
 # Beta diversity between samples
 D <- sample_mmd(counts, proteins)
 vegan::adonis2(D ~ group, data = meta)
@@ -149,11 +144,20 @@ it. Structural similarity alone does not guarantee shared function, so weigh
 annotation agreement against how much of the catalog the non-singleton bins
 hold, and how far families fragment, before transferring labels.
 
-`inst/extdata` also ships a small example of the three typical input files
-(sequences with no embedding, a counts table, sample metadata) for reading
-from disk instead of `data()`, e.g.
-`read_fasta(system.file("extdata", "quickstart_proteins.fasta", package = "repdist"))`;
-see the vignette for the full file-reading pattern.
+The same from files, with the examples in `inst/extdata` (also runs as
+shown); swap in your own paths:
+
+```r
+ex <- function(f) system.file("extdata", f, package = "repdist")
+proteins <- read_embeddings(ex("metaproteomics.npz"), ex("metaproteomics.fasta"))
+# or compute the embeddings (downloads the model on first use):
+# proteins <- embed_proteins(ex("metaproteomics.fasta"))
+counts <- as.matrix(read.delim(ex("metaproteomics_counts.tsv"),
+    row.names = 1, check.names = FALSE))
+meta <- read.delim(ex("metaproteomics_samples.tsv"))
+D <- sample_mmd(counts, proteins)
+vegan::adonis2(D ~ diet, data = meta)
+```
 
 ## License
 

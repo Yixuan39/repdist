@@ -1,6 +1,6 @@
 # Example data provenance
 
-## metaproteomics.npz and metaproteomics.fasta
+## metaproteomics.npz, metaproteomics.fasta, metaproteomics_counts.tsv, metaproteomics_samples.tsv
 
 100 microbial proteins from the mouse gut metaproteomes of Blakeley-Ruiz et
 al. (2025), *Dietary protein source alters gut microbiota composition and
@@ -21,21 +21,10 @@ by `data-raw/diet_series.R` there from the paper's supplementary Data Set 1
 `embed_proteins()` at the default `"tmvec"` model. The 100 proteins are the 12
 GH92-annotated proteins seen on the 20% yeast and 20% casein diets, then the 88
 most abundant other proteins on those diets.
-`inst/scripts/make_metaproteomics_example.R` writes both files.
-
-## quickstart_proteins.fasta, quickstart_counts.tsv, quickstart_metadata.tsv
-
-A small, self-contained example of the three typical repdist input files
-(sequences with no embedding, a counts table, sample metadata), for the
-README and vignette file-reading examples. Cut from `data(simulate_ec)`:
-6 samples (the first 3 of group A, the first 3 of group B), and 30 proteins
--- the 12 proteins enriched in those 6 samples plus 18 random background
-proteins. `quickstart_proteins.fasta` holds the raw sequences (no
-embeddings, as if never run through `embed_proteins()`); `quickstart_counts.tsv`
-is samples x proteins, tab-separated, with sample names in the first column;
-`quickstart_metadata.tsv` has one row per sample, columns `sample` and
-`group`. Same source and licence as `simulate_ec` below.
-`inst/scripts/make_quickstart_example.R` writes all three.
+`metaproteomics_counts.tsv` holds their PSM counts in the 23 samples of
+those two diets (samples in rows, sample IDs in the first column), and
+`metaproteomics_samples.tsv` the samples' metadata, one row per sample.
+`inst/scripts/make_metaproteomics_example.R` writes all four files.
 
 ## data/simulate_ec.rda
 

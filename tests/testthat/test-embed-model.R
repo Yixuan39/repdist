@@ -1,21 +1,10 @@
-# Runs embed_proteins() against a real registered model through the
-# basilisk environment, rather than the fabricated AAStringSet/embedding
-# fixtures the other test files use. It is the only test that actually
-# downloads model weights and provisions the pinned Python environment
-# (basilisk + a standalone Python via uv), so it is off by default: everyday
-# `devtools::test()` / `R CMD check` runs never touch the network or a
-# multi-GB cache. It is skipped whenever the REPDIST_CHECK_MODEL environment
-# variable is unset or empty.
-#
-# To run it, set REPDIST_CHECK_MODEL to any key from known_models() (e.g.
-# "esm2-8m", the smallest registered model, to keep the download small) and
-# run the tests from a shell, not from within an R session that has already
-# loaded reticulate/basilisk for something else:
+# The only test that runs a real model: embed_proteins() through the basilisk
+# Python environment, which downloads the environment and the model weights
+# (up to a few GB) on first use. Every other test uses the fabricated
+# embeddings of helper-repdist.R. It is skipped unless the REPDIST_CHECK_MODEL
+# environment variable names a model from known_models(), set in the shell
+# that runs the tests, e.g. with the smallest model:
 #   REPDIST_CHECK_MODEL=esm2-8m Rscript -e 'devtools::test()'
-# or, scoped to just this file:
-#   REPDIST_CHECK_MODEL=esm2-8m Rscript -e 'testthat::test_file("tests/testthat/test-embed-model.R")'
-# The first run downloads the Python environment and model weights (up to a
-# few GB for the default "tmvec" model); later runs reuse the cache.
 test_that("a registered model embeds in order, unit-norm, batch-invariant", {
     model <- Sys.getenv("REPDIST_CHECK_MODEL")
     skip_if(!nzchar(model), "REPDIST_CHECK_MODEL is not set")

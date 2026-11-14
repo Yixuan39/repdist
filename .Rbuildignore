@@ -9,3 +9,4 @@
 ^repdist_.*\.tar\.gz$
 ^repdist\.Rcheck$
 ^vignettes/repdist\.html$
+^\.github$

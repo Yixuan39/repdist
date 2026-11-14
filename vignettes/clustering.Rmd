@@ -14,11 +14,7 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
     collapse = TRUE, comment = "#>", message = FALSE, warning = FALSE,
-    # BiocStyle registers a "crop" hook that runs unconditionally whenever a
-    # `crop` chunk option is present (its value is never actually checked),
-    # and needs magick, not a dependency here; crop = NULL removes the
-    # option so the hook does not fire. crop = FALSE does NOT work.
-    crop = NULL
+    crop = NULL # BiocStyle's crop hook needs magick; FALSE still fires it
 )
 ```
 
@@ -34,9 +30,11 @@ representation:
 - **Find what changed.** `bin_glom()` sums counts within bins, for
     differential abundance testing.
 
-See the [beta-diversity vignette](repdist.html), `vignette("repdist")`, for
-`sample_mmd()` and the installation instructions, and for what `simulate_ec`
-is. This vignette clusters the same proteins.
+Clustering stands alone: it needs only the proteins' embeddings, and a count
+table for the differential abundance step, not `sample_mmd()`. The
+[beta-diversity vignette](https://yixuan39.github.io/repdist/vignette.html),
+`vignette("repdist")`, covers `sample_mmd()`, installation, and the input
+files in full.
 
 ```{r libs}
 library(repdist)
@@ -44,11 +42,22 @@ library(repdist)
 
 # Data
 
+`simulate_ec` is a simulated metaproteome: 20 samples in two groups over
+1,160 bacterial and archaeal Swiss-Prot enzymes with known EC numbers. Each
+sample of group A has 5% of its abundance on two extra EC 2.7.7 enzymes,
+each sample of group B on two extra EC 2.3.2 enzymes, a different pair in
+every sample. `proteins` holds the sequences with precomputed TM-Vec
+embeddings, `counts` the samples-by-proteins counts, and `annotation` each
+protein's EC labels, used here only to check the bins.
+
 ```{r data}
 data(simulate_ec, package = "repdist")
 proteins <- simulate_ec$proteins
 counts <- simulate_ec$counts
 annotation <- simulate_ec$annotation
+# On your own data: proteins <- embed_proteins("path/on/your/proteins.fasta")
+# and counts <- as.matrix(read.delim("path/on/your/counts.tsv",
+#     row.names = 1, check.names = FALSE))
 ```
 
 # Protein similarity
@@ -74,7 +83,10 @@ S <- as.matrix(readRDS(
 
 # Protein bins
 
-`bin_proteins()` splits the similarity graph by MCL.
+`bin_proteins()` splits the similarity graph by MCL. It returns a list:
+`membership`, each protein's bin; `clusters`, the proteins of each bin;
+`representatives`, each bin's medoid; and the `inflation` used. The table
+below counts bins by size.
 
 ```{r bins}
 bins <- bin_proteins(S) # Markov clustering

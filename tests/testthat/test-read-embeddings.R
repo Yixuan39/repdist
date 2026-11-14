@@ -38,3 +38,14 @@ test_that("a tmvec embed HDF5 file is averaged over residues", {
     expect_equal(unname(S4Vectors::mcols(x)$embedding),
         rbind(c(1, 0, 0, 0), c(0, 1, 0, 0)))
 })
+
+test_that("the shipped example files run from disk to sample_mmd", {
+    ex <- function(f) system.file("extdata", f, package = "repdist")
+    x <- read_embeddings(ex("metaproteomics.npz"), ex("metaproteomics.fasta"))
+    counts <- as.matrix(read.delim(ex("metaproteomics_counts.tsv"),
+        row.names = 1, check.names = FALSE))
+    samples <- read.delim(ex("metaproteomics_samples.tsv"))
+    expect_identical(rownames(counts), samples$sample)
+    D <- sample_mmd(counts, x)
+    expect_identical(labels(D), samples$sample)
+})
