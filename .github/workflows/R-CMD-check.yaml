@@ -1,6 +1,6 @@
 # R CMD check on every push and pull request to main. A push to main that
-# passes also uploads test coverage to Codecov and publishes both rendered
-# vignettes to the gh-pages site, so the site always shows main's vignettes.
+# passes also uploads test coverage to Codecov and publishes the rendered
+# vignette to the gh-pages site, so the site always shows main's vignette.
 name: R-CMD-check
 
 on:
@@ -46,12 +46,9 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Render the vignettes for the site
+      - name: Render the vignette for the site
         if: github.event_name == 'push'
-        run: |
-          rmarkdown::render("vignettes/repdist.Rmd",
-              output_file = "vignette.html", output_dir = "_site")
-          rmarkdown::render("vignettes/clustering.Rmd", output_dir = "_site")
+        run: rmarkdown::render("vignettes/repdist.Rmd", output_dir = "_site")
         shell: Rscript {0}
 
       - uses: JamesIves/github-pages-deploy-action@v4
@@ -59,4 +56,4 @@ jobs:
         with:
           branch: gh-pages
           folder: _site
-          clean: false # replace only these two pages, keep the rest of the site
+          clean: false # replace only this page, keep the rest of the site

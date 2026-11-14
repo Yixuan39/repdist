@@ -15,26 +15,26 @@ The default `TM-Vec` model predicts structural similarity: cosine similarity
 between protein embeddings approximates the TM-score. The corresponding cosine
 distance is `1 - similarity`.
 
-![PCoA of 20 simulated samples under four distances: MMD, and Bray-Curtis on repdist MCL bins, on MMseqs2 30% clusters and on proteins](man/figures/README-simulation-pcoa.png)
+![PCoA of 20 simulated samples under MMD and Bray-Curtis, each group's outermost samples joined](man/figures/README-simulation-pcoa.png)
 
-Two groups of ten simulated samples over 1,160 Swiss-Prot enzymes, enriched
-for different enzyme classes (EC 2.7.7 and EC 2.3.2) with 5% of their
-abundance. Every enriched enzyme comes from a different 50%-identity MMseqs2
-cluster, so no enriched protein or sequence family is shared. Every distance
-uses relative abundances. Ellipses are 95% ellipses per group. PERMANOVA and
-PERMDISP, 999 permutations:
+Two groups of ten simulated samples share 100 background proteins of the NCBI
+COG database. Each group-A sample also puts 5% of its abundance on a GrpE
+protein (COG0576) of its own, and the ten GrpE proteins fall in ten different
+30%-identity MMseqs2 clusters, so no protein or sequence family is enriched
+in more than one sample. Both distances use relative abundances. PERMANOVA
+and PERMDISP, 999 permutations:
 
 | Distance | PERMANOVA R² | PERMANOVA p | PERMDISP p |
 | --- | --- | --- | --- |
-| MMD | 0.133 | 0.001 | 0.468 |
-| Bray-Curtis (repdist MCL bins) | 0.065 | 0.010 | 0.288 |
-| Bray-Curtis (MMseqs2 30%) | 0.052 | 0.580 | 0.461 |
-| Bray-Curtis (protein) | 0.050 | 0.787 | 0.458 |
+| MMD | 0.150 | 0.001 | 0.023 |
+| Bray-Curtis (protein) | 0.051 | 0.482 | 0.010 |
 
-This is the [vignette](https://yixuan39.github.io/repdist/vignette.html)'s
-dataset, `data(simulate_ec)`; the
-[simulation page](https://yixuan39.github.io/repdist/simulation.html)
-repeats the design over 28 pairs of enzyme classes.
+Group A is also more dispersed under both distances, since each of its
+samples carries a different GrpE protein. This is the
+[vignette](https://yixuan39.github.io/repdist/repdist.html)'s dataset,
+`data(simulate_cog)`; the
+[simulated data page](https://yixuan39.github.io/repdist/data_simulation.html)
+shows how it was built.
 
 ## What you need
 
@@ -55,22 +55,22 @@ Linux. Embeddings from the
 `tmvec` command-line tool can be read with `read_embeddings()` instead.
 
 **New to repdist? Start with the
-[vignette](https://yixuan39.github.io/repdist/vignette.html)**
+[vignette](https://yixuan39.github.io/repdist/repdist.html)**
 (`vignette("repdist")`), a worked example on simulated data with a known
 answer: embeddings, beta diversity, protein bins and differential abundance.
 
 ## Simulated example data
 
 ```r
-data(simulate_ec, package = "repdist")
-dim(simulate_ec$counts) # 20 samples by 1160 enzymes
+data(simulate_cog, package = "repdist")
+dim(simulate_cog$counts) # 20 samples by 110 proteins
 ```
 
-`simulate_ec` holds the enzyme sequences with precomputed TM-Vec embeddings,
-simulated counts, sample groups, EC annotations with the enriched proteins,
-and source provenance. Loading it needs no model download.
-[DATA_PROVENANCE.md](inst/scripts/DATA_PROVENANCE.md) explains how it was
-built.
+`simulate_cog` holds the protein sequences with precomputed TM-Vec
+embeddings, simulated counts, sample groups, and COG annotations marking the
+GrpE proteins and the sample each is spiked into. Loading it needs no model
+download. [DATA_PROVENANCE.md](inst/scripts/DATA_PROVENANCE.md) explains how
+it was built.
 
 ## Install
 
@@ -102,37 +102,35 @@ BiocManager::install(c("basilisk", "BiocFileCache", "BiocParallel",
     "Biostrings", "pwalign", "rhdf5", "S4Vectors", "MCL"))
 if (!requireNamespace("remotes", quietly = TRUE))
     install.packages("remotes")
-# dependencies = TRUE also installs vegan, ggplot2, Rtsne, limma and DEqMS for the vignette
+# dependencies = TRUE also installs vegan and ggplot2 for the vignette, and Rtsne for plot_tsne()
 remotes::install_github("Yixuan39/repdist", dependencies = TRUE)
 ```
 
 ## Quick start
 
-This runs as shown, on the bundled `simulate_ec` data, with no model
+This runs as shown, on the bundled `simulate_cog` data, with no model
 download and no file of your own:
 
 ```r
 library(repdist)
 
-data(simulate_ec, package = "repdist")
-proteins <- simulate_ec$proteins # AAStringSet, embeddings in mcols()$embedding
-counts <- simulate_ec$counts     # 20 samples x 1160 proteins
-meta <- simulate_ec$samples      # one row per sample; `group` is "A" or "B"
+data(simulate_cog, package = "repdist")
+proteins <- simulate_cog$proteins # AAStringSet, embeddings in mcols()$embedding
+counts <- simulate_cog$counts     # 20 samples x 110 proteins
+meta <- simulate_cog$samples      # one row per sample; `group` is "A" or "B"
 
 # Beta diversity between samples
 D <- sample_mmd(counts, proteins)
 vegan::adonis2(D ~ group, data = meta)
 
-# Structure-level protein clusters, e.g. for biomarker discovery (a 100-protein
-# subset here, for speed: protein_similarity() aligns every pair)
-keep <- names(proteins)[1:100]
-S <- protein_similarity(proteins[keep], max_evalue = 0.01)
+# Structure-level protein bins, e.g. for biomarker discovery
+S <- protein_similarity(proteins, max_evalue = 0.01)
 bins <- bin_proteins(S, inflation = 2)
-bin_counts <- bin_glom(counts[, keep], bins) # samples x bins
+bin_counts <- bin_glom(counts, bins) # samples x bins
 ```
 
 `proteins` is an `AAStringSet` of the sequences with the embeddings in
-`mcols(proteins)$embedding`; `simulate_ec` ships with its embeddings already
+`mcols(proteins)$embedding`; `simulate_cog` ships with its embeddings already
 computed, so loading it needs no model download. `protein_similarity()`
 aligns every pair and keeps the predicted TM-score of those whose alignment
 E-value is at most `max_evalue`, so its time grows with the square of the
@@ -159,5 +157,7 @@ vegan::adonis2(D ~ diet, data = meta)
 
 ## License
 
-Package code: MIT. Example data: CC BY 4.0; see
+Package code: MIT. Example data: the metaproteomics files are CC BY 4.0, and
+`simulate_cog` comes from NCBI's COG database, which NCBI distributes without
+restrictions; see
 [the data provenance and attribution](inst/scripts/DATA_PROVENANCE.md).

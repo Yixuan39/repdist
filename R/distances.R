@@ -15,7 +15,7 @@
     list(P = counts / rowSums(counts), Z = Z[colnames(counts), , drop = FALSE])
 }
 
-#' RBF-MMD distance between samples
+#' MMD distance between samples
 #'
 #' Treats each sample as an abundance-weighted distribution over protein
 #' embeddings and returns the maximum mean discrepancy between those
@@ -58,7 +58,7 @@
 #'   covering `colnames(counts)`.
 #' @param weighted Use abundance as the weight (default). `FALSE` gives every
 #'   detected protein equal weight, the presence/absence counterpart.
-#' @param sigma RBF bandwidth; see the Bandwidth section.
+#' @param sigma Gaussian kernel bandwidth; see the Bandwidth section.
 #' @return A `dist` object for `vegan::adonis2()`, with the bandwidth as
 #'   `attr(, "sigma")`.
 #' @references Gretton et al. (2012). A Kernel Two-Sample Test. JMLR 13,

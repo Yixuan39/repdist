@@ -2,7 +2,7 @@
 % Please edit documentation in R/distances.R
 \name{sample_mmd}
 \alias{sample_mmd}
-\title{RBF-MMD distance between samples}
+\title{MMD distance between samples}
 \usage{
 sample_mmd(counts, x, weighted = TRUE, sigma = NULL)
 }
@@ -20,7 +20,7 @@ covering \code{colnames(counts)}.}
 \item{weighted}{Use abundance as the weight (default). \code{FALSE} gives every
 detected protein equal weight, the presence/absence counterpart.}
 
-\item{sigma}{RBF bandwidth; see the Bandwidth section.}
+\item{sigma}{Gaussian kernel bandwidth; see the Bandwidth section.}
 }
 \value{
 A \code{dist} object for \code{vegan::adonis2()}, with the bandwidth as

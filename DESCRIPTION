@@ -49,10 +49,8 @@ Imports:
     utils
 Suggests:
     BiocStyle,
-    DEqMS,
     ggplot2,
     knitr,
-    limma,
     rmarkdown,
     Rtsne,
     testthat (>= 3.0.0),

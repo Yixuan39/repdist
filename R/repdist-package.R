@@ -48,45 +48,6 @@
 #' @importFrom Biostrings AAStringSet
 NULL
 
-#' Simulated EC metaproteome
-#'
-#' Twenty simulated samples over 1,160 bacterial and archaeal Swiss-Prot
-#' enzymes with experimentally supported EC numbers: every enzyme of EC 2.7.7
-#' and EC 2.3.2, and 1,000 other enzymes drawn at random as background. In
-#' group A each sample puts 5% of its expected abundance on two EC 2.7.7
-#' enzymes, in group B on two EC 2.3.2 enzymes. No two enriched enzymes share a
-#' 50%-identity MMseqs2 cluster, so the groups share no enriched protein or
-#' sequence family. Contrast 1 of the website's EC simulation, on a smaller
-#' protein universe. Load with `data(simulate_ec, package = "repdist")`.
-#'
-#' @format A list of five elements:
-#' - `proteins`: `AAStringSet` of the sequences, with TM-Vec
-#'   embeddings rounded to 4 decimals in `mcols(proteins)$embedding`
-#'   (1160 x 512).
-#' - `counts`: integer matrix, 20 samples x 1160 proteins.
-#' - `samples`: data frame with `sample`, `group` (A or B) and
-#'   `enriched_ec3`.
-#' - `annotation`: data frame, one row per protein: `protein`
-#'   (UniProt accession), `name`, `organism`, `length`, `ec3`,
-#'   `ec4`, `mmseqs50` and `mmseqs30` (MMseqs2 cluster representatives
-#'   at 50% and 30% identity), and `enriched_in`, the sample a protein
-#'   is enriched in (`NA` for baseline proteins).
-#' - `provenance`: source, UniProt release, license, universe filtering
-#'   counts, embedding model, MMseqs2 commands, design and seeds.
-#'
-#' @source UniProtKB/Swiss-Prot, <https://www.uniprot.org>, CC BY 4.0. Built
-#'   by `inst/scripts/make_simulate_ec.R`; see
-#'   `inst/scripts/DATA_PROVENANCE.md`.
-#'
-#' @references The UniProt Consortium (2025). UniProt: the Universal Protein
-#' Knowledgebase in 2025. \doi{10.1093/nar/gkae1010}.
-#'
-#' @examples
-#' data(simulate_ec, package = "repdist")
-#' dim(simulate_ec$counts)
-#' table(simulate_ec$samples$group, simulate_ec$samples$enriched_ec3)
-"simulate_ec"
-
 #' Simulated one-COG metaproteome
 #'
 #' Twenty simulated samples, ten in group A and ten in group B, over 110

@@ -18,13 +18,11 @@ downloads model weights.
 
 `.github/workflows/R-CMD-check.yaml` runs `R CMD check` on every push and pull
 request to `main`. A passing push to `main` also uploads coverage to Codecov
-and republishes both vignettes to the `gh-pages` site (`vignette.html`,
-`clustering.html`).
+and republishes the vignette to the `gh-pages` site as `repdist.html`.
 
-## Vignettes
+## Vignette
 
-`tools::buildVignettes()` or `devtools::build_vignettes()`. Each vignette
-should build in a few minutes; `vignettes/clustering.Rmd` uses a precomputed
-similarity matrix from `inst/extdata` rather than recomputing
-`protein_similarity()` on `data(simulate_ec)` (see `inst/scripts` for how it
-was made) to keep it fast.
+`tools::buildVignettes()` or `devtools::build_vignettes()`.
+`vignettes/repdist.Rmd` runs on `data(simulate_cog)` (110 proteins) and
+builds in seconds, `protein_similarity()` included. `inst/scripts` has the
+scripts that build the shipped data.

@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 
 data/*
-!data/simulate_ec.rda
+!data/simulate_cog.rda
 *.html
 .Rproj.user/
 .Rhistory

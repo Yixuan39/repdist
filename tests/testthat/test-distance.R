@@ -73,7 +73,7 @@ test_that("sample_mmd returns a dist that adonis2 accepts", {
     expect_true(is.finite(a$F[1]))
 })
 
-test_that("RBF-MMD is symmetric, non-negative, and zero on the diagonal", {
+test_that("MMD is symmetric, non-negative, and zero on the diagonal", {
     for (weighted in c(TRUE, FALSE)) {
         D <- as.matrix(sample_mmd(counts, x, weighted = weighted))
         expect_true(isSymmetric(D))
@@ -110,7 +110,7 @@ test_that("weighted = FALSE is exactly sign(abundance)", {
     )))
 })
 
-test_that("RBF-MMD sees mass rearranged at a fixed weighted mean", {
+test_that("MMD sees mass rearranged at a fixed weighted mean", {
     xb <- as_proteins(rbind(
         p1 = c(1, 0), p2 = c(-1, 0), p3 = c(0, 1), p4 = c(0, -1)
     ))

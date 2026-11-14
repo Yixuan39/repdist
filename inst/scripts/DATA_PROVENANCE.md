@@ -26,28 +26,6 @@ those two diets (samples in rows, sample IDs in the first column), and
 `metaproteomics_samples.tsv` the samples' metadata, one row per sample.
 `inst/scripts/make_metaproteomics_example.R` writes all four files.
 
-## data/simulate_ec.rda
-
-The vignette's dataset (`data(simulate_ec)`): 20 simulated samples over 1,160
-bacterial and archaeal enzymes from UniProtKB/Swiss-Prot
-(https://www.uniprot.org), distributed under CC BY 4.0
-(https://creativecommons.org/licenses/by/4.0/).
-
-The proteins, their TM-Vec embeddings and MMseqs2 clusters come from the
-package website's EC simulation universe, `curated/simulation_universe.rds`
-and `curated/simulation_mmseqs2.rds` on the repository's `gh-pages` branch,
-built by `data-raw/simulation_universe.R` and `data-raw/simulation_mmseqs2.R`
-there: reviewed Bacteria and Archaea entries whose single complete EC number
-has experimental evidence, 50-1000 residues, one protein per UniRef50 cluster,
-embedded with `embed_proteins()` at the default `"tmvec"` model.
-`inst/scripts/make_simulate_ec.R` takes contrast 1 of the website's EC
-simulation (EC 2.7.7 vs EC 2.3.2, 5% of abundance on two enriched enzymes per
-sample), keeps every enzyme of the two classes plus 1,000 seeded background
-enzymes, and simulates negative-binomial counts on that universe. Embeddings
-are rounded to 4 decimals. Seeds, design, source checksum and commands are in
-`simulate_ec$provenance`. The website's simulated data page describes each
-step.
-
 ## data/simulate_cog.rda and simulate_cog.fasta
 
 The vignette's dataset (`data(simulate_cog)`): 20 simulated samples over 110
