@@ -27,9 +27,8 @@ bin for count-based analyses such as DESeq2.
 # Documentation
 
 **[Get started](vignette.html)**: the package vignette, a worked example
-for first-time users: what input files you need, then embedding, beta
-diversity, MCL bins and differential abundance on data shipped with the
-package.
+on simulated data with a known answer: embeddings, beta diversity, protein
+bins and differential abundance.
 
 **[Reference](reference.html)**: what each function computes and how to call
 it: embeddings, the MMD distance, the similarity graph and MCL bins, and

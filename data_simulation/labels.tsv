@@ -1,0 +1,111 @@
+protein	role	enriched_in	cog	cog_name	gene	category	category_name	length	organism	mmseqs30
+UXE58635.1	GrpE	A01	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	211	Woronichinia naegeliana WA131	UXE58635.1
+CDZ16608.1	GrpE	A02	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	218	Candidatus Evansia muelleri	CDZ16608.1
+WP_306719158.1	GrpE	A03	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	219	Kineothrix sp. MB12-C1	WP_306719158.1
+WP_231158789.1	GrpE	A04	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	186	Candidatus Gromoviella agglomerans	WP_231158789.1
+WP_196817319.1	GrpE	A05	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	217	Candidatus Nitrosocosmicus oleophilus	WP_196817319.1
+WP_103425579.1	GrpE	A06	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	227	Salinigranum rubrum	WP_103425579.1
+WP_210757851.1	GrpE	A07	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	193	Croceimicrobium hydrocarbonivorans	WP_210757851.1
+QXD24127.1	GrpE	A08	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	221	Opitutae bacterium ISCC 51	QXD24127.1
+WP_015245349.1	GrpE	A09	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	232	Singulisphaera acidiphila	WP_015245349.1
+WP_009958761.1	GrpE	A10	COG0576	Molecular chaperone GrpE (heat shock protein HSP-70)	GrpE	O	Posttranslational modification, protein turnover, chaperones	248	Verrucomicrobium spinosum	WP_009958761.1
+WP_015322448.1	background		COG1313	Radical SAM superfamily enzyme PflX	PflX	R	General function prediction only	315	Natronococcus occultus	WP_015322448.1
+WP_010971756.1	background		COG1502	Phosphatidylserine/phosphatidylglycerophosphate/cardiolipin synthase	Cls	I	Lipid transport and metabolism	518	Agrobacterium tumefaciens complex	WP_010971756.1
+WP_012923917.1	background		COG5815	Stage II sporulation protein SpoIIAA (anti-anti-sigma F factor), STAS domain	SpoIIAA	DT	Cell cycle control, cell division, chromosome partitioning	121	Kribbella flavida	WP_012923917.1
+WP_012913070.1	background		COG2138	Sirohydrochlorin ferrochelatase	SirB	H	Coenzyme transport and metabolism	280	Pirellula staleyi	WP_012913070.1
+WP_048006722.1	background		COG0406	Broad specificity phosphatase PhoE	PhoE	G	Carbohydrate transport and metabolism	193	Rossellomorea marisflavi	WP_048006722.1
+WP_171707573.1	background		COG1349	DNA-binding transcriptional regulator of sugar metabolism, DeoR/GlpR family	GlpR	KG	Transcription	248	Herbiconiux sp. SALV-R1	WP_171707573.1
+WP_011750412.1	background		COG0602	Organic radical activating enzyme, includes 7-carboxy-7-deazaguanine synthase NrdG/QueE	QueE	H	Coenzyme transport and metabolism	235	Paracoccus denitrificans	WP_011750412.1
+WP_005607049.1	background		COG0047	Phosphoribosylformylglycinamidine (FGAM) synthase, glutamine amidotransferase domain	PurL2	F	Nucleotide transport and metabolism	222	Tritonibacter mobilis	WP_005607049.1
+WP_145243004.1	background		COG0673	Predicted dehydrogenase	MviM	R	General function prediction only	471	Urbifossiella limnaea	WP_145243004.1
+WP_151125767.1	background		COG4451	Ribulose bisphosphate carboxylase small subunit	RbcS	G	Carbohydrate transport and metabolism	144	Ideonella	WP_151125767.1
+WP_122824332.1	background		COG1063	Threonine dehydrogenase or related Zn-dependent dehydrogenase	Tdh	ER	Amino acid transport and metabolism	336	Georgenia faecalis	WP_122824332.1
+WP_046859839.1	background		COG0548	N-acetylglutamate kinase	ArgB	E	Amino acid transport and metabolism	298	Sedimenticola thiotaurini	WP_046859839.1
+WP_229201296.1	background		COG2153	Predicted N-acyltransferase, GNAT family	ElaA	R	General function prediction only	157	Arcticibacterium luteifluviistationis	WP_229201296.1
+WP_053962353.1	background		COG0156	7-keto-8-aminopelargonate synthetase or related enzyme	BioF	H	Coenzyme transport and metabolism	387	Lawsonella clevelandensis	WP_053962353.1
+WP_259451317.1	background		COG0590	tRNA(Arg) A34 adenosine deaminase TadA	TadA	J	Translation, ribosomal structure and biogenesis	157	Telluria mixta	WP_259451317.1
+WP_206092465.1	background		COG1663	Tetraacyldisaccharide-1-P 4'-kinase (Lipid A 4'-kinase)	LpxK	M	Cell wall/membrane/envelope biogenesis	358	Massilia antarctica	WP_206092465.1
+WP_133406344.1	background		COG2171	Tetrahydrodipicolinate N-succinyltransferase	DapD	E	Amino acid transport and metabolism	274	Parashewanella tropica	WP_133406344.1
+WP_011414143.1	background		COG1066	DNA repair protein RadA/Sms, contains AAA+ ATPase domain	Sms	L	Replication, recombination and repair	455	Erythrobacter litoralis	WP_011414143.1
+WP_240984665.1	background		COG2026	mRNA-degrading endonuclease RelE, toxin component of the RelBE toxin-antitoxin system	RelE	V	Defense mechanisms	105	Acididesulfobacillus acetoxydans	WP_240984665.1
+WP_075799993.1	background		COG0817	Holliday junction resolvasome RuvABC endonuclease subunit RuvC	RuvC	L	Replication, recombination and repair	176	Roseomonas gilardii	WP_075799993.1
+WP_135077559.1	background		COG4770	Acetyl/propionyl-CoA carboxylase, alpha subunit	PccA	I	Lipid transport and metabolism	665	Terasakiella sp. SH-1	WP_135077559.1
+WP_283110602.1	background		COG3884	Acyl-ACP thioesterase	FatA	I	Lipid transport and metabolism	243	Thermocaproicibacter melissae	WP_283110602.1
+WP_044637463.1	background		COG2128	Alkylhydroperoxidase family enzyme, contains CxxC motif	YciW	P	Inorganic ion transport and metabolism	182	Siansivirga zeaxanthinifaciens	WP_044637463.1
+UER55193.1	background		COG2120	N-acetylglucosaminyl deacetylase, LmbE family	LmbE	G	Carbohydrate transport and metabolism	218	Kineosporiaceae bacterium SCSIO 59966	UER55193.1
+WP_044001862.1	background		COG3712	Periplasmic ferric-dicitrate binding protein FecR, regulates iron transport	FecR	PT	Inorganic ion transport and metabolism	340	Hymenobacter swuensis	WP_044001862.1
+WP_126038295.1	background		COG1585	Membrane protein implicated in regulation of membrane protease activity	YbbJ	O	Posttranslational modification, protein turnover, chaperones	140	Flaviflexus salsibiostraticola	WP_126038295.1
+WP_013426421.1	background		COG1960	Acyl-CoA dehydrogenase related to the alkylation response protein AidB	CaiA	I	Lipid transport and metabolism	434	Pseudofrankia inefficax	WP_013426421.1
+WP_012740872.1	background		COG2316	Predicted hydrolase, HD superfamily		R	General function prediction only	195	Lachnospira eligens	WP_012740872.1
+WP_043899092.1	background		COG1840	ABC-type transport systems for B6 and hexose phosphate, periplasmic component	AfuA	GH	Carbohydrate transport and metabolism	367	Pectobacterium parmentieri	WP_043899092.1
+WP_013044117.1	background		COG2148	Sugar transferase involved in LPS biosynthesis (colanic, teichoic acid)	WcaJ	M	Cell wall/membrane/envelope biogenesis	189	Coraliomargarita akajimensis	WP_013044117.1
+WP_011073599.1	background		COG3017	Outer membrane lipoprotein LolB, involved in outer membrane biogenesis	LolB	M	Cell wall/membrane/envelope biogenesis	214	Shewanella oneidensis	WP_011073599.1
+WP_087471114.1	background		COG1132	ABC-type multidrug and LPS transport system, ATPase and permease component MsbA	MdlB	MV	Cell wall/membrane/envelope biogenesis	591	Cellulosimicrobium cellulans	WP_087471114.1
+WP_065083667.1	background		COG0089	Ribosomal protein L23	RplW	J	Translation, ribosomal structure and biogenesis	98	Methylosinus	WP_065083667.1
+WP_254272683.1	background		COG2814	Predicted arabinose efflux permease AraJ, MFS family	AraJ	G	Carbohydrate transport and metabolism	404	Halomicroarcula marina	WP_254272683.1
+WP_137424439.1	background		COG0379	Quinolinate synthase	NadA	H	Coenzyme transport and metabolism	304	Desulfoglaeba alkanexedens	WP_137424439.1
+WP_269039941.1	background		COG2893	Phosphotransferase system, mannose/fructose-specific component IIA	ManX	G	Carbohydrate transport and metabolism	142	Nannocystis poenicansa	WP_269039941.1
+WP_066644056.1	background		COG0557	Exoribonuclease R	VacB	K	Transcription	701	Caproicibacter fermentans	WP_066644056.1
+WP_280098616.1	background		COG0494	8-oxo-dGTP pyrophosphatase MutT and related house-cleaning NTP pyrophosphohydrolases, NUDIX family	MutT	V	Defense mechanisms	156	Amylibacter sp. IMCC11727	WP_280098616.1
+WP_068016791.1	background		COG0811	Biopolymer transport protein ExbB/TolQ	TolQ	U	Intracellular trafficking, secretion, and vesicular transport	240	Rhodoplanes sp. Z2-YC6860	WP_068016791.1
+WP_039078835.1	background		COG1028	NAD(P)-dependent dehydrogenase, short-chain alcohol dehydrogenase family	FabG	I	Lipid transport and metabolism	253	Phytobacter	WP_039078835.1
+WP_015069821.1	background		COG0262	Dihydrofolate reductase	FolA	H	Coenzyme transport and metabolism	190	Acidipropionibacterium acidipropionici	WP_015069821.1
+WP_054288589.1	background		COG0350	DNA repair enzyme Ada (O6-methylguanine-DNA--protein-cysteine methyltransferase)	AdaB	L	Replication, recombination and repair	163	Kibdelosporangium phytohabitans	WP_054288589.1
+WP_237268335.1	background		COG5949	CRISPR-Cas system type I-E effector complex small subunit Cse2	Cse2gr11	V	Defense mechanisms	214	Tessaracoccus flavescens	WP_237268335.1
+WP_066647399.1	background		COG5812	Sporulation sigma factor SigF (forespore-specific, SpoIIAC)	SigF	DK	Cell cycle control, cell division, chromosome partitioning	216	Caproicibacter fermentans	WP_066647399.1
+WP_102243349.1	background		COG1406	Chemotaxis protein CheX, a CheY~P-specific phosphatase	CheX	N	Cell motility	169	Bacteriovorax stolpii	WP_102243349.1
+WP_005506519.1	background		COG4310	Uncharacterized conserved protein, cotains an aminopeptidase-like domain		R	General function prediction only	432	Grimontia hollisae	WP_005506519.1
+WP_265163600.1	background		COG2197	DNA-binding response regulator, NarL/FixJ family, contains REC and HTH domains	CitB	TK	Signal transduction mechanisms	221	Salinimicrobium sp. HN-2-9-2	WP_265163600.1
+WP_006846457.1	background		COG0019	Diaminopimelate decarboxylase	LysA	E	Amino acid transport and metabolism	385	Segatella copri	WP_006846457.1
+WP_235064307.1	background		COG0559	Branched-chain amino acid ABC-type transport system, permease component	LivH	E	Amino acid transport and metabolism	304	Suttonella sp. R2A3	WP_235064307.1
+WP_013746712.1	background		COG0451	Nucleoside-diphosphate-sugar epimerase	WcaG	M	Cell wall/membrane/envelope biogenesis	308	Gallibacterium anatis	WP_013746712.1
+WP_100000251.1	background		COG4965	Flp/Tad pilus assembly platform protein TadB	TadB	W	Extracellular structures	337	Phyllobacterium zundukense	WP_100000251.1
+AWZ02100.1	background		COG4784	Putative Zn-dependent protease		R	General function prediction only	477	Rhodobiaceae bacterium	AWZ02100.1
+WP_057567179.1	background		COG0530	Ca2+/Na+ antiporter	ECM27	P	Inorganic ion transport and metabolism	318	Paeniclostridium sordellii	WP_057567179.1
+WP_220464010.1	background		COG0234	Co-chaperonin GroES (HSP10)	GroES	O	Posttranslational modification, protein turnover, chaperones	96	Adhaeribacter radiodurans	WP_220464010.1
+NP_390939.1	background		COG1116	ABC-type nitrate/sulfonate/bicarbonate transport system, ATPase component	TauB	P	Inorganic ion transport and metabolism	260	Bacillus subtilis subsp. subtilis str. 168	NP_390939.1
+WP_125988437.1	background		COG1105	1-phosphofructokinase or 6-phosphofructokinase II	FruK	G	Carbohydrate transport and metabolism	314	Halocella sp. SP3-1	WP_125988437.1
+WP_114984310.1	background		COG0778	Nitroreductase	NfnB	C	Energy production and conversion	224	Candidatus Cyclonatronum proteinivorum	WP_114984310.1
+WP_094426337.1	background		COG0614	ABC-type Fe3+-hydroxamate transport system, periplasmic component	FepB	P	Inorganic ion transport and metabolism	327	Alkalihalobacillus clausii	WP_094426337.1
+WP_111371812.1	background		COG0361	Translation initiation factor IF-1	InfA	J	Translation, ribosomal structure and biogenesis	72	Arcticibacterium luteifluviistationis	WP_111371812.1
+WP_130602994.1	background		COG0607	Rhodanese-related sulfurtransferase	PspE	P	Inorganic ion transport and metabolism	141	Litorilituus sediminis	WP_130602994.1
+UCF78825.1	background		COG0542	ATP-dependent Clp protease, ATP-binding subunit ClpA	ClpA	O	Posttranslational modification, protein turnover, chaperones	871	Candidatus Eisenbacteria bacterium	UCF78825.1
+WP_106473053.1	background		COG0583	DNA-binding transcriptional regulator, LysR family	LysR	K	Transcription	321	Pukyongiella litopenaei	WP_106473053.1
+WP_005935386.1	background		COG1120	ABC-type cobalamin/Fe3+-siderophores transport system, ATPase component	FepC	PH	Inorganic ion transport and metabolism	252	Faecalibacterium	WP_005935386.1
+WP_009887601.1	background		COG3328	Transposase (or an inactivated derivative)	IS285	X		386	Ferroplasma	WP_009887601.1
+WP_096360952.1	background		COG0190	5,10-methylene-tetrahydrofolate dehydrogenase/Methenyl tetrahydrofolate cyclohydrolase	FolD	H	Coenzyme transport and metabolism	286	Sulfuricaulis limicola	WP_096360952.1
+WP_273121625.1	background		COG3297	Type II secretory pathway, component PulL	PulL	U	Intracellular trafficking, secretion, and vesicular transport	383	Ferrovum myxofaciens	WP_273121625.1
+WP_270049208.1	background		COG0580	Glycerol uptake facilitator or related aquaporin (Major Intrinsic protein Family)	GlpF	G	Carbohydrate transport and metabolism	264	Candidatus Cyclonatronum proteinivorum	WP_270049208.1
+WP_146332704.1	background		COG1965	Fe-S cluster assembly protein CyaY, frataxin homolog	CyaY	P	Inorganic ion transport and metabolism	111	Noviherbaspirillum sp. UKPF54	WP_146332704.1
+WP_138095136.1	background		COG0859	ADP-heptose:LPS heptosyltransferase	RfaF	M	Cell wall/membrane/envelope biogenesis	352	Jejubacter calystegiae	WP_138095136.1
+WP_093943067.1	background		COG1653	ABC-type glycerol-3-phosphate transport system, periplasmic component	UgpB	G	Carbohydrate transport and metabolism	441	Actinoalloteichus hoggarensis	WP_093943067.1
+WP_043327264.1	background		COG1169	Isochorismate synthase EntC	MenF	HQ	Coenzyme transport and metabolism	462	Cyanobium gracile	WP_043327264.1
+WP_013274498.1	background		COG1960	Acyl-CoA dehydrogenase related to the alkylation response protein AidB	CaiA	I	Lipid transport and metabolism	378	Lacrimispora saccharolytica	WP_013274498.1
+WP_013175812.1	background		COG0443	Molecular chaperone DnaK (HSP70)	DnaK	O	Posttranslational modification, protein turnover, chaperones	599	Syntrophothermus lipocalidus	WP_013175812.1
+WP_173534110.1	background		COG2967	Uncharacterized conserved protein ApaG affecting Mg2+/Co2+ transport	ApaG	P	Inorganic ion transport and metabolism	125	Deefgea piscis	WP_173534110.1
+WP_001007465.1	background		COG0141	Histidinol dehydrogenase	HisD	E	Amino acid transport and metabolism	427	Leptospira	WP_001007465.1
+WP_000191995.1	background		COG2716	Glycine cleavage system regulator GcvR	GcvR	E	Amino acid transport and metabolism	180	Vibrio cholerae	WP_000191995.1
+WP_096429770.1	background		COG2025	Electron transfer flavoprotein, alpha subunit FixB	FixB	C	Energy production and conversion	339	Labilibaculum antarcticum	WP_096429770.1
+WP_013703572.1	background		COG1968	Undecaprenyl pyrophosphate phosphatase	UppP	I	Lipid transport and metabolism	266	Marinithermus hydrothermalis	WP_013703572.1
+WP_002463210.1	background		COG1278	Cold shock protein, CspA family	CspC	K	Transcription	70	Atlantibacter hermannii	WP_002463210.1
+WP_067958820.1	background		COG2072	Predicted flavoprotein CzcO associated with the cation diffusion facilitator CzcD	CzcO	P	Inorganic ion transport and metabolism	499	Aminobacter aminovorans	WP_067958820.1
+WP_310961042.1	background		COG0411	ABC-type branched-chain amino acid transport system, ATPase component LivG	LivG	E	Amino acid transport and metabolism	252	Marmoricola solisilvae	WP_310961042.1
+WP_004597196.1	background		COG1192	ParA-like ATPase involved in chromosome/plasmid partitioning or cellulose biosynthesis protein BcsQ	ParA	DN	Cell cycle control, cell division, chromosome partitioning	264	Rickettsia prowazekii	WP_004597196.1
+MCV9937288.1	background		COG0668	Small-conductance mechanosensitive channel MscS	MscS	M	Cell wall/membrane/envelope biogenesis	315	Boseaceae bacterium BT-24-1	MCV9937288.1
+WP_283666093.1	background		COG0005	Purine nucleoside phosphorylase	XapA	F	Nucleotide transport and metabolism	263	Crossiella sp. CA-258035	WP_283666093.1
+WP_002231905.1	background		COG0626	Cystathionine beta-lyase/cystathionine gamma-synthase	MetC	E	Amino acid transport and metabolism	389	Neisseria meningitidis	WP_002231905.1
+WP_208873101.1	background		COG1538	Outer membrane protein TolC	TolC	M	Cell wall/membrane/envelope biogenesis	418	Fretibacterium fastidiosum	WP_208873101.1
+WP_015010856.1	background		COG1820	N-acetylglucosamine-6-phosphate deacetylase	NagA	G	Carbohydrate transport and metabolism	385	Amphibacillus xylanus	WP_015010856.1
+WP_069392763.1	background		COG0199	Ribosomal protein S14	RpsN	J	Translation, ribosomal structure and biogenesis	61	Mycolicibacillus	WP_069392763.1
+WP_190605681.1	background		COG5739	Photosystem II oxygen-evolving enhancer PsbQ/CyanoQ	PsbQ	C	Energy production and conversion	147	Richelia sinica	WP_190605681.1
+WIO73078.1	background		COG0322	Excinuclease UvrABC, nuclease subunit	UvrC	L	Replication, recombination and repair	607	Porticoccaceae bacterium LTM1	WIO73078.1
+WP_011177978.1	background		COG1252	NADH dehydrogenase, FAD-containing subunit	Ndh	C	Energy production and conversion	323	Picrophilus oshimae	WP_011177978.1
+WP_251374245.1	background		COG5009	Membrane carboxypeptidase/penicillin-binding protein	MrcA	M	Cell wall/membrane/envelope biogenesis	845	Ponticoccus alexandrii	WP_251374245.1
+WP_050346652.1	background		COG0030	rRNA adenine N6-methylase, includes 16S rRNA A1518 and A1519 N6-dimethyltransferase  RsmA/KsgA/DIM  and 23S rRNA A2058 N6-methylase ErmO/TlrD (may also have DNA glycosylase/AP lyase activity)	RsmA	J	Translation, ribosomal structure and biogenesis	292	Arsenicicoccus sp. oral taxon 190	WP_050346652.1
+WP_045098189.1	background		COG0845	Multidrug efflux pump subunit AcrA (membrane-fusion protein)	AcrA	MV	Cell wall/membrane/envelope biogenesis	393	Legionella micdadei	WP_045098189.1
+WP_240572994.1	background		COG0637	Beta-phosphoglucomutase, HAD superfamily	YcjU	G	Carbohydrate transport and metabolism	218	Aestuariibaculum lutulentum	WP_240572994.1
+WP_277855706.1	background		COG1640	4-alpha-glucanotransferase	MalQ	G	Carbohydrate transport and metabolism	504	Proteiniclasticum sp. QWL-01	WP_277855706.1
+WP_004209729.1	background		COG4319	SnoaL-fold ligand-binding domain	YybH	T	Signal transduction mechanisms	131	Klebsiella	WP_004209729.1
+WP_125669242.1	background		COG1522	DNA-binding transcriptional regulator, Lrp family	Lrp	K	Transcription	146	Phascolarctobacterium faecium	WP_125669242.1
+WP_157731854.1	background		COG2942	Mannose or cellobiose epimerase, N-acyl-D-glucosamine 2-epimerase family	YihS	G	Carbohydrate transport and metabolism	475	Thermogutta terrifontis	WP_157731854.1
+WP_048540673.1	background		COG0024	Methionine aminopeptidase	Map	J	Translation, ribosomal structure and biogenesis	251	Mammaliicoccus	WP_048540673.1

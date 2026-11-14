@@ -1,0 +1,296 @@
+---
+title: "Simulated test dataset: one function across remote homologs"
+subtitle: "GrpE (COG0576) spiked into group A, one 30% cluster per sample"
+bibliography: references.bib
+link-citations: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE, warning = FALSE)
+```
+
+**Design.** 20 samples, 10 in group A and 10 in group B. All samples share
+100 background proteins drawn at random from other COGs. Each group-A sample
+also carries one GrpE protein (COG0576) of its own, and the 10 GrpE proteins
+come from 10 different MMseqs2 30% clusters [@steinegger2017mmseqs2]. So
+group A is enriched for one function, while no sequence family is enriched
+in more than one sample. The FASTA therefore holds 110 proteins (100 + 10);
+an A sample has 101, a B sample 100.
+
+| Parameter | Value |
+| --- | --- |
+| Treatment COG | COG0576, GrpE |
+| Samples | 10 A + 10 B |
+| Background proteins (all samples) | 100 |
+| GrpE proteins (one per A sample) | 10, from 10 different 30% clusters |
+| Perturbation $\rho$ (GrpE share in its A sample) | 5% |
+| Depth | $2 \times 10^4$ |
+| Seed | `20261112` (proteins), `1` (counts) |
+
+```{r params}
+treatment_cog <- "COG0576"
+n_per_group <- 10L
+n_background <- 100L
+rho <- 0.05
+depth <- 2e4
+length_range <- c(50L, 1000L)
+cog_dir <- file.path("data", "cog")
+out_dir <- "data_simulation"
+dir.create(cog_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(out_dir, showWarnings = FALSE)
+```
+
+# 1. Source: NCBI COG 2024
+
+The COG 2024 release [@galperin2025cog]: protein-to-COG assignments, the
+protein sequences of its 2,296 genomes, COG names and functional categories.
+About 2.2 GB, downloaded once into `data/cog/` and checked against the
+release's MD5 sums.
+
+```{r download}
+base <- "https://ftp.ncbi.nih.gov/pub/COG/COG2024/data/"
+files <- c("checksums.md5", "cog-24.def.tab", "cog-24.fun.tab", "cog-24.cog.csv",
+    "COGorg24.faa.gz")
+for (f in files) {
+    p <- file.path(cog_dir, f)
+    if (!file.exists(p)) curl::curl_download(paste0(base, f), p)
+}
+md5 <- read.table(file.path(cog_dir, "checksums.md5"), col.names = c("md5", "file"))
+md5 <- md5[md5$file %in% files, ]
+stopifnot(identical(unname(tools::md5sum(file.path(cog_dir, md5$file))), md5$md5))
+```
+
+# 2. One-label pool
+
+A protein qualifies if it has exactly one COG, every assignment row for it
+is membership class 0 (the COG covers most of the protein and most of the
+COG profile, so the label is full-length), and it is 50-1000 residues long.
+
+```{r pool}
+a <- read.csv(file.path(cog_dir, "cog-24.cog.csv"), header = FALSE,
+    colClasses = c("NULL", "NULL", "character", "integer", "NULL", "NULL",
+        "character", "NULL", "integer", rep("NULL", 4)))
+names(a) <- c("protein", "length", "cog", "class")
+pc <- unique(a[c("protein", "cog")])
+multi <- unique(pc$protein[duplicated(pc$protein)])
+pool <- unique(a[!a$protein %in% c(multi, a$protein[a$class != 0L]),
+    c("protein", "length", "cog")])
+pool <- pool[pool$length >= length_range[1] & pool$length <= length_range[2], ]
+rm(a, pc)
+c(proteins = nrow(pool), COGs = length(unique(pool$cog)),
+    GrpE = sum(pool$cog == treatment_cog))
+```
+
+# 3. Sequences
+
+All GrpE proteins, plus 300 random background candidates (slack for the
+filters below), are read from the release FASTA. Sequences must use the 20
+standard residues; identical sequences keep the lowest protein id.
+
+```{r sequences}
+set.seed(20261112L)
+bg_cand <- pool[pool$cog != treatment_cog, ]
+bg_cand <- bg_cand[sample.int(nrow(bg_cand), 3L * n_background), ]
+cand <- rbind(pool[pool$cog == treatment_cog, ], bg_cand)
+ids <- tempfile(fileext = ".txt")
+fa <- tempfile(fileext = ".fa")
+writeLines(cand$protein, ids)
+stopifnot(system(sprintf(paste("gzip -dc %s | awk 'NR==FNR {k[$1]; next}",
+    "/^>/ {p = (substr($1, 2) in k)} p' %s - > %s"),
+    shQuote(file.path(cog_dir, "COGorg24.faa.gz")), shQuote(ids), shQuote(fa))) == 0L)
+s <- Biostrings::readAAStringSet(fa)
+keep <- !duplicated(sub(" .*", "", names(s)))
+s <- s[keep]
+hdr <- names(s)
+names(s) <- sub(" .*", "", hdr)
+cand$sequence <- as.character(s)[cand$protein]
+cand$organism <- sub(".*\\[(.*)\\]$", "\\1", hdr[match(cand$protein, names(s))])
+cand <- cand[!is.na(cand$sequence) & grepl("^[ACDEFGHIKLMNPQRSTVWY]+$", cand$sequence), ]
+cand <- cand[order(cand$protein), ]
+cand <- cand[!duplicated(cand$sequence), ]
+table(role = ifelse(cand$cog == treatment_cog, "GrpE", "background candidate"))
+```
+
+# 4. GrpE: one protein from each of 10 different 30% clusters
+
+Every qualifying GrpE protein is clustered with MMseqs2 at 30% identity and
+80% coverage of both sequences (`-s 7.5`, the settings of the other
+simulations). Clusters are visited in random order and one random member is
+taken from each, but only if it has no alignment of $\ge$ 30% identity over
+70% of both proteins with a GrpE protein already taken. Greedy clustering
+depends on which sequences are present, so this pairwise rule is what keeps
+the 10 in 10 clusters when clustered with the background; the margin (70%,
+not 80%) is there because `easy-search` and `easy-cluster` align slightly
+differently (one pair at 48% identity covered 76-79% in the search but was
+clustered together).
+
+```{r mmseqs}
+mmseqs_cluster <- function(seqs) {
+    tmp <- tempfile("mm")
+    dir.create(tmp)
+    f <- file.path(tmp, "x.fasta")
+    Biostrings::writeXStringSet(Biostrings::AAStringSet(seqs), f)
+    stopifnot(system2("mmseqs", c("easy-cluster", f, file.path(tmp, "c"), file.path(tmp, "w"),
+        "--min-seq-id", 0.3, "-c", 0.8, "--cov-mode", 0, "--cluster-mode", 0, "-s", 7.5),
+        stdout = FALSE, stderr = FALSE) == 0L)
+    m <- read.delim(file.path(tmp, "c_cluster.tsv"), header = FALSE)
+    unlink(tmp, recursive = TRUE)
+    setNames(m$V1, m$V2)[names(seqs)]
+}
+mmseqs_search <- function(seqs) {
+    tmp <- tempfile("mm")
+    dir.create(tmp)
+    f <- file.path(tmp, "x.fasta")
+    Biostrings::writeXStringSet(Biostrings::AAStringSet(seqs), f)
+    stopifnot(system2("mmseqs", c("easy-search", f, f, file.path(tmp, "h.m8"),
+        file.path(tmp, "w"), "-s", 7.5, "-e", "1e-3", "--max-seqs", 10000,
+        "--format-output", "query,target,fident,qcov,tcov,evalue"),
+        stdout = FALSE, stderr = FALSE) == 0L)
+    h <- read.delim(file.path(tmp, "h.m8"), header = FALSE,
+        col.names = c("query", "target", "fident", "qcov", "tcov", "evalue"))
+    unlink(tmp, recursive = TRUE)
+    h[h$query != h$target, ]
+}
+grpe <- cand[cand$cog == treatment_cog, ]
+grpe$c30 <- mmseqs_cluster(setNames(grpe$sequence, grpe$protein))
+c(GrpE = nrow(grpe), clusters_30pct = length(unique(grpe$c30)))
+hits <- mmseqs_search(setNames(grpe$sequence, grpe$protein))
+hits <- hits[hits$fident >= 0.3 & hits$qcov >= 0.7 & hits$tcov >= 0.7, ]
+close <- c(paste(hits$query, hits$target), paste(hits$target, hits$query))
+set.seed(20261112L)
+taken <- character()
+for (cl in sample(unique(grpe$c30))) {
+    m <- grpe$protein[grpe$c30 == cl]
+    p <- m[sample.int(length(m), 1L)]
+    if (!any(paste(p, taken) %in% close)) taken <- c(taken, p)
+    if (length(taken) == n_per_group) break
+}
+stopifnot(length(taken) == n_per_group)
+treat <- grpe[match(taken, grpe$protein), ]
+treat$c30 <- NULL
+```
+
+# 5. Background: 100 random proteins
+
+Background candidates with an MMseqs2 hit to any of the 10 GrpE proteins
+(E $\le$ 10^-3^ and 80% coverage of both) are dropped, so no background
+protein is a close homolog of the treatment; the first 100 remaining, in
+the random order of the draw, are kept.
+
+```{r background}
+bg <- cand[cand$cog != treatment_cog, ]
+bg <- bg[match(bg_cand$protein, bg$protein, nomatch = 0L), ]
+h <- mmseqs_search(setNames(c(treat$sequence, bg$sequence), c(treat$protein, bg$protein)))
+h <- h[h$qcov >= 0.8 & h$tcov >= 0.8, ]
+leak <- unique(c(h$query[h$target %in% treat$protein], h$target[h$query %in% treat$protein]))
+leak <- intersect(leak, bg$protein)
+bg <- head(bg[!bg$protein %in% leak, ], n_background)
+c(leak_removed = length(leak), background = nrow(bg), background_COGs = length(unique(bg$cog)))
+```
+
+# 6. Check: the 110 proteins at 30% identity
+
+Clustered together, the 10 GrpE proteins must still fall in 10 different
+30% clusters. The highest identity between any two of them (MMseqs2 local
+alignments, E $\le$ 10^-3^) shows how remote they are.
+
+```{r check}
+treat$role <- "GrpE"
+treat$enriched_in <- sprintf("A%02d", seq_len(n_per_group))
+bg$role <- "background"
+bg$enriched_in <- NA_character_
+u <- rbind(treat, bg)
+u$mmseqs30 <- unname(mmseqs_cluster(setNames(u$sequence, u$protein)))
+stopifnot(!anyDuplicated(u$mmseqs30[u$role == "GrpE"]))
+hg <- mmseqs_search(setNames(treat$sequence, treat$protein))
+c(GrpE_clusters = length(unique(u$mmseqs30[u$role == "GrpE"])),
+    universe_clusters = length(unique(u$mmseqs30)),
+    GrpE_pairs = choose(n_per_group, 2),
+    GrpE_pairs_with_hit = length(unique(paste(pmin(hg$query, hg$target),
+        pmax(hg$query, hg$target)))),
+    max_GrpE_identity = if (nrow(hg)) max(hg$fident) else NA)
+```
+
+# 7. Functional labels and FASTA
+
+```{r labels}
+def <- read.delim(file.path(cog_dir, "cog-24.def.tab"), header = FALSE, quote = "",
+    fileEncoding = "latin1", col.names = c("cog", "category", "name", "gene",
+        "pathway", "pubmed", "pdb"))
+fun <- read.delim(file.path(cog_dir, "cog-24.fun.tab"), header = FALSE, quote = "",
+    col.names = c("category", "group", "color", "description"))
+d <- def[match(u$cog, def$cog), ]
+labels <- data.frame(protein = u$protein, role = u$role, enriched_in = u$enriched_in,
+    cog = u$cog, cog_name = d$name, gene = d$gene, category = d$category,
+    category_name = fun$description[match(substr(d$category, 1, 1), fun$category)],
+    length = nchar(u$sequence), organism = u$organism, mmseqs30 = u$mmseqs30)
+write.table(labels, file.path(out_dir, "labels.tsv"), sep = "\t", quote = FALSE,
+    row.names = FALSE, na = "")
+Biostrings::writeXStringSet(Biostrings::AAStringSet(setNames(u$sequence, u$protein)),
+    file.path(out_dir, "proteins.fasta"))
+knitr::kable(labels[labels$role == "GrpE", c("protein", "enriched_in", "length",
+    "organism", "mmseqs30")], row.names = FALSE, caption = "The 10 GrpE proteins")
+knitr::kable(head(sort(table(labels$category_name[labels$role == "background"]),
+    decreasing = TRUE), 10), col.names = c("COG category", "background proteins"))
+```
+
+# 8. Count table
+
+A negative-binomial model, as in the other simulations. Background
+abundances $\pi$ are log-normal and shared by all samples; sample $i$ has
+size factor $s_i \sim \mathrm{LogNormal}(0, 0.25)$ and protein $j$ has
+dispersion $\phi_{ij} = (0.1 + 1/\mu_{ij})\, e_j$, $e_j \sim
+\mathrm{LogNormal}(0, 0.5)$. Group-A sample $i$ puts a share $\rho = 5\%$ of
+its abundance on its own GrpE protein and $1 - \rho$ on the background; group
+B and every other GrpE protein get 0. The counts are drawn with seed 1.
+
+```{r counts}
+samples <- data.frame(sample = c(sprintf("A%02d", seq_len(n_per_group)),
+    sprintf("B%02d", seq_len(n_per_group))), group = rep(c("A", "B"), each = n_per_group))
+samples$grpe_protein <- treat$protein[match(samples$sample, treat$enriched_in)]
+write.table(samples, file.path(out_dir, "samples.tsv"), sep = "\t", quote = FALSE,
+    row.names = FALSE, na = "")
+set.seed(20261112L)
+pi <- setNames(rlnorm(nrow(bg)), bg$protein)
+pi <- pi / sum(pi)
+s <- rlnorm(nrow(samples), 0, 0.25)
+e <- setNames(rlnorm(nrow(u), 0, 0.5), u$protein)
+p <- matrix(0, nrow(samples), nrow(u), dimnames = list(samples$sample, u$protein))
+p[, bg$protein] <- matrix(pi, nrow(samples), nrow(bg), byrow = TRUE)
+a <- samples$group == "A"
+p[a, ] <- (1 - rho) * p[a, ]
+p[cbind(which(a), match(samples$grpe_protein[a], u$protein))] <- rho
+mu <- s * depth * p
+phi <- (0.1 + 1 / mu) * rep(e, each = nrow(samples))
+set.seed(1)
+counts <- matrix(rnbinom(length(mu), mu = mu, size = 1 / phi), nrow(mu),
+    dimnames = dimnames(mu))
+counts[mu == 0] <- 0L # rnbinom gives NaN at mu = 0, size = 0
+storage.mode(counts) <- "integer"
+write.table(data.frame(sample = rownames(counts), counts, check.names = FALSE),
+    file.path(out_dir, "counts.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+share <- rowSums(counts[a, treat$protein]) / rowSums(counts[a, ])
+c(median_depth = median(rowSums(counts)), GrpE_share_in_A_median = median(share),
+    GrpE_share_in_A_min = min(share), GrpE_share_in_A_max = max(share),
+    GrpE_counts_in_B = sum(counts[!a, treat$protein]))
+```
+
+# Output files
+
+```{r files}
+f <- list.files(out_dir, full.names = TRUE)
+data.frame(file = f, bytes = file.size(f))
+```
+
+| File | Content |
+| --- | --- |
+| `proteins.fasta` | the 110 proteins |
+| `labels.tsv` | protein, role (GrpE or background), the A sample it is spiked into, COG id, name, gene, functional category, length, organism, MMseqs2 30% cluster |
+| `samples.tsv` | sample, group, its GrpE protein |
+| `counts.tsv` | counts, samples × proteins |
+
+```{r session}
+sessionInfo()
+```
+
+# References {-}
