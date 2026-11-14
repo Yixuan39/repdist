@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 
 This page runs the `repdist` workflow on a published metaproteome: beta
 diversity with MMD (`sample_mmd()`, the maximum mean discrepancy under a
-Gaussian RBF kernel on the protein embeddings), the representation space,
+Gaussian kernel on the protein embeddings), the representation space,
 MCL bins, and bin-level differential abundance.
 
 ```{r libs}
@@ -49,9 +49,9 @@ one week each, so protein source is partly confounded with feeding week.
 
 **Data.** The input file is [`curated/diet_series.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/diet_series.rds) (42 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch. To run the code on this page, save it in a `curated/` folder next to your working directory.
 
-It is not part of the package: the package ships only
-`extdata/diet_metaproteome.rds`, a smaller 2,000-protein subset of the same
-study used in the [Get started](vignette.html) vignette.
+It is not part of the package; the package's `inst/extdata/metaproteomics.*`
+files, used in its help-page examples, are a 100-protein cut of the same
+study.
 
 ```{r data}
 d <- readRDS(file.path("curated", "diet_series.rds"))
@@ -289,11 +289,12 @@ tapply(nearest, ko_status, quantile, probs = c(0.25, 0.5, 0.75))
 # Protein bins
 
 The similarity graph and MCL bins use the package defaults: an edge needs a
-predicted TM-score of at least 0.7 and a local alignment covering at least
-half of both sequences; MCL inflation is 2.
+local alignment with an E-value of at most 0.01, its weight is the predicted
+TM-score, and MCL inflation is 2. Aligning every pair of these proteins is
+the slow step of this page.
 
 ```{r bins}
-# similarity graph: pairs with predicted TM >= 0.7 and half of both aligned
+# similarity graph: pairs whose alignment has E <= 0.01, weighted by TM-score
 S <- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
 bins <- bin_proteins(S) # MCL clusters of that graph
 bins$graph
@@ -330,9 +331,9 @@ round(prop.table(table(cut(identity, c(0, 30, 40, 50, 70, 90, 100.01),
         "70-90%", ">=90%")))), 3)
 ```
 
-Most edges join proteins with similar predicted structure but low sequence
-identity (median `r round(median(identity))`%): remote homologs, which
-sequence identity alone would not group.
+The median edge joins proteins at `r round(median(identity))`% identity, and
+`r sprintf("%.0f%%", 100 * mean(identity < 30))` of the edges are below 30%:
+remote homologs that a 30%-identity sequence clustering would not group.
 
 # Differential abundance
 
@@ -427,13 +428,12 @@ protein.
 # Inside a bin
 
 `plot_bin_similarity()` shows all pairwise predicted TM-scores within one
-bin. An uncrossed cell is an edge of the graph: the pair passed both
-thresholds (predicted TM-score ≥ 0.7, coverage ≥ 0.5) and keeps its
-similarity as the edge weight. A crossed cell is not an edge (weight 0 in
-`S`). MCL clusters along the edges. Shown are the most
-significant bin with 4 to 30 members in each direction, with a count of
-their member pairs: edges, pairs below the similarity threshold, and pairs
-above it that failed the coverage gate.
+bin. An uncrossed cell is an edge of the graph: the pair's alignment passed
+the E-value gate, and the edge keeps its predicted TM-score as weight. A
+crossed cell is not an edge (weight 0 in `S`): its alignment failed the gate,
+and the pair is in the bin only through shared neighbours. MCL clusters
+along the edges. Shown are the most significant bin with 4 to 30 members in
+each direction, with a count of their member pairs.
 
 ```{r pick}
 pick <- function(ids) ids[sizes[ids] >= 4 & sizes[ids] <= 30][1]
@@ -441,13 +441,12 @@ shown <- c(Yeast = pick(sig[lfc[sig, "log2FoldChange"] > 0]),
     Casein = pick(sig[lfc[sig, "log2FoldChange"] < 0]))
 pair_types <- function(bin) {
     m <- bins$clusters[[bin]]
-    R <- tcrossprod(Z[m, ])
     E <- S[m, m] > 0
     up <- upper.tri(E)
-    c(pairs = sum(up), edges = sum(E[up]), below_0.7 = sum(R[up] < 0.7),
-        failed_coverage = sum(R[up] >= 0.7 & !E[up]))
+    c(pairs = sum(up), edges = sum(E[up]), not_edges = sum(!E[up]))
 }
-data.frame(bin = shown, t(vapply(shown, pair_types, numeric(4))))
+pair_counts <- data.frame(bin = shown, t(vapply(shown, pair_types, numeric(3))))
+pair_counts
 ```
 
 ```{r bin-yeast, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges crossed"}
@@ -471,13 +470,11 @@ knitr::kable(ann[m, c("taxon", "consensus_annotation", "ko", "cazy")],
     row.names = TRUE)
 ```
 
-In the GH92 bin every pair of members is an edge. In
-`r shown[["Casein"]]`, mostly unannotated proteins from several
-*Acetatifactor* species groups and unbinned contigs, some members are joined only
-through shared neighbours (pairs below 0.7) and some similar pairs are not
-edges because their alignment covers less than half of one sequence. MCL
-keeps both kinds of pair in one bin; the thresholds act on edges, not on
-every pair.
+In `r shown[["Yeast"]]`, `r pair_counts["Yeast", "edges"]` of
+`r pair_counts["Yeast", "pairs"]` member pairs are edges; in `r shown[["Casein"]]`,
+`r pair_counts["Casein", "edges"]` of `r pair_counts["Casein", "pairs"]`. MCL keeps
+pairs joined only through shared neighbours in one bin: the gate acts on
+edges, not on every pair.
 
 # Notes
 

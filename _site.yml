@@ -5,7 +5,7 @@ navbar:
   title: "repdist"
   left:
     - text: "Get started"
-      href: vignette.html
+      href: repdist.html
     - text: "Install"
       href: index.html#installation
     - text: "Reference"

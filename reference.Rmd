@@ -44,20 +44,18 @@ library(repdist)
 library(ggplot2)
 ```
 
-The executable examples use the three largest enzyme classes (EC3) of an
-enzyme universe built for an earlier simulation: experimentally
-characterised Swiss-Prot enzymes whose embeddings were computed with
-`embed_proteins()`.
-
-**Data.** The input file is [`curated/simulation_universe.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/simulation_universe.rds) (7.3 MB), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch, built by `data-raw/simulation_universe.R`. To run the code on this page, save it in a `curated/` folder next to your working directory.
+The executable examples use `simulate_cog`, the dataset shipped with the
+package and used in [Get started](repdist.html): 110 proteins of the NCBI COG
+2024 release with TM-Vec embeddings, ten of them GrpE (COG0576) from ten
+different 30%-identity sequence clusters. [Simulated data](data_simulation.html)
+shows how it was built.
 
 ```{r example-data}
-u <- readRDS(file.path("curated", "simulation_universe.rds"))
-classes <- names(sort(table(u$annotation$ec3), decreasing = TRUE))[1:3]
-keep <- u$annotation$ec3 %in% classes
-proteins <- u$proteins[keep]
-ec3 <- setNames(u$annotation$ec3[keep], u$annotation$protein[keep])
-table(ec3)
+data(simulate_cog, package = "repdist")
+proteins <- simulate_cog$proteins
+annotation <- simulate_cog$annotation
+role <- setNames(annotation$role, annotation$protein)
+table(role)
 ```
 
 # Protein representations {#protein-representations}
@@ -74,10 +72,11 @@ dim(S4Vectors::mcols(proteins)$embedding)
 There are two ways to get it.
 
 **`embed_proteins()`: sequences to embeddings inside R.** It accepts a named
-character vector, an `AAStringSet` or a FASTA path, and a `model` key from
-`known_models()`. Models run in a Python environment that `repdist` builds
-and pins itself through `basilisk`, on a standalone Python it downloads, so
-users do not install Python, conda or git. Weights are downloaded on first use and pinned to fixed revisions
+character vector, an `AAStringSet` or a FASTA path (read and checked by
+`read_fasta()`), and a `model` key from `known_models()`. Models run in a
+Python environment that `repdist` builds and pins itself through `basilisk`,
+on a standalone Python it downloads, so users do not install Python, conda or
+git. Weights are downloaded on first use and pinned to fixed revisions
 (HuggingFace commits, or a SHA-256-checked file). Every sequence is embedded
 whole; nothing is truncated or dropped.
 
@@ -132,7 +131,7 @@ $$
 + \sum_{i,j} q_i q_j\, k(z_i, z_j),
 $$
 
-with the Gaussian (RBF) kernel on Euclidean distance
+with the Gaussian kernel on Euclidean distance
 
 $$
 k(z_i, z_j) = \exp\!\left(-\frac{\lVert z_i - z_j \rVert^2}{2\sigma^2}\right).
@@ -159,13 +158,13 @@ kernel's diagonal is not that correction.
 **Sampling depth.** Relative abundances remove total-count scaling, but
 not depth-dependent sampling noise or changes in which proteins are seen.
 Rarefaction is an optional analysis choice, not a requirement of the
-distance. The simulations use all observed counts as relative abundances;
-the case study uses a common rarefaction depth for both distances. Raw
+distance. The vignette uses all observed counts as relative abundances;
+the case study rarefies to a common depth before both distances. Raw
 counts are retained for count-based differential abundance analysis.
 
 **Why a kernel distance.** If $k$ were 1 for identical proteins and 0
 otherwise, the returned MMD would reduce to the Euclidean distance between the
-two relative-abundance vectors, an identity-only comparison. With the RBF
+two relative-abundance vectors, an identity-only comparison. With the Gaussian
 kernel, the cross term lets different accessions with close embeddings
 partly match, in proportion to their abundances. MMD compares the two
 weighted distributions through their kernel mean embeddings; unlike
@@ -173,16 +172,17 @@ optimal-transport distances it solves no transport problem and is computed
 directly from the protein kernel matrix. The choice is methodological; it is
 not a claim that transport-based distances cannot be used.
 
-In the example, samples `s1` and `s2` share no accession but draw on the
-same enzyme class, while `s3` draws on another class:
+In the example, samples `s1` and `s2` share no accession but each holds five
+GrpE proteins, while `s3` holds five background proteins:
 
 ```{r mmd-toy}
-pick <- function(class, i) names(ec3)[ec3 == class][i]
+grpe <- names(role)[role == "GrpE"]
+background <- names(role)[role == "background"]
 counts <- matrix(0, 3, length(proteins),
     dimnames = list(c("s1", "s2", "s3"), names(proteins)))
-counts["s1", pick(classes[1], 1:10)] <- 10
-counts["s2", pick(classes[1], 11:20)] <- 10
-counts["s3", pick(classes[2], 1:10)] <- 10
+counts["s1", grpe[1:5]] <- 10
+counts["s2", grpe[6:10]] <- 10
+counts["s3", background[1:5]] <- 10
 
 D <- sample_mmd(counts, proteins)
 D
@@ -216,42 +216,44 @@ temporary copies add to peak memory.
 protein embeddings
         │  cosine similarity
 pairwise similarity s_ij
-        │  similarity and coverage thresholds
-weighted sparse graph W
+        │  alignment E-value gate (E ≤ max_evalue)
+weighted graph W
         │  Markov clustering
 protein bins ── bin_glom() ──► samples × bins counts
 ```
 
 ## `protein_similarity()` {#protein-similarity}
 
-`protein_similarity(proteins, min_sim = 0.7, min_coverage = 0.5)` returns the
-weighted adjacency matrix
+`protein_similarity(proteins, max_evalue = 0.01)` returns the weighted
+adjacency matrix
 
 $$
 W_{ij} =
 \begin{cases}
-s_{ij}, & s_{ij} \ge t_{\mathrm{sim}} \text{ and } \mathrm{cov}_{ij} \ge t_{\mathrm{cov}},\\
+s_{ij}, & s_{ij} > 0 \text{ and } E_{ij} \le E_{\max},\\
 0, & \text{otherwise,}
 \end{cases}
 $$
 
-where $s_{ij}$ is the cosine similarity of the embeddings,
-$t_{\mathrm{sim}}$ = `min_sim` and $t_{\mathrm{cov}}$ = `min_coverage`. With
-TM-Vec this reads $W_{ij} = \mathrm{TM}_{ij}$ when the predicted TM-score
-$\mathrm{TM}_{ij} \ge t_{\mathrm{TM}}$ and the coverage passes.
+where $s_{ij}$ is the cosine similarity of the embeddings (with TM-Vec, the
+predicted TM-score), $E_{ij}$ the E-value of the two sequences' alignment and
+$E_{\max}$ = `max_evalue`. There is no similarity threshold: the embeddings
+only weight the edges, and the alignment decides which pairs are edges.
 
-Coverage is computed only for pairs that pass `min_sim`: the two sequences
-are aligned locally (Smith-Waterman [@smith1981local]; BLOSUM62, gap opening
-11, extension 1), and $\mathrm{cov}_{ij}$ is the smaller of the two
-fractions of each sequence that the alignment spans. A pair that shares one domain but differs
-over the rest of two long proteins can still have a high predicted TM-score;
-the coverage threshold keeps such a pair from becoming an edge. Coverage is a
-hard gate: it removes edges but never rescales their weights.
-`min_coverage = 0` skips the alignments; `n_cores` runs them in parallel.
+Every pair with a positive similarity is aligned locally (Smith-Waterman
+[@smith1981local]; BLOSUM62, gap opening 11, extension 1). $E_{ij}$ is
+BLAST's E-value for the shorter protein searched against all of `proteins`,
+from the Karlin-Altschul statistics of BLOSUM62 with these gaps
+($\lambda$ = 0.267, $K$ = 0.041) [@karlin1990evalue], without length
+correction or composition-based statistics. The search space is the total
+length of `proteins`, so one `max_evalue` is stricter on a larger set.
+`max_evalue = Inf` skips the alignments and keeps every positive pair.
 
-The result is an ordinary symmetric matrix (1 on the diagonal, 0 for every
-non-edge), so it can be clustered by other graph algorithms as well;
-`bin_proteins()` is one choice, not a requirement.
+The number of alignments grows with the square of the number of proteins:
+5,000 proteins take about 40 minutes on 10 cores (`n_cores`). The result is
+an ordinary symmetric matrix (1 on the diagonal, 0 for every non-edge), so it
+can be clustered by other graph algorithms as well; `bin_proteins()` is one
+choice, not a requirement.
 
 ```{r similarity}
 S <- protein_similarity(proteins)
@@ -280,23 +282,13 @@ head(lengths(bins$clusters))
 ```
 
 The result lists the members of each bin (`clusters`), each protein's bin
-(`membership`), a medoid per bin (`representatives`) and a summary of the
-graph (`graph`).
+(`membership`), a medoid per bin (`representatives`), the `inflation` and a
+summary of the graph (`graph`).
 
-**Thresholds define edges, not bins.** If A–B and B–C are edges, MCL can put
-A, B and C in one bin even when A–C is below `min_sim`. A bin therefore does
-not guarantee that every pair of its members passes the thresholds. Three
-toy proteins with embeddings at 0°, 40° and 80° on a circle, so neighbours
-have cosine 0.77 and the two ends 0.17:
-
-```{r chain}
-toy <- Biostrings::AAStringSet(c(A = "MKVLA", B = "MKVLG", C = "MKVLS"))
-angle <- c(0, 40, 80) * pi / 180
-S4Vectors::mcols(toy)$embedding <- cbind(cos(angle), sin(angle))
-S_toy <- protein_similarity(toy, min_coverage = 0)
-round(S_toy, 2) # A-C: cosine 0.17, below min_sim, so no edge
-bin_proteins(S_toy)$clusters
-```
+**The gate defines edges, not bins.** If A–B and B–C pass the E-value gate,
+MCL can put A, B and C in one bin even when A–C does not. A bin therefore
+does not guarantee that every pair of its members aligns significantly;
+`plot_bin_similarity()` below shows which pairs inside a bin are edges.
 
 ## `bin_glom()` {#bin-glom}
 
@@ -310,8 +302,8 @@ Sample totals are unchanged and a sparse `Matrix` stays sparse. Give it raw
 counts when the next step is a count model such as DESeq2.
 
 ```{r glom}
-bin_counts <- bin_glom(counts, bins)
-bin_counts[, 1:5]
+bin_counts <- bin_glom(simulate_cog$counts, bins)
+bin_counts[1:3, 1:5]
 ```
 
 # QC and visualization {#qc-and-visualization}
@@ -327,28 +319,20 @@ layout depends on the random seed.
 
 ```{r tsne, fig.height = 4.2}
 set.seed(1)
-plot_tsne(proteins, color = ec3)
+plot_tsne(proteins, color = role)
 ```
 
 ## `plot_bin_similarity()` {#plot-bin-similarity}
 
 `plot_bin_similarity(bins, bin, S, proteins)` shows every pairwise similarity
-among one bin's members. Cell colour is the raw similarity from the
-embeddings, before any threshold; a cross marks each pair that is not an edge
-of `S`, that is, did not pass both thresholds. Crossed pairs are in the bin
-through shared neighbours, or passed `min_sim` but failed the coverage gate.
+among one bin's members. Cell colour is the similarity from the embeddings,
+before any gate; a cross marks each pair that is not an edge of `S`. Crossed
+pairs are in the bin through shared neighbours: their alignment failed the
+E-value gate. Here, the bin holding the GrpE proteins:
 
 ```{r bin-similarity, fig.width = 6.5, fig.height = 5.5}
-edge_share <- vapply(bins$clusters, function(m) {
-    E <- S[m, m]
-    mean(E[upper.tri(E)] > 0)
-}, numeric(1))
-sizes <- lengths(bins$clusters)
-shown <- names(which.min(edge_share[sizes >= 5 & sizes <= 15]))
-plot_bin_similarity(bins, shown, S, proteins)
+grpe_bin <- names(which.max(table(bins$membership[grpe])))
+plot_bin_similarity(bins, grpe_bin, S, proteins)
 ```
-
-The bin shown is the one between 5 and 15 members with the smallest share of
-pairs that are edges.
 
 # References {-}

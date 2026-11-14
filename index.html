@@ -321,7 +321,7 @@ div.tocify {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
-  <a href="vignette.html">Get started</a>
+  <a href="repdist.html">Get started</a>
 </li>
 <li>
   <a href="index.html#installation">Install</a>
@@ -370,18 +370,17 @@ predicted TM-score) for two related tasks:</p>
 <p><strong>A. Comparing samples.</strong> Each sample is an
 abundance-weighted distribution of its proteins in representation space.
 <code>sample_mmd()</code> compares two such distributions by the maximum
-mean discrepancy (MMD) under a Gaussian (RBF) kernel, so different but
-closely related proteins partly match.</p>
+mean discrepancy (MMD) under a Gaussian kernel, so different but closely
+related proteins partly match.</p>
 <p><strong>B. Grouping proteins.</strong>
 <code>protein_similarity()</code> turns pairwise similarities into a
-weighted graph, keeping only pairs that pass a similarity threshold and
-an alignment-coverage threshold. <code>bin_proteins()</code> partitions
-the graph by Markov clustering (MCL), and <code>bin_glom()</code> sums
-protein counts within each bin for count-based analyses such as
-DESeq2.</p>
+weighted graph, keeping only pairs whose sequences align with an E-value
+of at most 0.01. <code>bin_proteins()</code> partitions the graph by
+Markov clustering (MCL), and <code>bin_glom()</code> sums protein counts
+within each bin for differential abundance testing.</p>
 <div id="documentation" class="section level1">
 <h1>Documentation</h1>
-<p><strong><a href="vignette.html">Get started</a></strong>: the package
+<p><strong><a href="repdist.html">Get started</a></strong>: the package
 vignette, a worked example on simulated data with a known answer:
 embeddings, beta diversity, protein bins and differential abundance.</p>
 <p><strong><a href="reference.html">Reference</a></strong>: what each

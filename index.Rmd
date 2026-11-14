@@ -15,18 +15,18 @@ for two related tasks:
 
 **A. Comparing samples.** Each sample is an abundance-weighted distribution of
 its proteins in representation space. `sample_mmd()` compares two such
-distributions by the maximum mean discrepancy (MMD) under a Gaussian (RBF)
-kernel, so different but closely related proteins partly match.
+distributions by the maximum mean discrepancy (MMD) under a Gaussian kernel,
+so different but closely related proteins partly match.
 
 **B. Grouping proteins.** `protein_similarity()` turns pairwise similarities
-into a weighted graph, keeping only pairs that pass a similarity threshold
-and an alignment-coverage threshold. `bin_proteins()` partitions the graph by
-Markov clustering (MCL), and `bin_glom()` sums protein counts within each
-bin for count-based analyses such as DESeq2.
+into a weighted graph, keeping only pairs whose sequences align with an
+E-value of at most 0.01. `bin_proteins()` partitions the graph by Markov
+clustering (MCL), and `bin_glom()` sums protein counts within each bin for
+differential abundance testing.
 
 # Documentation
 
-**[Get started](vignette.html)**: the package vignette, a worked example
+**[Get started](repdist.html)**: the package vignette, a worked example
 on simulated data with a known answer: embeddings, beta diversity, protein
 bins and differential abundance.
 
