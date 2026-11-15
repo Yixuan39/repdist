@@ -12,6 +12,8 @@ navbar:
       href: reference.html
     - text: "Case study"
       href: case_study.html
+    - text: "Clustering benchmark"
+      href: clustering.html
     - text: "Simulated data"
       href: data_simulation.html
   right:

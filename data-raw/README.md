@@ -1,18 +1,21 @@
 # Curated inputs for the site
 
-The case study reads one curated object in `curated/`, rebuilt by the script
-here, run from the branch root with the current `repdist` installed; it
-computes protein embeddings with `embed_proteins(model = "tmvec")` (see
-`known_models()`). The page computes every result from it at render time.
+The case study and the clustering benchmark read two curated objects in
+`curated/`, each rebuilt by one script here, run from the branch root with
+the current `repdist` installed; both compute protein embeddings with
+`embed_proteins(model = "tmvec")` (see `known_models()`). The pages compute
+every result from them at render time.
 The vignette's and reference's dataset, `simulate_cog`, is built by
 `data_simulation.Rmd` at the branch root instead.
 
 | Object | Script | Used by |
 | --- | --- | --- |
 | `curated/diet_series.rds` | `diet_series.R` | `case_study.Rmd` |
+| `curated/clustering_cog.rds` | `clustering_cog.R` | `clustering.Rmd` |
 
 ```sh
 Rscript data-raw/diet_series.R
+Rscript data-raw/clustering_cog.R
 ```
 
 Embeddings are stored rounded to six decimal places (cosine error below
@@ -49,3 +52,23 @@ and detailed function, consensus annotation, KOs, CAZy), `provenance`.
 
 The case study selects its Yeast–Casein pairs from this object; another diet
 pair needs no rebuild.
+
+## `clustering_cog.rds`
+
+Source: NCBI COG 2024 (<https://ftp.ncbi.nih.gov/pub/COG/COG2024/data/>),
+downloaded once into `data/cog/` and checked against the release's MD5 sums.
+Needs MMseqs2 on the `PATH`.
+
+1. Keep proteins with exactly one COG, every assignment row in membership
+   class 0, and 50-1000 residues (the rule of `data_simulation.Rmd`).
+2. Draw 150 random COGs with at least 40 such proteins and 40 random
+   candidates from each; keep standard-residue, non-identical sequences; use
+   the first 100 COGs that keep 20, and their first 20 proteins.
+3. Embed with `tmvec`.
+4. MMseqs2 `easy-cluster` at 30% identity (`-c 0.8 --cov-mode 0
+   --cluster-mode 0 -s 7.5`) and an all-vs-all `easy-search` at E <= 0.01
+   (`-s 7.5 --max-seqs 10000`), both directions kept.
+
+Fields: `proteins` (AAStringSet with embeddings), `annotation` (protein,
+length, COG, organism, COG category and name, MMseqs2 30% cluster), `hits`
+(query, target, identity, coverages, E-value), `provenance`.

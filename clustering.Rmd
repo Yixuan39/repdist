@@ -1,0 +1,167 @@
+---
+title: "Clustering benchmark"
+subtitle: "repdist bins against MMseqs2 and a TribeMCL-like graph, scored on COGs"
+bibliography: references.bib
+link-citations: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE, comment = "#>", message = FALSE, warning = FALSE
+)
+```
+
+Three ways to group proteins into functional units, scored against COG
+labels [@galperin2025cog] that none of them sees: MMseqs2 clusters at 30%
+identity [@steinegger2017mmseqs2], MCL on MMseqs2 E-values as in TribeMCL
+[@enright2002tribemcl], and repdist bins (MCL on TM-Vec similarity, gated on
+alignment E-value). COGs are built from sequence similarity, so the label
+favours the two sequence methods.
+
+```{r libs}
+library(repdist)
+```
+
+**Data.** The input file is [`curated/clustering_cog.rds`](https://github.com/Yixuan39/repdist/raw/gh-pages/curated/clustering_cog.rds), in the repository's [`curated/`](https://github.com/Yixuan39/repdist/tree/gh-pages/curated) folder on the `gh-pages` branch, built by `data-raw/clustering_cog.R`: 20 random proteins from each of 100 random COGs of NCBI COG 2024, each protein with exactly one full-length COG assignment and 50-1000 residues, with TM-Vec embeddings, MMseqs2 30% clusters and all-vs-all MMseqs2 hits at E $\le$ 0.01. To run the code on this page, save it in a `curated/` folder next to your working directory.
+
+```{r data}
+d <- readRDS(file.path("curated", "clustering_cog.rds"))
+proteins <- d$proteins
+cog <- setNames(d$annotation$cog, d$annotation$protein)
+c(proteins = length(proteins), COGs = length(unique(cog)))
+```
+
+# Methods
+
+| Method | Edges | Weights | Clustering |
+| --- | --- | --- | --- |
+| MMseqs2 30% | 30% identity, 80% coverage of both | none | greedy set cover |
+| TribeMCL-like | MMseqs2 hits, E $\le$ 0.01 | $-\log_{10} E$ | MCL, inflation 2 |
+| repdist | pwalign alignments, E $\le$ 0.01 | TM-Vec cosine | MCL, inflation 2 |
+
+The TribeMCL-like graph weights each pair by $-\log_{10} E$, averaged over
+the two search directions (one direction if only one hit), with E = 0 and
+anything below 10^-200^ capped at 200, then divided by 200 for
+`bin_proteins()`; MCL normalises each column, so the scale does not matter.
+The two MCL methods share the E-value cut-off and the MCL code, and differ
+in the alignments and the weights.
+
+```{r methods}
+ids <- names(proteins)
+h <- d$hits
+h$w <- pmin(-log10(h$evalue), 200)
+# mean over the two directions; a pair with one hit keeps that hit's weight
+key <- paste(pmin(h$query, h$target), pmax(h$query, h$target))
+w <- tapply(h$w, key, mean)
+pair <- do.call(rbind, strsplit(names(w), " "))
+W <- matrix(0, length(ids), length(ids), dimnames = list(ids, ids))
+W[pair] <- W[pair[, 2:1]] <- w / 200
+diag(W) <- 1
+S <- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
+groups <- list(
+    `MMseqs2 30%` = setNames(d$annotation$mmseqs30, d$annotation$protein),
+    `TribeMCL-like` = bin_proteins(W)$membership,
+    repdist = bin_proteins(S)$membership
+)
+```
+
+# Scores
+
+All scores come from the cluster $\times$ COG table:
+
+- **Coherence**: the share of a COG's proteins in the cluster that holds
+  most of them, averaged over COGs (completeness).
+- **Purity**: the share of a multi-member cluster's proteins carrying its
+  most common COG, averaged over those clusters.
+- **Precision / recall / F1**: over protein pairs, a pair is predicted
+  together if it shares a cluster and truly together if it shares a COG.
+- **Coverage**: the share of proteins in multi-member clusters.
+
+```{r scores}
+scores <- function(m, lab) {
+    tab <- table(m, lab[names(m)])
+    tp <- sum(choose(tab, 2))
+    precision <- tp / sum(choose(rowSums(tab), 2))
+    recall <- tp / sum(choose(colSums(tab), 2))
+    multi <- rowSums(tab) > 1
+    c(clusters = nrow(tab),
+        coherence = mean(apply(tab, 2, max) / colSums(tab)),
+        purity = mean(apply(tab[multi, , drop = FALSE], 1, max) /
+            rowSums(tab)[multi]),
+        precision = precision, recall = recall,
+        F1 = 2 * precision * recall / (precision + recall),
+        coverage = sum(rowSums(tab)[multi]) / sum(tab))
+}
+knitr::kable(t(vapply(groups, scores, numeric(7), lab = cog)), digits = 3)
+```
+
+repdist has the highest coherence, recall and F1. It pays in precision: the
+two sequence methods never mix COGs, while repdist mixes a few, listed below.
+
+```{r mixed}
+names_of <- setNames(d$annotation$name, d$annotation$cog)
+mixed <- do.call(rbind, lapply(names(groups), function(g) {
+    tab <- table(groups[[g]], cog[names(groups[[g]])])
+    tab <- tab[rowSums(tab > 0) > 1, , drop = FALSE]
+    if (!nrow(tab)) return(NULL)
+    do.call(rbind, lapply(rownames(tab), function(b) {
+        r <- tab[b, tab[b, ] > 0]
+        data.frame(method = g, cluster = b, COG = names(r), proteins = r,
+            name = names_of[names(r)])
+    }))
+}))
+knitr::kable(mixed, row.names = FALSE)
+```
+
+Each mixed bin is two whole COGs from one homologous superfamily with a
+related activity, such as two sigma-54 activators, two hexapeptide-repeat
+acetyltransferases and the two catalytic subunits of the heme-copper
+oxidases.
+The sequence methods keep each of these pairs apart.
+
+# Where the recall comes from
+
+Same-COG pairs split by how similar their sequences are: the highest MMseqs2
+identity over the two directions, or no hit at E $\le$ 0.01. Each cell is
+the share of that stratum's pairs placed in the same cluster.
+
+```{r strata}
+same <- t(combn(ids, 2))
+same <- same[cog[same[, 1]] == cog[same[, 2]], ]
+fid <- tapply(h$fident, key, max)
+id <- fid[paste(pmin(same[, 1], same[, 2]), pmax(same[, 1], same[, 2]))]
+stratum <- cut(id, c(0, 0.3, 0.5, 1), include.lowest = TRUE,
+    labels = c("< 30%", "30-50%", ">= 50%"))
+stratum <- factor(ifelse(is.na(id), "no hit", as.character(stratum)),
+    levels = c("no hit", "< 30%", "30-50%", ">= 50%"))
+together <- vapply(groups, function(m) m[same[, 1]] == m[same[, 2]],
+    logical(nrow(same)))
+knitr::kable(cbind(pairs = as.vector(table(stratum)),
+    rowsum(together * 1, stratum) / as.vector(table(stratum))), digits = 3)
+```
+
+The methods agree above 50% identity. The gap opens below 30%, where
+MMseqs2 clusters join few pairs, and widens for same-COG pairs that MMseqs2
+cannot align at all. The two graphs hold similar edges; the weights differ.
+Within a COG, $-\log_{10} E$ varies many-fold between close and remote pairs,
+so MCL follows the strongest edges and splits more COGs, while the TM-Vec
+weights of a COG are nearly flat.
+
+```{r edges}
+diff <- t(combn(ids, 2))
+diff <- diff[cog[diff[, 1]] != cog[diff[, 2]], ]
+no_hit <- stratum == "no hit"
+edges <- function(M, m) {
+    v <- M[same][M[same] > 0]
+    tab <- table(m, cog[names(m)])
+    c(`same-COG pairs with an edge` = mean(M[same] > 0),
+        `same-COG, no MMseqs2 hit, with an edge` =
+            mean(M[same[no_hit, ]] > 0),
+        `different-COG pairs with an edge` = mean(M[diff] > 0),
+        `same-COG weight, 95th / 5th percentile` =
+            unname(quantile(v, 0.95) / quantile(v, 0.05)),
+        `COGs split over clusters` = sum(colSums(tab > 0) > 1))
+}
+knitr::kable(t(cbind(`TribeMCL-like` = edges(W, groups[["TribeMCL-like"]]),
+    repdist = edges(S, groups$repdist))), digits = 4)
+```
