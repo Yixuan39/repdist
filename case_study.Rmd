@@ -420,10 +420,19 @@ The ten most significant bins higher on the casein diet:
 knitr::kable(bin_table(up_casein))
 ```
 
-Several casein-enriched bins are large and mixed across taxa, for example
-substrate-binding proteins of carbohydrate ABC transporters: they summarise
-a structural family shared by many organisms rather than one organism's
-protein.
+```{r largest-casein, include = FALSE}
+big <- up_casein[which.max(sizes[up_casein])]
+big_ann <- ann[bins$clusters[[big]], ]
+big_fun <- table(big_ann$consensus_annotation)
+```
+
+Several casein-enriched bins are large and mixed across taxa. The largest
+in the table, `r big`, holds `r sizes[[big]]` proteins from
+`r length(unique(na.omit(big_ann$taxon)))` taxa with `r length(big_fun)`
+distinct annotations; the most frequent, `r names(which.max(big_fun))`,
+covers `r max(big_fun)` of them. A bin like this summarises a family of
+related proteins shared by many organisms, not one organism's protein, and
+its members' functions agree less than in a small bin.
 
 # Inside a bin
 
