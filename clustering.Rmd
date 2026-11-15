@@ -57,7 +57,8 @@ pair <- do.call(rbind, strsplit(names(w), " "))
 W <- matrix(0, length(ids), length(ids), dimnames = list(ids, ids))
 W[pair] <- W[pair[, 2:1]] <- w / 200
 diag(W) <- 1
-S <- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers())
+S <- protein_similarity(proteins, n_cores = BiocParallel::multicoreWorkers(),
+    progress = FALSE)
 groups <- list(
     `MMseqs2 30%` = setNames(d$annotation$mmseqs30, d$annotation$protein),
     `TribeMCL-like` = bin_proteins(W)$membership,
@@ -95,8 +96,10 @@ scores <- function(m, lab) {
 knitr::kable(t(vapply(groups, scores, numeric(7), lab = cog)), digits = 3)
 ```
 
-repdist has the highest coherence, recall and F1. It pays in precision: the
-two sequence methods never mix COGs, while repdist mixes a few, listed below.
+At the shared inflation 2, repdist has the highest coherence, recall and F1,
+though a TribeMCL-like graph tuned to inflation 1.2 reaches a higher F1.
+repdist pays in precision: the two sequence methods never mix COGs, while
+repdist mixes a few, listed below.
 
 ```{r mixed}
 names_of <- setNames(d$annotation$name, d$annotation$cog)
@@ -140,12 +143,12 @@ knitr::kable(cbind(pairs = as.vector(table(stratum)),
     rowsum(together * 1, stratum) / as.vector(table(stratum))), digits = 3)
 ```
 
-The methods agree above 50% identity. The gap opens below 30%, where
-MMseqs2 clusters join few pairs, and widens for same-COG pairs that MMseqs2
-cannot align at all. The two graphs hold similar edges; the weights differ.
-Within a COG, $-\log_{10} E$ varies many-fold between close and remote pairs,
-so MCL follows the strongest edges and splits more COGs, while the TM-Vec
-weights of a COG are nearly flat.
+The methods agree above 50% identity; the gap opens below 30% and is widest
+for same-COG pairs MMseqs2 cannot align. The TribeMCL-like graph has no edge
+for any of those pairs, while repdist's pwalign alignments pass E $\le$ 0.01
+for about a third of them. The weights differ too: within a COG,
+$-\log_{10} E$ varies many-fold, so MCL follows the strongest edges and
+splits more COGs, while the TM-Vec weights of a COG are nearly flat.
 
 ```{r edges}
 diff <- t(combn(ids, 2))
