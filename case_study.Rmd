@@ -337,29 +337,39 @@ remote homologs that a 30%-identity sequence clustering would not group.
 
 # Differential abundance
 
-Raw (unrarefied) protein counts are summed to bins with `bin_glom()` and
-tested with DESeq2 [@love2014deseq2]. The design `~ subject + diet` pairs the
-two samples of each mouse; size factors use the `poscounts` estimator because
-no bin is observed in every sample. Fold changes are Yeast relative to Casein,
-shrunk with the `normal` prior for display; p-values are from the Wald test.
+Raw (unrarefied) protein counts are summed to bins with `bin_glom()`. Each
+sample's bin counts, plus a pseudo count of 1, are put on the centred
+log-ratio (CLR) scale [@aitchison1982compositional], and each bin seen in at
+least 10% of samples is tested with a linear model `~ subject + diet`, which
+pairs the two samples of each mouse. LFC is the log2 fold change of Yeast
+over Casein; q is the Benjamini-Hochberg adjusted p-value.
 
-```{r deseq}
+```{r da}
 bin_counts <- bin_glom(counts, bins) # sum protein counts within each bin
-dds <- DESeq2::DESeqDataSetFromMatrix(round(t(bin_counts)), samples,
-    design = ~ subject + diet)
-dds <- DESeq2::DESeq(dds, sfType = "poscounts", quiet = TRUE)
-res <- DESeq2::results(dds, name = "diet_Yeast_vs_Casein", alpha = 0.05)
-lfc <- DESeq2::lfcShrink(dds, coef = "diet_Yeast_vs_Casein", type = "normal",
-    res = res, quiet = TRUE)
-DESeq2::summary(res)
+clr <- log2(bin_counts + 1)
+clr <- clr - rowMeans(clr) # centred log-ratio within each sample
+seen <- colMeans(bin_counts > 0) >= 0.1
+fit <- t(apply(clr[, seen], 2, function(y) {
+    summary(lm(y ~ subject + diet, data = samples))$coefficients[
+        "dietYeast", c("Estimate", "Pr(>|t|)")]
+}))
+res <- data.frame(LFC = fit[, 1], p = fit[, 2],
+    q = p.adjust(fit[, 2], "BH"), mean_clr = colMeans(clr[, seen]),
+    row.names = rownames(fit))
+c(tested = nrow(res), up_yeast = sum(res$q < 0.05 & res$LFC > 0),
+    up_casein = sum(res$q < 0.05 & res$LFC < 0))
 ```
 
-DESeq2's MA plot shows each bin's shrunk log2 fold change against its mean
-normalised count; bins with adjusted p < 0.05 are coloured.
+The MA plot shows each bin's LFC against its mean CLR; bins with q < 0.05
+are coloured.
 
 ```{r ma-plot, fig.width = 6, fig.height = 4, fig.alt = "MA plot of bin-level differential abundance, Yeast vs Casein"}
-DESeq2::plotMA(lfc, alpha = 0.05,
-    ylab = "log2 fold change, Yeast vs Casein (shrunk)")
+ggplot(res, aes(mean_clr, LFC, colour = q < 0.05)) +
+    geom_point(size = 0.8) +
+    scale_colour_manual(values = c(`FALSE` = "grey60", `TRUE` = "firebrick"),
+        name = "q < 0.05") +
+    labs(x = "mean CLR (log2)", y = "LFC, Yeast vs Casein") +
+    theme_bw()
 ```
 
 Each bin's annotation summarises its members. A label shared by every
@@ -388,49 +398,54 @@ bin_table <- function(ids) {
             function(m) summarise_labels(ann[m, "consensus_annotation"]), ""),
         KO = vapply(bins$clusters[ids],
             function(m) summarise_labels(ann[m, "ko"]), ""),
-        log2FC = round(lfc[ids, "log2FoldChange"], 2),
-        p = formatC(res[ids, "pvalue"], format = "e", digits = 1),
-        padj = formatC(res[ids, "padj"], format = "e", digits = 1),
+        LFC = round(res[ids, "LFC"], 2),
+        p = formatC(res[ids, "p"], format = "e", digits = 1),
+        q = formatC(res[ids, "q"], format = "e", digits = 1),
         check.names = FALSE, row.names = NULL
     )
 }
-sig <- rownames(res)[!is.na(res$padj) & res$padj < 0.05]
-sig <- sig[order(res[sig, "padj"])]
-up_yeast <- head(sig[lfc[sig, "log2FoldChange"] > 0], 10)
-up_casein <- head(sig[lfc[sig, "log2FoldChange"] < 0], 10)
+sig <- rownames(res)[res$q < 0.05]
+sig <- sig[order(res[sig, "p"])]
+up_yeast <- sig[res[sig, "LFC"] > 0]
+up_casein <- sig[res[sig, "LFC"] < 0]
+# the bin holding most of the study's GH92 proteins
+gh92 <- names(which.max(table(bins$membership[grepl("GH92", ann$cazy)])))
+gh92_members <- bins$clusters[[gh92]]
 ```
 
 The ten most significant bins higher on the yeast diet:
 
 ```{r table-yeast}
-knitr::kable(bin_table(up_yeast))
+knitr::kable(bin_table(head(up_yeast, 10)))
 ```
 
-The most significant yeast-enriched bin, `r up_yeast[1]`, holds
-`r sizes[[up_yeast[1]]]` proteins that the study annotated as GH92 family
-glycosyl hydrolases (α-mannosidases), almost all from *B. thetaiotaomicron*.
-The source study reported these enzymes increasing on the yeast diet and
-linked them to the mannan of yeast cell-wall glycoproteins
-[@blakeleyruiz2025diet]. None of the bin's members has a KO, so a KO-level
-summary would not have grouped them.
+`r gh92`, ranked `r match(gh92, up_yeast)` of the `r length(up_yeast)`
+yeast-enriched bins, holds `r length(gh92_members)` proteins,
+`r sum(grepl("GH92", ann[gh92_members, "cazy"]))` of them GH92 family
+glycosyl hydrolases (α-mannosidases) in the study's annotation, almost all
+from *B. thetaiotaomicron*. The source study reported these enzymes
+increasing on the yeast diet and linked them to the mannan of yeast
+cell-wall glycoproteins [@blakeleyruiz2025diet].
+`r n <- sum(!is.na(ann[gh92_members, "ko"])); if (n) paste("Only", n) else "None"`
+of its members carry a KO, so a KO-level summary would not have grouped them.
 
 The ten most significant bins higher on the casein diet:
 
 ```{r table-casein}
-knitr::kable(bin_table(up_casein))
+knitr::kable(bin_table(head(up_casein, 10)))
 ```
 
 ```{r largest-casein, include = FALSE}
-big <- up_casein[which.max(sizes[up_casein])]
+big <- head(up_casein, 10)[which.max(sizes[head(up_casein, 10)])]
 big_ann <- ann[bins$clusters[[big]], ]
-big_fun <- table(big_ann$consensus_annotation)
+big_ko <- table(big_ann$ko)
 ```
 
 Several casein-enriched bins are large and mixed across taxa. The largest
 in the table, `r big`, holds `r sizes[[big]]` proteins from
-`r length(unique(na.omit(big_ann$taxon)))` taxa with `r length(big_fun)`
-distinct annotations; the most frequent, `r names(which.max(big_fun))`,
-covers `r max(big_fun)` of them. A bin like this summarises a family of
+`r length(unique(na.omit(big_ann$taxon)))` taxa. `r sum(big_ko)` of them carry
+a KO, spread over `r length(big_ko)` distinct KOs; the most frequent,
+`r names(which.max(big_ko))`, covers `r max(big_ko)`. A bin like this summarises a family of
 related proteins shared by many organisms, not one organism's protein, and
 its members' functions agree less than in a small bin.
 
@@ -446,8 +461,7 @@ each direction, with a count of their member pairs.
 
 ```{r pick}
 pick <- function(ids) ids[sizes[ids] >= 4 & sizes[ids] <= 30][1]
-shown <- c(Yeast = pick(sig[lfc[sig, "log2FoldChange"] > 0]),
-    Casein = pick(sig[lfc[sig, "log2FoldChange"] < 0]))
+shown <- c(Yeast = pick(up_yeast), Casein = pick(up_casein))
 pair_types <- function(bin) {
     m <- bins$clusters[[bin]]
     E <- S[m, m] > 0
@@ -490,8 +504,8 @@ edges, not on every pair.
 - Diet is confounded with feeding period in this serial design (Casein and
   Yeast were periods 2 and 5), so the differences cannot be attributed to
   diet alone.
-- Beta diversity uses rarefied counts; differential abundance uses raw
-  counts with DESeq2 size factors.
+- Beta diversity uses rarefied counts; differential abundance uses the CLR
+  of raw counts.
 - A bin is a similarity-network cluster. Agreement among its members'
   annotations is evidence about its function; bins can span species and,
   when large, related functions.
