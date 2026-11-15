@@ -17,8 +17,8 @@ downloads model weights.
 ## Continuous integration
 
 `.github/workflows/R-CMD-check.yaml` runs `R CMD check` on every push and pull
-request to `main`. A passing push to `main` also uploads coverage to Codecov
-and republishes the vignette to the `gh-pages` site as `repdist.html`.
+request to `main`. A passing push to `main` also uploads coverage to Codecov.
+The site's `repdist.html` is rendered by hand on the `gh-pages` branch.
 
 ## Vignette
 
