@@ -24,6 +24,7 @@
 #' @param n_cores Number of cores for the alignments (default 1). Above 1 the
 #'   alignments run in forked processes, which Windows does not support: there
 #'   they run on one core with a warning.
+#' @param progress Show a progress bar over the alignments (default `TRUE`).
 #' @return Symmetric numeric matrix of similarities, 1 on the diagonal and 0
 #'   for every gated pair.
 #' @references Karlin S, Altschul SF (1990). Methods for assessing the
@@ -38,13 +39,15 @@
 #' protein_similarity(x, max_evalue = Inf)
 #' protein_similarity(x)
 #' @export
-protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L) {
+protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L,
+    progress = TRUE) {
     Z <- .embeddings(x)
     stopifnot(
         is.numeric(max_evalue), length(max_evalue) == 1L,
         !is.na(max_evalue), max_evalue > 0,
         is.numeric(n_cores), length(n_cores) == 1L,
-        n_cores >= 1, n_cores == round(n_cores)
+        n_cores >= 1, n_cores == round(n_cores),
+        isTRUE(progress) || isFALSE(progress)
     )
     S <- pmax(pmin(tcrossprod(Z), 1), 0)
     diag(S) <- 1
@@ -52,28 +55,31 @@ protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L) {
         S4Vectors::mcols(x) <- NULL # pwalign drops them with a warning
         ij <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
         message("Aligning ", nrow(ij), " protein pairs for their E-values.")
+        # ~100 tasks so the progress bar moves; each carries only its own
+        # pairs, since arguments are re-sent with every task
+        m <- nrow(ij)
+        pairs <- lapply(split(seq_len(m), ceiling(seq_len(m) / m * 100)),
+            function(k) ij[k, , drop = FALSE])
         BPPARAM <- if (n_cores > 1) {
-            BiocParallel::MulticoreParam(n_cores)
+            BiocParallel::MulticoreParam(n_cores, tasks = length(pairs),
+                progressbar = progress)
         } else {
-            BiocParallel::SerialParam()
+            BiocParallel::SerialParam(progressbar = progress)
         }
-        E <- BiocParallel::bpvec(seq_len(nrow(ij)), .evalue, ij = ij,
-            seqs = x, BPPARAM = BPPARAM)
-        weak <- ij[unlist(E) > max_evalue, , drop = FALSE]
+        E <- BiocParallel::bplapply(pairs, .evalue, seqs = x, BPPARAM = BPPARAM)
+        weak <- ij[unlist(E, use.names = FALSE) > max_evalue, , drop = FALSE]
         S[rbind(weak, weak[, 2:1])] <- 0
     }
     S
 }
 
-# E-values of the local alignments of the protein pairs in rows `rows` of
-# `ij`, a two-column matrix of indices into `seqs`: BLAST's E for the shorter
-# protein searched against all of `seqs`, from the BLOSUM62 gap 11/1
-# Karlin-Altschul lambda and K of NCBI BLAST. Top level so workers are not
-# sent the similarity matrix; no argument may be named `i`, which bpvec()
-# uses.
-.evalue <- function(rows, ij, seqs) {
-    p <- seqs[ij[rows, 1]]
-    s <- seqs[ij[rows, 2]]
+# E-values of the local alignments of the protein pairs in `ij`, a two-column
+# matrix of indices into `seqs`: BLAST's E for the shorter protein searched
+# against all of `seqs`, from the BLOSUM62 gap 11/1 Karlin-Altschul lambda and
+# K of NCBI BLAST. Top level so workers are not sent the similarity matrix.
+.evalue <- function(ij, seqs) {
+    p <- seqs[ij[, 1]]
+    s <- seqs[ij[, 2]]
     score <- pwalign::pairwiseAlignment(p, s, substitutionMatrix = "BLOSUM62",
         type = "local", gapOpening = 11, gapExtension = 1, scoreOnly = TRUE)
     bits <- (0.267 * score - log(0.041)) / log(2)

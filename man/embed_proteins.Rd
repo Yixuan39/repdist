@@ -8,7 +8,8 @@ embed_proteins(
     seqs,
     model = "tmvec",
     device = c("auto", "mps", "cuda", "cpu"),
-    batch_size = 16L
+    batch_size = 16L,
+    progress = TRUE
 )
 }
 \arguments{
@@ -38,6 +39,8 @@ sequence that still does not fit is embedded on the CPU with a warning.}
 \item{batch_size}{Maximum number of sequences per model batch, a positive
 integer. A throughput knob, not a correctness one: lower it to reduce
 peak memory when sharing a device with other processes.}
+
+\item{progress}{Show a progress bar (default \code{TRUE}).}
 }
 \value{
 An \code{AAStringSet} of the sequences, named by accession, with one

@@ -212,6 +212,7 @@ known_models <- function() {
 #' @param batch_size Maximum number of sequences per model batch, a positive
 #'   integer. A throughput knob, not a correctness one: lower it to reduce
 #'   peak memory when sharing a device with other processes.
+#' @param progress Show a progress bar (default `TRUE`).
 #' @return An `AAStringSet` of the sequences, named by accession, with one
 #'   unit-norm embedding row per protein in the matrix `mcols(x)$embedding`.
 #'   To use embeddings from elsewhere, build the same object:
@@ -221,7 +222,8 @@ known_models <- function() {
 #'     seqs,
 #'     model = "tmvec",
 #'     device = c("auto", "mps", "cuda", "cpu"),
-#'     batch_size = 16L
+#'     batch_size = 16L,
+#'     progress = TRUE
 #' )
 #' @references Hamamsy et al. (2024). Protein remote homology detection and
 #'   structural alignment using deep learning. Nature Biotechnology.
@@ -240,9 +242,11 @@ known_models <- function() {
 #' @export
 embed_proteins <- function(
     seqs, model = "tmvec",
-    device = c("auto", "mps", "cuda", "cpu"), batch_size = 16L
+    device = c("auto", "mps", "cuda", "cpu"), batch_size = 16L,
+    progress = TRUE
 ) {
     device <- match.arg(device)
+    stopifnot(isTRUE(progress) || isFALSE(progress))
     if (!is.numeric(batch_size) || length(batch_size) != 1L ||
         !is.finite(batch_size) || batch_size < 1 ||
         batch_size != floor(batch_size) || batch_size > .Machine$integer.max) {
@@ -255,19 +259,36 @@ embed_proteins <- function(
     .standalone_python()
     proc <- basilisk::basiliskStart(repdist_env)
     on.exit(basilisk::basiliskStop(proc), add = TRUE)
-    Z <- basilisk::basiliskRun(
-        proc, .embed_worker,
-        as.list(unname(seqs)),
-        as.character(jsonlite::toJSON(resolved$spec, auto_unbox = TRUE)),
-        resolved$weights, device, as.integer(batch_size)
-    )
+    spec <- as.character(jsonlite::toJSON(resolved$spec, auto_unbox = TRUE))
+    batch_size <- as.integer(batch_size)
 
-    if (!is.matrix(Z) || !is.numeric(Z) || nrow(Z) != length(ids) ||
-        ncol(Z) < 1L || any(!is.finite(Z)) ||
-        any(abs(rowSums(Z^2) - 1) > 1e-6)) {
-        stop("Embedding backend returned invalid or non-unit rows.",
-            call. = FALSE)
+    # Sent in ~100 chunks, each a multiple of `batch_size`, so the progress
+    # bar moves; the model stays loaded in `proc` between chunks. Chunking
+    # does not depend on `progress`, so neither do the embeddings. Where the
+    # worker's token cap or an OOM split re-batches a chunk, padding can
+    # differ from an unchunked run at floating-point level only.
+    n <- length(seqs)
+    chunk <- batch_size * ceiling(n / (100 * batch_size))
+    chunks <- split(seq_len(n), ceiling(seq_len(n) / chunk))
+    if (progress) {
+        pb <- utils::txtProgressBar(max = n, style = 3, file = stderr())
+        on.exit(close(pb), add = TRUE)
     }
+    Z <- lapply(chunks, function(idx) {
+        z <- basilisk::basiliskRun(
+            proc, .embed_worker, as.list(unname(seqs[idx])), spec,
+            resolved$weights, device, batch_size
+        )
+        if (!is.matrix(z) || !is.numeric(z) || nrow(z) != length(idx) ||
+            ncol(z) < 1L || any(!is.finite(z)) ||
+            any(abs(rowSums(z^2) - 1) > 1e-6)) {
+            stop("Embedding backend returned invalid or non-unit rows.",
+                call. = FALSE)
+        }
+        if (progress) utils::setTxtProgressBar(pb, max(idx))
+        z
+    })
+    Z <- do.call(rbind, unname(Z))
     dimnames(Z) <- list(ids, paste0("d", seq_len(ncol(Z))))
     x <- Biostrings::AAStringSet(seqs)
     S4Vectors::mcols(x)$embedding <- Z

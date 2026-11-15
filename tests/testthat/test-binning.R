@@ -204,7 +204,7 @@ test_that("protein_similarity is cosine similarity clipped to [0, 1]", {
     W <- W / sqrt(rowSums(W^2))
     cosine <- tcrossprod(W)
     off <- upper.tri(cosine)
-    G <- suppressMessages(protein_similarity(as_proteins(W)))
+    G <- suppressMessages(protein_similarity(as_proteins(W), progress = FALSE))
     expect_true(isSymmetric(G))
     expect_identical(dimnames(G), list(rownames(W), rownames(W)))
     expect_equal(unname(diag(G)), rep(1, 50))
@@ -213,7 +213,8 @@ test_that("protein_similarity is cosine similarity clipped to [0, 1]", {
     expect_error(protein_similarity(as_proteins(W), min_sim = 0.7), "unused")
     # rows are normalised, with similarity clipped at 1
     rounded <- rbind(a = c(1 + 1e-7, 0), b = c(3, 0), c = c(-1, 0))
-    G_rounded <- suppressMessages(protein_similarity(as_proteins(rounded)))
+    G_rounded <- suppressMessages(protein_similarity(as_proteins(rounded),
+        progress = FALSE))
     expect_equal(unname(G_rounded), rbind(c(1, 1, 0), c(1, 1, 0), c(0, 0, 1)))
     expect_error(protein_similarity(W), "AAStringSet")
     expect_error(protein_similarity(as_proteins(unname(W))), "names")
@@ -233,7 +234,7 @@ test_that("E-values match BLAST's bit scores", {
     aa <- Biostrings::AAStringSet(c(
         long = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKAL",
         short = "GGKTAYIAKQRQISFVKAHFSRQLEERLGLIEVQAPWLSRVGDGTQ"))
-    E <- repdist:::.evalue(1L, rbind(1:2), aa)
+    E <- repdist:::.evalue(rbind(1:2), aa)
     w <- Biostrings::width(aa)
     bits <- -log2(E / (min(w) * sum(w)))
     # blastp -comp_based_stats 0 on this pair: raw score 205, 83.6 bits
@@ -246,7 +247,7 @@ test_that("E-values do not overflow on a large protein set", {
     a <- substr(strrep(unit, 20), 1, 1000)
     aa <- Biostrings::AAStringSet(c(a = a, b = a,
         filler = strrep("A", 3e6)))
-    E <- repdist:::.evalue(1L, rbind(1:2), aa)
+    E <- repdist:::.evalue(rbind(1:2), aa)
     expect_false(is.na(E))
     expect_lt(E, 1e-100)
 })
@@ -257,21 +258,23 @@ test_that("the E-value gate cuts similar embeddings of unrelated sequences", {
         c = "WWGGPPCCWWGGPPCC", d = "WWWWWW")
     x <- as_proteins(W, seqs)
     plain <- protein_similarity(x, max_evalue = Inf)
-    gated <- suppressMessages(protein_similarity(x))
+    gated <- suppressMessages(protein_similarity(x, progress = FALSE))
     ab <- c("a", "b")
     expect_equal(gated[ab, ab], plain[ab, ab])
     expect_gt(plain["a", "c"], 0)
     expect_equal(gated[ab, "c"], c(a = 0, b = 0))
-    lenient <- suppressMessages(protein_similarity(x, max_evalue = 1e6))
+    lenient <- suppressMessages(protein_similarity(x, max_evalue = 1e6,
+        progress = FALSE))
     expect_gt(lenient["a", "c"], 0)
     expect_true(isSymmetric(gated))
     # only pairs with a positive similarity are aligned
     aligned <- 0L
-    testthat::local_mocked_bindings(.evalue = function(k, ...) {
-        aligned <<- aligned + length(k)
-        rep(0, length(k))
+    testthat::local_mocked_bindings(.evalue = function(ij, ...) {
+        aligned <<- aligned + nrow(ij)
+        rep(0, nrow(ij))
     })
-    expect_equal(suppressMessages(protein_similarity(x)), plain)
+    expect_equal(suppressMessages(protein_similarity(x, progress = FALSE)),
+        plain)
     expect_equal(aligned, sum(plain[upper.tri(plain)] > 0))
 })
 
@@ -285,8 +288,10 @@ test_that("parallel and serial E-value gates agree", {
     names(seqs) <- rownames(W)
     x <- as_proteins(abs(W), seqs)
     expect_identical(
-        suppressMessages(protein_similarity(x, max_evalue = 10, n_cores = 2)),
-        suppressMessages(protein_similarity(x, max_evalue = 10))
+        suppressMessages(protein_similarity(x, max_evalue = 10, n_cores = 2,
+            progress = FALSE)),
+        suppressMessages(protein_similarity(x, max_evalue = 10,
+            progress = FALSE))
     )
 })
 

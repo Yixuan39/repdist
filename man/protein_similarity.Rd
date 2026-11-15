@@ -4,7 +4,7 @@
 \alias{protein_similarity}
 \title{Protein similarity matrix from embeddings}
 \usage{
-protein_similarity(x, max_evalue = 0.01, n_cores = 1L)
+protein_similarity(x, max_evalue = 0.01, n_cores = 1L, progress = TRUE)
 }
 \arguments{
 \item{x}{Proteins with embeddings, from
@@ -17,6 +17,8 @@ skips alignment and keeps every pair.}
 \item{n_cores}{Number of cores for the alignments (default 1). Above 1 the
 alignments run in forked processes, which Windows does not support: there
 they run on one core with a warning.}
+
+\item{progress}{Show a progress bar over the alignments (default \code{TRUE}).}
 }
 \value{
 Symmetric numeric matrix of similarities, 1 on the diagonal and 0

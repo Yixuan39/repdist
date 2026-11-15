@@ -156,7 +156,7 @@ protein's bin (`membership`), the proteins of each bin (`clusters`) and
 each bin's medoid (`representatives`).
 
 ```{r bins}
-S <- protein_similarity(proteins) # aligns every pair: quadratic in proteins
+S <- protein_similarity(proteins, progress = FALSE) # aligns every pair
 bins <- bin_proteins(S)
 table(size = lengths(bins$clusters))
 ```

@@ -16,15 +16,35 @@ test_that("R dispatch preserves sequences and validates backend output", {
             result
         }, .package = "basilisk"
     )
-    x <- embed_proteins(s, "esm2-8m", "cpu", 2)
+    x <- embed_proteins(s, "esm2-8m", "cpu", 2, progress = FALSE)
     expect_s4_class(x, "AAStringSet")
     expect_identical(as.character(x), s)
     expect_identical(rownames(S4Vectors::mcols(x)$embedding), names(s))
     expect_equal(unname(S4Vectors::mcols(x)$embedding), diag(2))
     for (bad in list(matrix(0, 2, 2), matrix(NA_real_, 2, 2), diag(3))) {
         result <- bad
-        expect_error(embed_proteins(s, "esm2-8m", "cpu", 2), "backend")
+        expect_error(embed_proteins(s, "esm2-8m", "cpu", 2, progress = FALSE),
+            "backend")
     }
+})
+
+test_that("chunked embedding keeps input order", {
+    s <- stats::setNames(strrep("A", 1:250), paste0("p", 1:250))
+    calls <- 0L
+    testthat::local_mocked_bindings(.standalone_python = function() NULL)
+    testthat::local_mocked_bindings(
+        basiliskStart = function(...) NULL,
+        basiliskStop = function(...) NULL,
+        basiliskRun = function(proc, fun, seqs, ...) {
+            calls <<- calls + 1L
+            n <- nchar(unlist(seqs))
+            cbind(cos(n), sin(n))
+        }, .package = "basilisk"
+    )
+    x <- embed_proteins(s, "esm2-8m", "cpu", 1, progress = FALSE)
+    expect_gt(calls, 1L)
+    expect_equal(unname(S4Vectors::mcols(x)$embedding),
+        cbind(cos(1:250), sin(1:250)))
 })
 
 test_that("all remote model artifacts have immutable revisions", {
