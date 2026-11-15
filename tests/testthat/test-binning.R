@@ -240,6 +240,17 @@ test_that("E-values match BLAST's bit scores", {
     expect_equal(bits, 83.6, tolerance = 0.05 / 83.6)
 })
 
+test_that("E-values do not overflow on a large protein set", {
+    # 1,000 residues x 3 million total residues > 2^31
+    unit <- "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKAL"
+    a <- substr(strrep(unit, 20), 1, 1000)
+    aa <- Biostrings::AAStringSet(c(a = a, b = a,
+        filler = strrep("A", 3e6)))
+    E <- repdist:::.evalue(1L, rbind(1:2), aa)
+    expect_false(is.na(E))
+    expect_lt(E, 1e-100)
+})
+
 test_that("the E-value gate cuts similar embeddings of unrelated sequences", {
     W <- rbind(a = c(1, 0), b = c(0.95, 0.05), c = c(0.9, 0.1), d = c(0, 1))
     seqs <- c(a = "MKTAYIAKQRQISFVKSHFSRQ", b = "MKTAYIAKQRQISFVKSHFSRA",

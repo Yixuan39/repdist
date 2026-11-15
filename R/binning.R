@@ -77,8 +77,11 @@ protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L) {
     score <- pwalign::pairwiseAlignment(p, s, substitutionMatrix = "BLOSUM62",
         type = "local", gapOpening = 11, gapExtension = 1, scoreOnly = TRUE)
     bits <- (0.267 * score - log(0.041)) / log(2)
-    pmin(Biostrings::width(p), Biostrings::width(s)) *
-        sum(Biostrings::width(seqs)) * 2^-bits
+    # as.numeric: in integers, length x total residues overflows past 2^31
+    # (about 4,500 proteins of 1,000 residues) and gives NA, which the gate
+    # would let through as an edge
+    as.numeric(pmin(Biostrings::width(p), Biostrings::width(s))) *
+        sum(as.numeric(Biostrings::width(seqs))) * 2^-bits
 }
 
 # A protein_similarity() result, or any symmetric named similarity matrix in
