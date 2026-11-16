@@ -26,3 +26,12 @@ The site's `repdist.html` is rendered by hand on the `gh-pages` branch.
 `vignettes/repdist.Rmd` runs on `data(simulate_cog)` (110 proteins) and
 builds in seconds, `protein_similarity()` included. `inst/scripts` has the
 scripts that build the shipped data.
+
+The README figure is the vignette's `pcoa` chunk; after changing it, from
+the package root with the package loaded:
+
+```r
+source(knitr::purl("vignettes/repdist.Rmd", output = tempfile()))
+ggplot2::ggsave("man/figures/README-simulation-pcoa.png", width = 9,
+    height = 3.4, dpi = 150)
+```

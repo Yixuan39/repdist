@@ -103,3 +103,8 @@ test_that("every registered model names a head embed_proteins can build", {
         expect_match(m$head_repo, ".")
     }
 })
+
+test_that("a mistyped FASTA path says so", {
+    expect_error(read_fasta("no/such/file.fasta"), "FASTA file not found")
+    expect_error(embed_proteins("no/such/file.fasta"), "FASTA file not found")
+})

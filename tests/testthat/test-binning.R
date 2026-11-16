@@ -217,7 +217,7 @@ test_that("protein_similarity is cosine similarity clipped to [0, 1]", {
     expect_error(protein_similarity(W), "AAStringSet")
     expect_error(protein_similarity(as_proteins(unname(W))), "names")
     expect_error(protein_similarity(as_proteins(rbind(W[1:3, ], dead = 0))),
-        "is.finite")
+        "zero or non-finite norm, e.g. dead")
     for (bad in list(-0.1, 1.5, NA, c(0.5, 0.7), "0.5")) {
         expect_error(protein_similarity(as_proteins(W), n_cores = bad),
             "n_cores")
@@ -331,4 +331,18 @@ test_that("invalid inflation and similarity matrices are rejected", {
     expect_error(bin_proteins(2 * S), "\\[0, 1\\]")
     expect_error(bin_proteins(-S), "\\[0, 1\\]")
     expect_error(bin_proteins(unname(S)), "names")
+})
+
+test_that("protein_similarity aligns U and O as X and rejects a gapped x", {
+    seqs <- c(a = "MKTAYIAKQRQISFVKSHFSRQULEERLGL",
+        b = "MKTAYIAKQRQISFVKSHFSRQOLEERLGL",
+        c = "MKTAYIAKQRQISFVKSHFSRQXLEERLGL")
+    x <- as_proteins(unit(rbind(a = c(1, 0), b = c(0.9, 0.1), c = c(0.8, 0.2))),
+        seqs)
+    S <- suppressMessages(protein_similarity(x, progress = FALSE))
+    expect_true(all(S > 0))
+    gapped <- as_proteins(unit(rbind(a = c(1, 0), b = c(0.9, 0.1))),
+        c(a = "MKTAY-IAKQ", b = "MKTAYIAKQ"))
+    expect_error(suppressMessages(protein_similarity(gapped)),
+        "model-incompatible")
 })

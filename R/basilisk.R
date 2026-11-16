@@ -4,8 +4,8 @@
 # stack a user gets, and it cannot be perturbed by the rest of their system.
 #
 # Bumping any pin here changes the embeddings, so treat it as a version bump of
-# the ground metric, not as routine maintenance: the coordinates cached in
-# inst/extdata were produced by the stack below. Model weights are pinned
+# the ground metric, not as routine maintenance: the embeddings stored in
+# data/simulate_cog.rda were produced by the stack below. Model weights are pinned
 # separately, to commit revisions in inst/extdata/models.json.
 #
 # basilisk is also why DESCRIPTION sets `StagedInstall: no`: its environments

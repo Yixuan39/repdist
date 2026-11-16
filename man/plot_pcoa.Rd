@@ -41,9 +41,9 @@ over all proteins, the value \code{sample_mmd(counts, x)} uses, so the kernel
 is the one of the full distance.}
 }
 \value{
-A ggplot object whose \code{data} holds the coordinates; the subtitle
-names the most abundant protein of each dropped region. Needs the
-\code{ggplot2} package.
+A ggplot object whose \code{data} holds the coordinates. A message
+names the most abundant protein of each dropped region and the region's
+size. Needs the \code{ggplot2} package.
 }
 \description{
 Principal coordinates of \code{\link[=sample_mmd]{sample_mmd()}} after

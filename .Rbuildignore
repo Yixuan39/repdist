@@ -10,3 +10,4 @@
 ^repdist\.Rcheck$
 ^vignettes/repdist\.html$
 ^\.github$
+^CONTRIBUTING\.md$

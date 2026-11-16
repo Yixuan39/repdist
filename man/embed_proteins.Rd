@@ -13,8 +13,8 @@ embed_proteins(
 )
 }
 \arguments{
-\item{seqs}{Named character vector of amino-acid sequences, \strong{or} a
-path to a FASTA file (see \code{\link[=read_fasta]{read_fasta()}}). Names
+\item{seqs}{Named character vector or \code{AAStringSet} of amino-acid
+sequences, \strong{or} a path to a FASTA file (see \code{\link[=read_fasta]{read_fasta()}}). Names
 must be unique, non-missing and non-empty. A terminal stop \code{*} is
 removed; gaps, whitespace, internal stops, non-standard letters like
 \code{J}, empty sequences, and missing values are rejected.}

@@ -120,7 +120,8 @@ test_that("MMD sees mass rearranged at a fixed weighted mean", {
 })
 
 test_that("missing or unnamed proteins fail loudly", {
-    expect_error(sample_mmd(counts, x[1:5]))
+    expect_error(sample_mmd(counts, x[1:5]), "have no embedding in `x`, e.g. p")
+    expect_error(sample_mmd(t(counts), x), "samples in rows")
     expect_error(sample_mmd(counts, unname(x)), "names")
     expect_error(sample_mmd(counts, as_proteins(rbind(Z, Z[1, ]))),
         "names")
@@ -217,11 +218,11 @@ test_that("plot_pcoa drops the most abundant region", {
     big[, 1:10] <- big[, 1:10] * 10L
     sigma <- attr(sample_mmd(big, x), "sigma")
     ref <- stats::cmdscale(sample_mmd(big[, 11:30], x, sigma = sigma), k = 2)
-    p <- plot_pcoa(big, x, drop = 1)
+    expect_message(p <- plot_pcoa(big, x, drop = 1),
+        "^Dropped 1 region, .* \\(10 proteins\\)")
     expect_equal(as.numeric(stats::dist(p$data[, c("PCo1", "PCo2")])),
         as.numeric(stats::dist(ref)))
-    expect_match(p$labels$subtitle, "^Dropped 1 region \\(")
-    expect_match(p$labels$subtitle, "\\(10\\)$")
+    expect_null(p$labels$subtitle)
     alone <- big
     alone[1, 11:30] <- 0L # s1 holds only the dropped region
     expect_error(plot_pcoa(alone, x, drop = 1), "s1 hold only")
@@ -230,7 +231,7 @@ test_that("plot_pcoa drops the most abundant region", {
 test_that("plot_pcoa outlines groups matched by sample name", {
     skip_if_not_installed("ggplot2")
     group <- stats::setNames(rep(c("a", "b"), each = 3), rownames(counts))
-    p <- plot_pcoa(counts, x, group = rev(group))
+    p <- suppressMessages(plot_pcoa(counts, x, group = rev(group)))
     expect_identical(as.character(p$data$group), unname(group))
     expect_s3_class(p$layers[[1]]$geom, "GeomPolygon")
     expect_error(plot_pcoa(counts, x, group = c("a", "b")), "one label")

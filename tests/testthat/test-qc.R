@@ -58,6 +58,8 @@ test_that("an MCL bin can hold pairs that are not edges", {
     S_all <- protein_similarity(as_proteins(W), max_evalue = Inf)
     expect_error(plot_bin_similarity(b, "bin1", S_all),
         "6 edges but `bins` was built from 3")
+    # the right edges under reordered names are not the graph either
+    expect_error(plot_bin_similarity(b, "bin1", G[4:1, 4:1]), "same order")
 })
 
 test_that("plot_tsne embeds every protein on cosine distance", {

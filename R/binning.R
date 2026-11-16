@@ -53,7 +53,10 @@ protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L,
     S <- pmax(pmin(tcrossprod(Z), 1), 0)
     diag(S) <- 1
     if (is.finite(max_evalue)) {
-        S4Vectors::mcols(x) <- NULL # pwalign drops them with a warning
+        # Validated as embed_proteins() does, since `x` may be hand-built: a
+        # gap stops the aligner and an empty sequence scores E = 0. U and O
+        # are not in BLOSUM62; they align as X, as the model reads them.
+        x <- Biostrings::AAStringSet(chartr("UO", "XX", .check_sequences(x)))
         ij <- which(upper.tri(S) & S > 0, arr.ind = TRUE)
         message("Aligning ", nrow(ij), " protein pairs for their E-values.")
         # ~100 tasks so the progress bar moves; each carries only its own
@@ -238,10 +241,16 @@ bin_proteins <- function(S, inflation = 2) {
 #' bin_glom(counts, b)
 #' @export
 bin_glom <- function(counts, bins) {
-    if (!is.character(bins$membership) || is.null(names(bins$membership))) {
+    if (!is.list(bins) || !is.character(bins$membership) ||
+        is.null(names(bins$membership))) {
         stop("`bins` must be a bin_proteins() result.", call. = FALSE)
     }
-    if (!inherits(counts, "sparseMatrix")) counts <- as.matrix(counts)
+    if (!inherits(counts, "sparseMatrix")) {
+        counts <- as.matrix(counts)
+        if (!is.numeric(counts)) {
+            stop("`counts` must be numeric.", call. = FALSE)
+        }
+    }
     ids <- colnames(counts)
     .check_ids(ids, "Protein")
     missing <- setdiff(ids, names(bins$membership))

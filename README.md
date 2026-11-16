@@ -12,27 +12,26 @@ similarity rather than exact sequence identity alone. The same embeddings also
 cluster proteins into structural bins by Markov clustering (MCL).
 
 The default `TM-Vec` model predicts structural similarity: cosine similarity
-between protein embeddings approximates the TM-score. The corresponding cosine
-distance is `1 - similarity`.
+between protein embeddings approximates the TM-score.
 
-![PCoA of 20 simulated samples under MMD and Bray-Curtis, each group's outermost samples joined](man/figures/README-simulation-pcoa.png)
+![PCoA of 20 simulated samples under MMD, Bray-Curtis on proteins and Bray-Curtis on bins, each group's outermost samples joined](man/figures/README-simulation-pcoa.png)
 
 Two groups of ten simulated samples share 100 background proteins of the NCBI
 COG database. Each group-A sample also puts 5% of its abundance on a GrpE
 protein (COG0576) of its own, and the ten GrpE proteins fall in ten different
 30%-identity MMseqs2 clusters, so no protein or sequence family is enriched
-in more than one sample. Both distances use relative abundances. PERMANOVA
-and PERMDISP, 999 permutations:
+in more than one sample. All three distances use relative abundances;
+Bray-Curtis on bins first sums the proteins of each structural bin
+(`bin_glom()`). PERMANOVA, 999 permutations:
 
-| Distance | PERMANOVA R² | PERMANOVA p | PERMDISP p |
-| --- | --- | --- | --- |
-| MMD | 0.150 | 0.001 | 0.023 |
-| Bray-Curtis (protein) | 0.051 | 0.482 | 0.010 |
+| Distance | R² | p |
+| --- | --- | --- |
+| MMD | 0.150 | 0.001 |
+| Bray-Curtis (protein) | 0.051 | 0.482 |
+| Bray-Curtis (bins) | 0.165 | 0.001 |
 
-Group A is also more dispersed under both distances (PERMDISP), as the
-design builds in: each group-A sample carries a different GrpE protein and
-no group-B sample carries one. A larger spike widens the gap (at 10%,
-PERMDISP p = 0.001 under both). This is the
+Protein-level Bray-Curtis misses the enrichment; MMD and Bray-Curtis on bins
+both detect it. This is the
 [vignette](https://yixuan39.github.io/repdist/repdist.html)'s dataset,
 `data(simulate_cog)`; the
 [simulated data page](https://yixuan39.github.io/repdist/data_simulation.html)
@@ -42,7 +41,7 @@ shows how it was built.
 
 | Input | Typical file | Read with |
 | --- | --- | --- |
-| Protein sequences | FASTA, one record per protein, the protein ID first in the header | `embed_proteins()` |
+| Protein sequences | FASTA, one record per protein, the protein ID as the first word of the header | `embed_proteins()` |
 | Protein counts | tab-separated, samples in rows, sample IDs in the first column, protein IDs as column names (e.g. PSM or spectral counts) | `as.matrix(read.delim(f, row.names = 1, check.names = FALSE))` |
 | Sample metadata | tab-separated, one row per sample, in the count table's row order | `read.delim()` |
 
@@ -123,28 +122,39 @@ meta <- simulate_cog$samples      # one row per sample; `group` is "A" or "B"
 # Beta diversity between samples
 D <- sample_mmd(counts, proteins)
 vegan::adonis2(D ~ group, data = meta)
-plot_pcoa(counts, proteins, meta$group) # display only; drops 2 top regions
+plot_pcoa(counts, proteins, meta$group, drop = 0) # the same distance, plotted
 
 # Structure-level protein bins, e.g. for biomarker discovery
 S <- protein_similarity(proteins, max_evalue = 0.01)
 bins <- bin_proteins(S, inflation = 2)
 bin_counts <- bin_glom(counts, bins) # samples x bins
+vegan::adonis2(vegan::vegdist(bin_counts / rowSums(bin_counts)) ~ group,
+    data = meta) # Bray-Curtis on bins
 ```
 
 `proteins` is an `AAStringSet` of the sequences with the embeddings in
 `mcols(proteins)$embedding`; `simulate_cog` ships with its embeddings already
-computed, so loading it needs no model download. `protein_similarity()`
-aligns every pair with a positive similarity and keeps the predicted
-TM-score of those whose alignment E-value is at most `max_evalue`, so its
-time grows with the square of the number of proteins. `bin_proteins()` runs
-MCL on the remaining edges. The
-gate applies to edges, not all pairs: a bin can hold pairs that did not pass
-it. Structural similarity alone does not guarantee shared function, so weigh
-annotation agreement against how much of the catalog the non-singleton bins
-hold, and how far families fragment, before transferring labels.
+computed, so loading it needs no model download.
+
+The bins need only `proteins`, not `counts` or any sample, and MMD needs no
+bins, so each can be used without the other. `protein_similarity()` aligns
+every pair of proteins with a positive embedding similarity, so its time
+grows with the square of the number of proteins. A pair becomes an *edge*,
+weighted by its predicted TM-score (0 to 1; above about 0.5 usually the same
+fold), only if its alignment E-value is at most `max_evalue`; the others get
+0. `bin_proteins()` runs MCL on the edges. A bin can hold pairs that are not
+edges, joined only through shared neighbours. Structural similarity alone
+does not guarantee shared function, so weigh annotation agreement against how
+much of the catalog the non-singleton bins hold, and how far families
+fragment, before transferring labels. `plot_pcoa()` with its default
+`drop = 2` leaves out the most abundant protein regions and is for display
+only; test on `sample_mmd()` itself.
 
 The same from files, with the examples in `inst/extdata`; swap in your own
-paths. `embed_proteins()` downloads the model on first use:
+paths. `embed_proteins()` downloads the model on first use. The 100 proteins
+were chosen for a GH92 family and the most abundant others, so the example
+checks that the workflow runs; it is not a result. Eleven of the twelve mice
+are sampled on both diets, so the test permutes within mouse:
 
 ```r
 ex <- function(f) system.file("extdata", f, package = "repdist")
@@ -153,7 +163,8 @@ counts <- as.matrix(read.delim(ex("metaproteomics_counts.tsv"),
     row.names = 1, check.names = FALSE))
 meta <- read.delim(ex("metaproteomics_samples.tsv"))
 D <- sample_mmd(counts, proteins)
-vegan::adonis2(D ~ diet, data = meta)
+vegan::adonis2(D ~ diet, data = meta,
+    permutations = permute::how(blocks = meta$subject, nperm = 999))
 ```
 
 ## License

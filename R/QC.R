@@ -105,9 +105,12 @@ plot_bin_similarity <- function(bins, bin, S, label_max = 20L,
     if (length(bin) != 1L || !bin %in% names(bins$clusters)) {
         stop("`bin` must name one bin, e.g. \"bin1\".", call. = FALSE)
     }
+    if (!identical(rownames(S), names(bins$membership))) {
+        stop("`S` does not hold the proteins of `bins` in the same order; ",
+            "pass the matrix given to bin_proteins().", call. = FALSE)
+    }
     n_edges <- sum(S[upper.tri(S)] > 0)
-    if (nrow(S) != bins$graph[["proteins"]] ||
-        n_edges != bins$graph[["edges"]]) {
+    if (n_edges != bins$graph[["edges"]]) {
         stop("`S` has ", n_edges, " edges but `bins` was built from ",
             bins$graph[["edges"]], "; pass the matrix given to bin_proteins().",
             call. = FALSE)

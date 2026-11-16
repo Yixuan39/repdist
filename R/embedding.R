@@ -14,6 +14,10 @@
 #' read_fasta(fa)
 #' @export
 read_fasta <- function(path) {
+    if (!is.character(path) || length(path) != 1L || !file.exists(path) ||
+        dir.exists(path)) {
+        stop("FASTA file not found: ", path, call. = FALSE)
+    }
     aa <- withCallingHandlers(
         Biostrings::readAAStringSet(path),
         warning = function(w) stop(conditionMessage(w), call. = FALSE)
@@ -36,7 +40,9 @@ read_fasta <- function(path) {
 # Validate once for every public entry point that accepts protein sequences,
 # or a FASTA path. Returns the cleaned named character vector.
 .check_sequences <- function(seqs) {
-    if (is.character(seqs) && length(seqs) == 1L && file.exists(seqs)) {
+    # One unnamed string is a path: sequences must be named, so it cannot be
+    # a sequence, and a mistyped path should say so rather than fail on names.
+    if (is.character(seqs) && length(seqs) == 1L && is.null(names(seqs))) {
         return(read_fasta(seqs))
     }
     ids <- names(seqs) # as.character() drops them, and AAStringSet in
@@ -190,8 +196,8 @@ known_models <- function() {
 #' `batch_size` sequences (and an internal padded-token limit); a batch
 #' that still exceeds device memory is split and retried automatically.
 #'
-#' @param seqs Named character vector of amino-acid sequences, **or** a
-#'   path to a FASTA file (see [read_fasta()]). Names
+#' @param seqs Named character vector or `AAStringSet` of amino-acid
+#'   sequences, **or** a path to a FASTA file (see [read_fasta()]). Names
 #'   must be unique, non-missing and non-empty. A terminal stop `*` is
 #'   removed; gaps, whitespace, internal stops, non-standard letters like
 #'   `J`, empty sequences, and missing values are rejected.
@@ -308,6 +314,9 @@ embed_proteins <- function(
     .check_ids(names(x), "Protein")
     rownames(Z) <- names(x)
     Z <- Z / sqrt(rowSums(Z^2))
-    stopifnot(all(is.finite(Z)))
+    if (any(bad <- !is.finite(rowSums(Z)))) {
+        stop("Embedding row(s) with zero or non-finite norm, e.g. ",
+            names(x)[which(bad)[1]], ".", call. = FALSE)
+    }
     Z
 }
