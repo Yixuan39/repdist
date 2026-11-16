@@ -160,23 +160,31 @@ knitr::kable(permanova$MMD, digits = 3, caption = "MMD")
 round(permdisp, 3) # PERMDISP p
 ```
 
-Ellipses are 95% ellipses per protein source (multivariate t).
+Under Bray-Curtis, ellipses are 95% ellipses per protein source
+(multivariate t).
 
-```{r pcoa, fig.width = 9, fig.height = 4.2, fig.alt = "PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by cage, with 95% ellipses"}
-ord <- do.call(rbind, lapply(names(D), function(n) {
-    e <- cmdscale(D[[n]], k = 2, eig = TRUE)
-    rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
-    data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
-        diet = md$diet, cage = md$cage,
-        panel = sprintf("%s\nPCo1 %.0f%%, PCo2 %.0f%%", n, rel[1], rel[2]))
-}))
-ord$panel <- factor(ord$panel, unique(ord$panel))
+```{r pcoa-bc, fig.width = 5.5, fig.height = 4.2, fig.alt = "PCoA under protein-level Bray-Curtis, coloured by protein source, shaped by cage, with 95% ellipses"}
+e <- cmdscale(D[["Bray-Curtis (protein)"]], k = 2, eig = TRUE)
+rel <- 100 * e$eig / sum(e$eig[e$eig > 0])
+ord <- data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
+    diet = md$diet, cage = md$cage)
 ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = cage)) +
     geom_point(size = 1.8) +
     stat_ellipse(aes(group = diet), linewidth = 0.4) +
-    facet_wrap(~panel, scales = "free") +
-    labs(colour = NULL, shape = NULL) +
+    labs(x = sprintf("PCo1 (%.0f%%)", rel[1]),
+        y = sprintf("PCo2 (%.0f%%)", rel[2]), colour = NULL, shape = NULL,
+        title = "Bray-Curtis (protein)") +
     theme_bw()
+```
+
+The MMD plot comes from `plot_pcoa()`, which leaves out the two most
+abundant protein regions, named in its subtitle, before the PCoA. Their
+share varies with things other than diet, so the plot is less crowded
+without them. This is for display only: the PERMANOVA above uses the full
+distance. Each source is outlined by its convex hull.
+
+```{r pcoa-mmd, fig.width = 5.5, fig.height = 4.6, fig.alt = "PCoA under MMD without the two most abundant protein regions, coloured by protein source, with convex hulls"}
+plot_pcoa(relative, proteins, md$diet, drop = 2) + ggplot2::ggtitle("MMD")
 ```
 
 Both distances detect protein source. MMD attributes more of the variation
@@ -451,11 +459,11 @@ its members' functions agree less than in a small bin.
 
 # Inside a bin
 
-`plot_bin_similarity()` shows all pairwise predicted TM-scores within one
-bin. An uncrossed cell is an edge of the graph: the pair's alignment passed
-the E-value gate, and the edge keeps its predicted TM-score as weight. A
-crossed cell is not an edge (weight 0 in `S`): its alignment failed the gate,
-and the pair is in the bin only through shared neighbours. MCL clusters
+`plot_bin_similarity()` shows the edges among one bin's members. A coloured
+cell is an edge of the graph: the pair's alignment passed the E-value gate,
+and the colour is the edge's weight, its predicted TM-score. A grey cell is
+not an edge (weight 0 in `S`): its alignment failed the gate, and the pair is
+in the bin only through shared neighbours. MCL clusters
 along the edges. Shown are the most significant bin with 4 to 30 members in
 each direction, with a count of their member pairs.
 
@@ -472,9 +480,9 @@ pair_counts <- data.frame(bin = shown, t(vapply(shown, pair_types, numeric(3))))
 pair_counts
 ```
 
-```{r bin-yeast, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges crossed"}
-# pairwise predicted TM-scores among the bin's members
-plot_bin_similarity(bins, shown[["Yeast"]], S, proteins)
+```{r bin-yeast, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges grey"}
+# edge weights (predicted TM-scores) among the bin's members
+plot_bin_similarity(bins, shown[["Yeast"]], S)
 ```
 
 ```{r members-yeast}
@@ -483,8 +491,8 @@ knitr::kable(ann[m, c("taxon", "consensus_annotation", "ko", "cazy")],
     row.names = TRUE)
 ```
 
-```{r bin-casein, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected casein-enriched bin; pairs that are not edges crossed"}
-plot_bin_similarity(bins, shown[["Casein"]], S, proteins)
+```{r bin-casein, fig.width = 7, fig.height = 6, fig.alt = "Pairwise predicted TM-scores in the selected casein-enriched bin; pairs that are not edges grey"}
+plot_bin_similarity(bins, shown[["Casein"]], S)
 ```
 
 ```{r members-casein}

@@ -13,7 +13,7 @@
 
 <title>Case study</title>
 
-<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/header-attrs-2.32/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
@@ -659,22 +659,27 @@ knitr::kable(permanova[[&quot;Bray-Curtis (protein)&quot;]], digits = 3,
 <pre class="r"><code>round(permdisp, 3) # PERMDISP p
 #&gt; Bray-Curtis (protein)                   MMD 
 #&gt;                 0.001                 0.554</code></pre>
-<p>Ellipses are 95% ellipses per protein source (multivariate t).</p>
-<pre class="r"><code>ord &lt;- do.call(rbind, lapply(names(D), function(n) {
-    e &lt;- cmdscale(D[[n]], k = 2, eig = TRUE)
-    rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0])
-    data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
-        diet = md$diet, cage = md$cage,
-        panel = sprintf(&quot;%s\nPCo1 %.0f%%, PCo2 %.0f%%&quot;, n, rel[1], rel[2]))
-}))
-ord$panel &lt;- factor(ord$panel, unique(ord$panel))
+<p>Under Bray-Curtis, ellipses are 95% ellipses per protein source
+(multivariate t).</p>
+<pre class="r"><code>e &lt;- cmdscale(D[[&quot;Bray-Curtis (protein)&quot;]], k = 2, eig = TRUE)
+rel &lt;- 100 * e$eig / sum(e$eig[e$eig &gt; 0])
+ord &lt;- data.frame(PCo1 = e$points[, 1], PCo2 = e$points[, 2],
+    diet = md$diet, cage = md$cage)
 ggplot(ord, aes(PCo1, PCo2, colour = diet, shape = cage)) +
     geom_point(size = 1.8) +
     stat_ellipse(aes(group = diet), linewidth = 0.4) +
-    facet_wrap(~panel, scales = &quot;free&quot;) +
-    labs(colour = NULL, shape = NULL) +
+    labs(x = sprintf(&quot;PCo1 (%.0f%%)&quot;, rel[1]),
+        y = sprintf(&quot;PCo2 (%.0f%%)&quot;, rel[2]), colour = NULL, shape = NULL,
+        title = &quot;Bray-Curtis (protein)&quot;) +
     theme_bw()</code></pre>
-<p><img src="case_study_files/figure-html/pcoa-1.png" alt="PCoA under protein-level Bray-Curtis and MMD, coloured by protein source, shaped by cage, with 95% ellipses" width="864" /></p>
+<p><img src="case_study_files/figure-html/pcoa-bc-1.png" alt="PCoA under protein-level Bray-Curtis, coloured by protein source, shaped by cage, with 95% ellipses" width="528" /></p>
+<p>The MMD plot comes from <code>plot_pcoa()</code>, which leaves out
+the two most abundant protein regions, named in its subtitle, before the
+PCoA. Their share varies with things other than diet, so the plot is
+less crowded without them. This is for display only: the PERMANOVA above
+uses the full distance. Each source is outlined by its convex hull.</p>
+<pre class="r"><code>plot_pcoa(relative, proteins, md$diet, drop = 2) + ggplot2::ggtitle(&quot;MMD&quot;)</code></pre>
+<p><img src="case_study_files/figure-html/pcoa-mmd-1.png" alt="PCoA under MMD without the two most abundant protein regions, coloured by protein source, with convex hulls" width="528" /></p>
 <p>Both distances detect protein source. MMD attributes more of the
 variation to it than protein-level Bray-Curtis does (R² 0.322 against
 0.251), and only Bray-Curtis also shows unequal spread between sources
@@ -898,7 +903,7 @@ gh92 &lt;- names(which.max(table(bins$membership[grepl(&quot;GH92&quot;, ann$caz
 gh92_members &lt;- bins$clusters[[gh92]]</code></pre>
 <p>The ten most significant bins higher on the yeast diet:</p>
 <pre class="r"><code>knitr::kable(bin_table(head(up_yeast, 10)))</code></pre>
-<table style="width:100%;">
+<table style="width:99%;">
 <colgroup>
 <col width="5%" />
 <col width="6%" />
@@ -1170,10 +1175,10 @@ functions agree less than in a small bin.</p>
 </div>
 <div id="inside-a-bin" class="section level1">
 <h1>Inside a bin</h1>
-<p><code>plot_bin_similarity()</code> shows all pairwise predicted
-TM-scores within one bin. An uncrossed cell is an edge of the graph: the
-pair’s alignment passed the E-value gate, and the edge keeps its
-predicted TM-score as weight. A crossed cell is not an edge (weight 0 in
+<p><code>plot_bin_similarity()</code> shows the edges among one bin’s
+members. A coloured cell is an edge of the graph: the pair’s alignment
+passed the E-value gate, and the colour is the edge’s weight, its
+predicted TM-score. A grey cell is not an edge (weight 0 in
 <code>S</code>): its alignment failed the gate, and the pair is in the
 bin only through shared neighbours. MCL clusters along the edges. Shown
 are the most significant bin with 4 to 30 members in each direction,
@@ -1217,13 +1222,13 @@ pair_counts</code></pre>
 </tbody>
 </table>
 </div>
-<pre class="r"><code># pairwise predicted TM-scores among the bin&#39;s members
-plot_bin_similarity(bins, shown[[&quot;Yeast&quot;]], S, proteins)</code></pre>
-<p><img src="case_study_files/figure-html/bin-yeast-1.png" alt="Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges crossed" width="672" /></p>
+<pre class="r"><code># edge weights (predicted TM-scores) among the bin&#39;s members
+plot_bin_similarity(bins, shown[[&quot;Yeast&quot;]], S)</code></pre>
+<p><img src="case_study_files/figure-html/bin-yeast-1.png" alt="Pairwise predicted TM-scores in the selected yeast-enriched bin; pairs that are not edges grey" width="672" /></p>
 <pre class="r"><code>m &lt;- bins$clusters[[shown[[&quot;Yeast&quot;]]]]
 knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot;ko&quot;, &quot;cazy&quot;)],
     row.names = TRUE)</code></pre>
-<table style="width:100%;">
+<table style="width:99%;">
 <colgroup>
 <col width="25%" />
 <col width="26%" />
@@ -1327,8 +1332,8 @@ knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot
 </tr>
 </tbody>
 </table>
-<pre class="r"><code>plot_bin_similarity(bins, shown[[&quot;Casein&quot;]], S, proteins)</code></pre>
-<p><img src="case_study_files/figure-html/bin-casein-1.png" alt="Pairwise predicted TM-scores in the selected casein-enriched bin; pairs that are not edges crossed" width="672" /></p>
+<pre class="r"><code>plot_bin_similarity(bins, shown[[&quot;Casein&quot;]], S)</code></pre>
+<p><img src="case_study_files/figure-html/bin-casein-1.png" alt="Pairwise predicted TM-scores in the selected casein-enriched bin; pairs that are not edges grey" width="672" /></p>
 <pre class="r"><code>m &lt;- bins$clusters[[shown[[&quot;Casein&quot;]]]]
 knitr::kable(ann[m, c(&quot;taxon&quot;, &quot;consensus_annotation&quot;, &quot;ko&quot;, &quot;cazy&quot;)],
     row.names = TRUE)</code></pre>
@@ -1442,47 +1447,51 @@ A missing KO does not mean an unknown function, as the GH92 bin
 shows.</li>
 </ul>
 <pre class="r"><code>sessionInfo()
-#&gt; R version 4.5.2 (2025-10-31)
-#&gt; Platform: aarch64-apple-darwin20
-#&gt; Running under: macOS 27.0.1
+#&gt; R version 4.5.3 (2026-03-11)
+#&gt; Platform: x86_64-conda-linux-gnu
+#&gt; Running under: Red Hat Enterprise Linux 9.7 (Plow)
 #&gt; 
 #&gt; Matrix products: default
-#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
-#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+#&gt; BLAS/LAPACK: /gpfs_common/share01/callahanlabbio/yyang55/envs/repdist-site/lib/libopenblasp-r0.3.34.so;  LAPACK version 3.12.0
 #&gt; 
 #&gt; locale:
-#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt;  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+#&gt;  [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+#&gt;  [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+#&gt;  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+#&gt;  [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+#&gt; [11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
 #&gt; 
 #&gt; time zone: America/New_York
-#&gt; tzcode source: internal
+#&gt; tzcode source: system (glibc)
 #&gt; 
 #&gt; attached base packages:
 #&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
 #&gt; 
 #&gt; other attached packages:
-#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
+#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.4  repdist_0.99.0
 #&gt; 
 #&gt; loaded via a namespace (and not attached):
-#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.22-9     
-#&gt;  [4] MCL_1.0             digest_0.6.39       magrittr_2.0.5     
-#&gt;  [7] evaluate_1.0.5      grid_4.5.2          RColorBrewer_1.1-3 
-#&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-5       
-#&gt; [13] mgcv_1.9-4          viridisLite_0.4.3   scales_1.4.0       
-#&gt; [16] Biostrings_2.78.0   jquerylib_0.1.4     cli_3.6.6          
-#&gt; [19] expm_1.0-0          rlang_1.3.0         crayon_1.5.3       
-#&gt; [22] XVector_0.50.0      splines_4.5.2       withr_3.0.3        
-#&gt; [25] cachem_1.1.0        yaml_2.3.12         otel_0.2.0         
-#&gt; [28] Rtsne_0.17          tools_4.5.2         parallel_4.5.2     
-#&gt; [31] dplyr_1.2.1         BiocGenerics_0.56.0 vctrs_0.7.3        
-#&gt; [34] R6_2.6.1            stats4_4.5.2        lifecycle_1.0.5    
-#&gt; [37] pwalign_1.6.0       Seqinfo_1.0.0       S4Vectors_0.48.1   
-#&gt; [40] IRanges_2.44.0      MASS_7.3-65         cluster_2.1.8.2    
-#&gt; [43] pkgconfig_2.0.3     pillar_1.11.1       bslib_0.11.0       
-#&gt; [46] gtable_0.3.6        Rcpp_1.1.2          glue_1.8.1         
-#&gt; [49] xfun_0.58           tibble_3.3.1        tidyselect_1.2.1   
-#&gt; [52] knitr_1.51          farver_2.1.2        htmltools_0.5.9    
-#&gt; [55] nlme_3.1-169        rmarkdown_2.31      labeling_0.4.3     
-#&gt; [58] compiler_4.5.2      S7_0.2.2</code></pre>
+#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.23-1     
+#&gt;  [4] digest_0.6.39       magrittr_2.0.5      evaluate_1.0.5     
+#&gt;  [7] grid_4.5.3          RColorBrewer_1.1-3  fastmap_1.2.0      
+#&gt; [10] jsonlite_2.0.0      Matrix_1.7-6        mgcv_1.9-4         
+#&gt; [13] viridisLite_0.4.3   scales_1.4.0        Biostrings_2.78.0  
+#&gt; [16] codetools_0.2-20    jquerylib_0.1.4     cli_3.6.6          
+#&gt; [19] rlang_1.3.0         crayon_1.5.3        XVector_0.50.0     
+#&gt; [22] splines_4.5.3       withr_3.0.3         cachem_1.1.0       
+#&gt; [25] yaml_2.3.12         Rtsne_0.17          tools_4.5.3        
+#&gt; [28] parallel_4.5.3      BiocParallel_1.46.0 dplyr_1.2.1        
+#&gt; [31] BiocGenerics_0.56.0 vctrs_0.7.3         R6_2.6.1           
+#&gt; [34] stats4_4.5.3        lifecycle_1.0.5     pwalign_1.6.0      
+#&gt; [37] Seqinfo_1.0.0       S4Vectors_0.48.1    IRanges_2.44.0     
+#&gt; [40] MASS_7.3-66         cluster_2.1.8.3     pkgconfig_2.0.3    
+#&gt; [43] pillar_1.11.1       bslib_0.12.0        gtable_0.3.6       
+#&gt; [46] glue_1.8.1          Rcpp_1.1.2          xfun_0.61          
+#&gt; [49] tibble_3.3.1        tidyselect_1.2.1    knitr_1.52         
+#&gt; [52] farver_2.1.2        htmltools_0.5.9     nlme_3.1-170       
+#&gt; [55] rmarkdown_2.32      labeling_0.4.3      compiler_4.5.3     
+#&gt; [58] S7_0.2.2</code></pre>
 </div>
 <div id="references" class="section level1 unnumbered">
 <h1 class="unnumbered">References</h1>

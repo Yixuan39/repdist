@@ -32,12 +32,12 @@ row for protein $i$.
 
 | Step | Function | Input | Output |
 |---|---|---|---|
-| Representations | `embed_proteins()`, `read_embeddings()` | sequences, or a TM-Vec database | `proteins` |
+| Representations | `embed_proteins()` | sequences | `proteins` |
 | Sample distance | `sample_mmd()` | `counts`, `proteins` | `D` |
 | Similarity graph | `protein_similarity()` | `proteins` | `S` |
 | Protein bins | `bin_proteins()` | `S` | `bins` |
 | Aggregation | `bin_glom()` | `counts`, `bins` | `bin_counts` |
-| QC | `plot_tsne()`, `plot_bin_similarity()` | `proteins`, `bins`, `S` | ggplot objects |
+| Visualization | `plot_tsne()`, `plot_bin_similarity()`, `plot_pcoa()` | `proteins`, `bins`, `S`, `counts` | ggplot objects |
 
 ```{r libs}
 library(repdist)
@@ -83,17 +83,6 @@ whole; nothing is truncated or dropped.
 ```{r embed, eval = FALSE}
 proteins <- embed_proteins("proteins.fasta") # model = "tmvec"
 proteins <- embed_proteins(seqs, model = "esm2-650m", device = "cpu")
-```
-
-**`read_embeddings()`: embeddings computed elsewhere.** TM-Vec users can embed
-outside R with the `tmvec` command-line tool
-(<https://github.com/valentynbez/tmvec>) and import its `build-db` database
-(`.npz`), giving the FASTA it was built from. An HDF5 file with one group per
-protein (datasets `seq` and `emb`) is also read; per-residue embeddings are
-averaged.
-
-```{r read, eval = FALSE}
-proteins <- read_embeddings("db/proteins.npz", seqs = "proteins.fasta")
 ```
 
 **`known_models()`** lists the registered models. The default, `tmvec`, is a
@@ -324,15 +313,31 @@ plot_tsne(proteins, color = role)
 
 ## `plot_bin_similarity()` {#plot-bin-similarity}
 
-`plot_bin_similarity(bins, bin, S, proteins)` shows every pairwise similarity
-among one bin's members. Cell colour is the similarity from the embeddings,
-before any gate; a cross marks each pair that is not an edge of `S`. Crossed
-pairs are in the bin through shared neighbours: their alignment failed the
-E-value gate. Here, the bin holding the GrpE proteins:
+`plot_bin_similarity(bins, bin, S)` shows every pairwise similarity among
+one bin's members. Cell colour is the pair's edge weight in `S`, the predicted
+TM-score; a grey cell is not an edge. Grey pairs are in the bin through
+shared neighbours: their alignment failed the E-value gate. Here, the bin
+holding the GrpE proteins:
 
 ```{r bin-similarity, fig.width = 6.5, fig.height = 5.5}
 grpe_bin <- names(which.max(table(bins$membership[grpe])))
-plot_bin_similarity(bins, grpe_bin, S, proteins)
+plot_bin_similarity(bins, grpe_bin, S)
+```
+
+## `plot_pcoa()` {#plot-pcoa}
+
+`plot_pcoa(counts, proteins, group, drop = 2)` draws the principal
+coordinates of `sample_mmd()` after dropping the `drop` most abundant protein
+regions. A region is a connected group of proteins at a predicted TM-score of
+at least `min_sim` (0.9). In real metaproteomes the most abundant regions are
+usually housekeeping proteins, such as elongation factor Tu and GAPDH, whose
+share varies with things other than the design. The selection ignores the
+sample labels and is for display only; test on the full `sample_mmd()`
+distance. The subtitle names the most abundant protein of each dropped
+region.
+
+```{r pcoa, fig.width = 6, fig.height = 4.5}
+plot_pcoa(simulate_cog$counts, proteins, simulate_cog$samples$group)
 ```
 
 # References {-}

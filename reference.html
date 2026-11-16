@@ -446,8 +446,8 @@ class="math inline">\(i\)</span>.</p>
 <tbody>
 <tr class="odd">
 <td>Representations</td>
-<td><code>embed_proteins()</code>, <code>read_embeddings()</code></td>
-<td>sequences, or a TM-Vec database</td>
+<td><code>embed_proteins()</code></td>
+<td>sequences</td>
 <td><code>proteins</code></td>
 </tr>
 <tr class="even">
@@ -475,9 +475,11 @@ class="math inline">\(i\)</span>.</p>
 <td><code>bin_counts</code></td>
 </tr>
 <tr class="even">
-<td>QC</td>
-<td><code>plot_tsne()</code>, <code>plot_bin_similarity()</code></td>
-<td><code>proteins</code>, <code>bins</code>, <code>S</code></td>
+<td>Visualization</td>
+<td><code>plot_tsne()</code>, <code>plot_bin_similarity()</code>,
+<code>plot_pcoa()</code></td>
+<td><code>proteins</code>, <code>bins</code>, <code>S</code>,
+<code>counts</code></td>
 <td>ggplot objects</td>
 </tr>
 </tbody>
@@ -534,16 +536,6 @@ file). Every sequence is embedded whole; nothing is truncated or
 dropped.</p>
 <pre class="r"><code>proteins &lt;- embed_proteins(&quot;proteins.fasta&quot;) # model = &quot;tmvec&quot;
 proteins &lt;- embed_proteins(seqs, model = &quot;esm2-650m&quot;, device = &quot;cpu&quot;)</code></pre>
-<p><strong><code>read_embeddings()</code>: embeddings computed
-elsewhere.</strong> TM-Vec users can embed outside R with the
-<code>tmvec</code> command-line tool (<a
-href="https://github.com/valentynbez/tmvec"
-class="uri">https://github.com/valentynbez/tmvec</a>) and import its
-<code>build-db</code> database (<code>.npz</code>), giving the FASTA it
-was built from. An HDF5 file with one group per protein (datasets
-<code>seq</code> and <code>emb</code>) is also read; per-residue
-embeddings are averaged.</p>
-<pre class="r"><code>proteins &lt;- read_embeddings(&quot;db/proteins.npz&quot;, seqs = &quot;proteins.fasta&quot;)</code></pre>
 <p><strong><code>known_models()</code></strong> lists the registered
 models. The default, <code>tmvec</code>, is a TM-Vec head <span
 class="citation">(<a href="#ref-hamamsy2024tmvec">Hamamsy et al.
@@ -832,15 +824,30 @@ plot_tsne(proteins, color = role)</code></pre>
 </div>
 <div id="plot-bin-similarity" class="section level2">
 <h2><code>plot_bin_similarity()</code></h2>
-<p><code>plot_bin_similarity(bins, bin, S, proteins)</code> shows every
-pairwise similarity among one bin’s members. Cell colour is the
-similarity from the embeddings, before any gate; a cross marks each pair
-that is not an edge of <code>S</code>. Crossed pairs are in the bin
-through shared neighbours: their alignment failed the E-value gate.
-Here, the bin holding the GrpE proteins:</p>
+<p><code>plot_bin_similarity(bins, bin, S)</code> shows every pairwise
+similarity among one bin’s members. Cell colour is the pair’s edge
+weight in <code>S</code>, the predicted TM-score; a grey cell is not an
+edge. Grey pairs are in the bin through shared neighbours: their
+alignment failed the E-value gate. Here, the bin holding the GrpE
+proteins:</p>
 <pre class="r"><code>grpe_bin &lt;- names(which.max(table(bins$membership[grpe])))
-plot_bin_similarity(bins, grpe_bin, S, proteins)</code></pre>
+plot_bin_similarity(bins, grpe_bin, S)</code></pre>
 <p><img src="reference_files/figure-html/bin-similarity-1.png" alt="" width="624" /></p>
+</div>
+<div id="plot-pcoa" class="section level2">
+<h2><code>plot_pcoa()</code></h2>
+<p><code>plot_pcoa(counts, proteins, group, drop = 2)</code> draws the
+principal coordinates of <code>sample_mmd()</code> after dropping the
+<code>drop</code> most abundant protein regions. A region is a connected
+group of proteins at a predicted TM-score of at least
+<code>min_sim</code> (0.9). In real metaproteomes the most abundant
+regions are usually housekeeping proteins, such as elongation factor Tu
+and GAPDH, whose share varies with things other than the design. The
+selection ignores the sample labels and is for display only; test on the
+full <code>sample_mmd()</code> distance. The subtitle names the most
+abundant protein of each dropped region.</p>
+<pre class="r"><code>plot_pcoa(simulate_cog$counts, proteins, simulate_cog$samples$group)</code></pre>
+<p><img src="reference_files/figure-html/pcoa-1.png" alt="" width="576" /></p>
 </div>
 </div>
 <div id="references" class="section level1 unnumbered">
