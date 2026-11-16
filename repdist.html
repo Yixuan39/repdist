@@ -14,7 +14,7 @@
 
 <title>Structure-aware beta diversity and protein bins with repdist</title>
 
-<script src="site_libs/header-attrs-2.31/header-attrs.js"></script>
+<script src="site_libs/header-attrs-2.32/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
@@ -370,26 +370,44 @@ test per protein, treats two different proteins as unrelated even when
 they share fold and function. Proteins of one function in different
 organisms are often too far apart in sequence for a sequence clustering
 to join them. <code>repdist</code> compares proteins by their embeddings
-from a protein language model, by default TM-Vec, where the cosine
-similarity of two proteins is their predicted TM-score. On that
-representation it</p>
+from a protein language model, by default TM-Vec. The TM-score is a
+measure of structural similarity between two proteins, from 0 to 1;
+above about 0.5 they usually share a fold. TM-Vec is trained so that the
+cosine similarity of two embeddings is the predicted TM-score, without
+needing a structure.</p>
+<p>The embeddings serve two jobs that do not depend on each other:</p>
 <ul>
-<li>measures <strong>beta diversity</strong>: <code>sample_mmd()</code>
-gives a sample-by-sample distance, the maximum mean discrepancy (MMD)
-between the samples’ abundance-weighted distributions over the
-embeddings;</li>
-<li><strong>bins proteins</strong>: <code>protein_similarity()</code>
-and <code>bin_proteins()</code> group structurally similar proteins by
-Markov clustering;</li>
-<li>feeds <strong>differential abundance</strong>:
-<code>bin_glom()</code> sums counts within bins.</li>
+<li><strong>protein bins</strong>: <code>protein_similarity()</code> and
+<code>bin_proteins()</code> group structurally similar proteins by
+Markov clustering. This needs only the proteins and their embeddings,
+not a count table or any sample, so it works as a stand-alone protein
+clustering;</li>
+<li><strong>beta diversity</strong>: <code>sample_mmd()</code> gives a
+sample-by-sample distance, the maximum mean discrepancy (MMD) between
+the samples’ abundance-weighted distributions over the embeddings. This
+needs no bins.</li>
 </ul>
-<p>The goal is to see a change in what the proteins do, not only in
-which accessions are present.</p>
+<p><code>bin_glom()</code> then sums a count table within bins, so that
+any differential abundance method can test bins instead of single
+proteins. The goal is to see a change in what the proteins do, not only
+in which accessions are present.</p>
 <div id="the-simulated-data" class="section level2">
 <h2>The simulated data</h2>
-<p><code>simulate_cog</code> is built from the NCBI COG 2024 release
-(Galperin et al. 2025) so that the answer is known:</p>
+<p><code>simulate_cog</code> is a simulated experiment, built from the
+NCBI COG 2024 release (Galperin et al. 2025) so that the answer is
+known. Twenty metaproteome samples, ten in group A and ten in group B,
+share the same 100 background proteins, drawn at random from other COGs.
+What differs is one function: each group-A sample also holds a GrpE
+protein, the nucleotide exchange factor of the HSP-70 chaperone
+(COG0576), which no group-B sample holds.</p>
+<p>The design is meant to defeat a comparison by accession. Each group-A
+sample holds a <em>different</em> GrpE protein, and the ten come from
+ten different 30%-identity MMseqs2 clusters, so no protein and no
+sequence family is enriched in more than one sample. A test on
+accessions sees ten rare proteins; only a method that recognises the ten
+as one function, GrpE, sees the group-A enrichment.
+<code>?simulate_cog</code> gives the details, and
+<code>inst/scripts/make_simulate_cog.R</code> how it was built.</p>
 <table>
 <colgroup>
 <col width="50%" />
@@ -414,18 +432,15 @@ which accessions are present.</p>
 </tr>
 <tr class="odd">
 <td>Perturbation</td>
-<td>5% of each group-A sample’s abundance on its GrpE protein</td>
+<td>5% of each group-A sample’s abundance on its GrpE protein (3.6-6.9%
+after sampling)</td>
 </tr>
 <tr class="even">
 <td>Counts</td>
-<td>negative binomial, depth 20,000</td>
+<td>negative binomial around a depth of 20,000 (9,507-30,301)</td>
 </tr>
 </tbody>
 </table>
-<p>Group A is enriched for one function, GrpE, but no protein and no
-sequence family is enriched in more than one sample.
-<code>?simulate_cog</code> gives the details, and
-<code>inst/scripts/make_simulate_cog.R</code> how it was built.</p>
 <pre class="r"><code>if (!requireNamespace(&quot;BiocManager&quot;, quietly = TRUE)) {
     install.packages(&quot;BiocManager&quot;)
 }
@@ -434,25 +449,34 @@ BiocManager::install(&quot;repdist&quot;, dependencies = TRUE)</code></pre>
 <pre class="r"><code>library(repdist)
 library(vegan)
 library(ggplot2)
-data(simulate_cog, package = &quot;repdist&quot;)
-samples &lt;- simulate_cog$samples
-annotation &lt;- simulate_cog$annotation</code></pre>
+data(simulate_cog, package = &quot;repdist&quot;)</code></pre>
 </div>
 </div>
-<div id="protein-embeddings" class="section level1">
-<h1>Protein embeddings</h1>
-<p>Everything starts from a FASTA file of the proteins identified in the
-samples. <code>embed_proteins()</code> reads it and returns an
+<div id="inputs" class="section level1">
+<h1>Inputs</h1>
+<p>A real analysis starts from three files, which
+<code>simulate_cog</code> holds as objects; each step below gives the
+file-based code commented out above the code that runs here. Only the
+first call, <code>embed_proteins()</code>, needs the model, so it does
+not run in this vignette.</p>
+<div id="proteins-and-their-embeddings" class="section level2">
+<h2>Proteins and their embeddings</h2>
+<p>A FASTA file of the proteins identified in the samples: one record
+per protein, with the protein ID as the first word of the header
+(<code>&gt;WP_1.1 description</code> gives the ID <code>WP_1.1</code>).
+<code>embed_proteins()</code> reads it and returns an
 <code>AAStringSet</code> with one embedding per protein in
 <code>mcols(proteins)$embedding</code>. Its first call downloads the
-model (up to a few GB), so it does not run here;
-<code>simulate_cog</code> ships the result. Once the model is
-downloaded, the 110 proteins take about 40 seconds on a laptop with an
-Apple M-series GPU. <code>known_models()</code> lists the models, and
+model (up to a few GB), and the 110 proteins here take about 40 seconds
+afterwards on a laptop with an Apple M-series GPU.
+<code>known_models()</code> lists the models, and
 <code>read_fasta()</code> reads and checks a FASTA file.</p>
-<pre class="r"><code>fasta &lt;- system.file(&quot;extdata&quot;, &quot;simulate_cog.fasta&quot;, package = &quot;repdist&quot;)
-proteins &lt;- embed_proteins(fasta) # model = &quot;tmvec&quot;</code></pre>
-<pre class="r"><code>proteins &lt;- simulate_cog$proteins
+<pre class="r"><code># not run: downloads the model on first use
+# proteins &lt;- embed_proteins(&quot;path/to/proteins.fasta&quot;) # model = &quot;tmvec&quot;
+# the same, for this vignette&#39;s FASTA:
+# proteins &lt;- embed_proteins(system.file(&quot;extdata&quot;, &quot;simulate_cog.fasta&quot;,
+#     package = &quot;repdist&quot;))
+proteins &lt;- simulate_cog$proteins # embeddings precomputed
 proteins
 #&gt; AAStringSet object of length 110:
 #&gt;       width seq                                             names               
@@ -467,41 +491,211 @@ proteins
 #&gt; [108]   146 MDNIDTAILDCLKENGRVTASE...ITGVSSSNTFITLATLKEELNC WP_125669242.1
 #&gt; [109]   475 MRHRTVSLFDLLGHKPRIDGSW...NGRALMLSASRLRHLAGLSGKE WP_157731854.1
 #&gt; [110]   251 MIIQNNEELDGLKEIGKICAII...AQIEHTIVVTKEGPLLLTKLED WP_048540673.1
-dim(S4Vectors::mcols(proteins)$embedding)
+dim(S4Vectors::mcols(proteins)$embedding) # proteins x embedding dimensions
 #&gt; [1] 110 512</code></pre>
-<p>The names of <code>proteins</code> must match the column names of the
-count table.</p>
 </div>
-<div id="beta-diversity" class="section level1">
-<h1>Beta diversity</h1>
-<p>The count table has samples in rows and proteins in columns.
-<code>sample_mmd()</code> and Bray-Curtis both compare relative
-abundances.</p>
-<pre class="r"><code>counts &lt;- simulate_cog$counts
-relative &lt;- counts / rowSums(counts)
-D &lt;- list(MMD = sample_mmd(relative, proteins),
-    `Bray-Curtis` = vegdist(relative, &quot;bray&quot;))</code></pre>
-<p>PERMANOVA (<code>adonis2()</code>) tests whether the groups differ,
-and PERMDISP (<code>betadisper()</code>) whether they differ in spread,
-each with 999 permutations.</p>
-<pre class="r"><code>set.seed(1)
-mmd &lt;- adonis2(D$MMD ~ group, data = samples)
-set.seed(1)
-bc &lt;- adonis2(D$`Bray-Curtis` ~ group, data = samples)
-disp &lt;- vapply(D, function(d) {
-    set.seed(1)
-    permutest(betadisper(d, samples$group))$tab[1, &quot;Pr(&gt;F)&quot;]
-}, numeric(1))
-knitr::kable(data.frame(distance = names(D), R2 = c(mmd$R2[1], bc$R2[1]),
-    p = c(mmd$`Pr(&gt;F)`[1], bc$`Pr(&gt;F)`[1]), PERMDISP_p = disp,
-    row.names = NULL), digits = 3)</code></pre>
+<div id="counts" class="section level2">
+<h2>Counts</h2>
+<p>A table of counts, such as spectral counts or PSMs, with one row per
+sample, one column per protein, sample IDs in the first column of the
+file and protein IDs as the column names. Every protein in the table
+needs an embedding with the same name; proteins in <code>proteins</code>
+that no sample holds are ignored.</p>
+<pre class="r"><code># counts &lt;- as.matrix(read.delim(&quot;path/to/counts.tsv&quot;, row.names = 1,
+#     check.names = FALSE))
+counts &lt;- simulate_cog$counts
+counts[1:3, 1:3] # samples x proteins
+#&gt;     UXE58635.1 CDZ16608.1 WP_306719158.1
+#&gt; A01       1003          0              0
+#&gt; A02          0       1380              0
+#&gt; A03          0          0            352</code></pre>
+</div>
+<div id="sample-table" class="section level2">
+<h2>Sample table</h2>
+<p>One row per sample, in the row order of the count table, with the
+design variables to test.</p>
+<pre class="r"><code># samples &lt;- read.delim(&quot;path/to/samples.tsv&quot;)
+samples &lt;- simulate_cog$samples
+head(samples, 3)</code></pre>
+<div class="kable-table">
 <table>
 <thead>
 <tr class="header">
-<th align="left">distance</th>
+<th align="left"></th>
+<th align="left">sample</th>
+<th align="left">group</th>
+<th align="left">grpe_protein</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">A01</td>
+<td align="left">A01</td>
+<td align="left">A</td>
+<td align="left">UXE58635.1</td>
+</tr>
+<tr class="even">
+<td align="left">A02</td>
+<td align="left">A02</td>
+<td align="left">A</td>
+<td align="left">CDZ16608.1</td>
+</tr>
+<tr class="odd">
+<td align="left">A03</td>
+<td align="left">A03</td>
+<td align="left">A</td>
+<td align="left">WP_306719158.1</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="annotation" class="section level2">
+<h2>Annotation</h2>
+<p><code>simulate_cog$annotation</code> has one row per protein and is
+not an input of <code>repdist</code>: it holds the answer, so that the
+results can be scored. Its columns are <code>protein</code> (the ID),
+<code>role</code> (<code>GrpE</code> for the ten treatment proteins or
+<code>background</code>), <code>enriched_in</code> (the sample a GrpE
+protein is spiked into), the COG assignment (<code>cog</code>,
+<code>cog_name</code>, <code>gene</code>, <code>category</code>),
+<code>length</code>, <code>organism</code>, and <code>mmseqs30</code>,
+the protein’s MMseqs2 30%-identity cluster.</p>
+<pre class="r"><code>annotation &lt;- simulate_cog$annotation
+head(annotation[, c(&quot;protein&quot;, &quot;role&quot;, &quot;enriched_in&quot;, &quot;cog&quot;, &quot;gene&quot;)], 3)</code></pre>
+<div class="kable-table">
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="left">protein</th>
+<th align="left">role</th>
+<th align="left">enriched_in</th>
+<th align="left">cog</th>
+<th align="left">gene</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">UXE58635.1</td>
+<td align="left">UXE58635.1</td>
+<td align="left">GrpE</td>
+<td align="left">A01</td>
+<td align="left">COG0576</td>
+<td align="left">GrpE</td>
+</tr>
+<tr class="even">
+<td align="left">CDZ16608.1</td>
+<td align="left">CDZ16608.1</td>
+<td align="left">GrpE</td>
+<td align="left">A02</td>
+<td align="left">COG0576</td>
+<td align="left">GrpE</td>
+</tr>
+<tr class="odd">
+<td align="left">WP_306719158.1</td>
+<td align="left">WP_306719158.1</td>
+<td align="left">GrpE</td>
+<td align="left">A03</td>
+<td align="left">COG0576</td>
+<td align="left">GrpE</td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre class="r"><code>table(annotation$role)
+#&gt; 
+#&gt; background       GrpE 
+#&gt;        100         10</code></pre>
+</div>
+</div>
+<div id="protein-bins" class="section level1">
+<h1>Protein bins</h1>
+<p>Bins group structurally similar proteins and use only
+<code>proteins</code>, so this section stands alone: it needs no count
+table. <code>protein_similarity()</code> builds the graph that
+<code>bin_proteins()</code> clusters. It takes every pair of proteins
+whose embeddings have a positive cosine similarity and aligns the two
+sequences. A pair becomes an edge, weighted by its predicted TM-score,
+only if its alignment E-value is at most 0.01, the number of equally
+good alignments expected by chance when searching all of
+<code>proteins</code>. The embedding says the proteins may share a
+structure and the alignment says the similarity is not an accident of
+the model, so an edge needs both. <code>bin_proteins()</code> splits
+that graph by Markov clustering (MCL) and returns each protein’s bin
+(<code>membership</code>), the proteins of each bin
+(<code>clusters</code>) and each bin’s medoid
+(<code>representatives</code>). Bins are named <code>bin1</code>,
+<code>bin2</code>, … from largest to smallest, and a protein with no
+edge is a bin of its own.</p>
+<pre class="r"><code># aligns every pair with a positive similarity: quadratic in proteins
+S &lt;- protein_similarity(proteins, progress = FALSE)
+bins &lt;- bin_proteins(S)
+table(size = lengths(bins$clusters))
+#&gt; size
+#&gt;  1  2  4 11 
+#&gt; 89  3  1  1</code></pre>
+<p>Most bins are single proteins, as they should be: the 100 background
+proteins come from unrelated COGs. The GrpE labels were not used to
+build the bins, so they can score them: coherence is the share of the
+GrpE proteins in the bin that holds most of them, and purity the share
+of that bin’s proteins that are GrpE.</p>
+<pre class="r"><code>grpe &lt;- annotation$protein[annotation$role == &quot;GrpE&quot;]
+grpe_bin &lt;- names(which.max(table(bins$membership[grpe])))
+c(coherence = mean(bins$membership[grpe] == grpe_bin),
+    purity = mean(bins$clusters[[grpe_bin]] %in% grpe))
+#&gt; coherence    purity 
+#&gt; 1.0000000 0.9090909</code></pre>
+<p>All ten GrpE proteins fall in one bin, although they share no more
+than 30% sequence identity pairwise (34 of the 45 pairs still pass the
+alignment gate). <code>plot_bin_similarity()</code> shows the weight of
+every pair inside a bin; a grey cell is a pair that is not an edge.</p>
+<pre class="r"><code>plot_bin_similarity(bins, grpe_bin, S)</code></pre>
+<p><img src="repdist_files/figure-html/bin-plot-1.png" alt="Predicted TM-scores between the proteins of the GrpE bin" width="576" /></p>
+</div>
+<div id="beta-diversity" class="section level1">
+<h1>Beta diversity</h1>
+<p>Beta diversity compares samples. Three distances follow, each on
+relative abundances: MMD on the embeddings (<code>sample_mmd()</code>),
+Bray-Curtis on the proteins, and Bray-Curtis on the bins. MMD needs only
+<code>counts</code> and <code>proteins</code>; the bins are used only
+for the third.</p>
+<div id="relative-abundances" class="section level2">
+<h2>Relative abundances</h2>
+<p>Dividing each sample’s counts by its total removes the difference in
+sequencing depth between samples. It does not remove its effect on which
+proteins were seen.</p>
+<pre class="r"><code>relative &lt;- counts / rowSums(counts)</code></pre>
+</div>
+<div id="sample-to-sample-distances" class="section level2">
+<h2>Sample-to-sample distances</h2>
+<p><code>sample_mmd()</code> represents each sample as its relative
+abundances over the protein embeddings and returns the distance between
+those distributions as a <code>dist</code> object.
+<code>vegdist()</code> gives Bray-Curtis between samples;
+<code>bin_glom()</code> sums the proteins of each bin first, for the
+bin-level version.</p>
+<pre class="r"><code>D &lt;- list(MMD = sample_mmd(relative, proteins),
+    `Bray-Curtis (protein)` = vegdist(relative, &quot;bray&quot;),
+    `Bray-Curtis (bins)` = vegdist(bin_glom(relative, bins), &quot;bray&quot;))</code></pre>
+</div>
+<div id="permanova" class="section level2">
+<h2>PERMANOVA</h2>
+<p>PERMANOVA (<code>adonis2()</code>) tests whether the group centroids
+differ, with 999 permutations. R² is the share of the distance variation
+that the grouping explains.</p>
+<pre class="r"><code>permanova &lt;- lapply(D, function(d) {
+    set.seed(1)
+    adonis2(d ~ group, data = samples)
+})
+knitr::kable(data.frame(R2 = vapply(permanova, function(a) a$R2[1], 1),
+    p = vapply(permanova, function(a) a$`Pr(&gt;F)`[1], 1)), digits = 3)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
 <th align="right">R2</th>
 <th align="right">p</th>
-<th align="right">PERMDISP_p</th>
 </tr>
 </thead>
 <tbody>
@@ -509,21 +703,51 @@ knitr::kable(data.frame(distance = names(D), R2 = c(mmd$R2[1], bc$R2[1]),
 <td align="left">MMD</td>
 <td align="right">0.150</td>
 <td align="right">0.001</td>
-<td align="right">0.023</td>
 </tr>
 <tr class="even">
-<td align="left">Bray-Curtis</td>
+<td align="left">Bray-Curtis (protein)</td>
 <td align="right">0.051</td>
 <td align="right">0.482</td>
-<td align="right">0.010</td>
+</tr>
+<tr class="odd">
+<td align="left">Bray-Curtis (bins)</td>
+<td align="right">0.165</td>
+<td align="right">0.001</td>
 </tr>
 </tbody>
 </table>
-<p>Group A is more spread out under both distances, as the design builds
-in: each group-A sample carries a different GrpE protein, and no group-B
-sample carries one.</p>
-<p>Principal coordinates (<code>cmdscale()</code>); each group’s
-outermost samples are joined by a line (its convex hull).</p>
+<p>Protein-level Bray-Curtis does not detect the enrichment: it compares
+accessions, and each GrpE protein is in one sample only, so to it the
+enrichment is noise. Both structure-aware distances detect it. MMD
+credits the ten GrpE proteins for being close in the embedding space and
+needs only the embeddings. Bray-Curtis on bins counts them as one
+feature, and needs the alignments of <code>protein_similarity()</code>
+first.</p>
+</div>
+<div id="permdisp" class="section level2">
+<h2>PERMDISP</h2>
+<p>PERMANOVA responds to a difference in spread as well as in centre, so
+PERMDISP (<code>betadisper()</code>) tests the spread on its own.</p>
+<pre class="r"><code>permdisp &lt;- vapply(D, function(d) {
+    set.seed(1)
+    permutest(betadisper(d, samples$group))$tab[1, &quot;Pr(&gt;F)&quot;]
+}, numeric(1))
+round(permdisp, 3)
+#&gt;                   MMD Bray-Curtis (protein)    Bray-Curtis (bins) 
+#&gt;                 0.023                 0.010                 0.877</code></pre>
+<p>Group A is more spread out under MMD and protein-level Bray-Curtis,
+as the design builds in: each group-A sample carries a different GrpE
+protein, and no group-B sample carries one. On bins the GrpE proteins
+are one feature, so the spread is the same in both groups. Where
+PERMDISP is significant, the PERMANOVA is partly a test of spread, so
+read R² with the plot below.</p>
+</div>
+<div id="principal-coordinates" class="section level2">
+<h2>Principal coordinates</h2>
+<p>Principal coordinates (<code>cmdscale()</code>) place the samples in
+two dimensions so that their distances are kept as well as possible;
+each group’s outermost samples are joined by a line (its convex
+hull).</p>
 <pre class="r"><code>pcoa &lt;- do.call(rbind, lapply(names(D), function(k) {
     data.frame(samples, cmdscale(D[[k]], k = 2), distance = k)
 }))
@@ -537,62 +761,59 @@ ggplot(pcoa, aes(X1, X2, colour = group)) +
     facet_wrap(~distance, scales = &quot;free&quot;) +
     labs(x = &quot;PCo1&quot;, y = &quot;PCo2&quot;) +
     theme_bw()</code></pre>
-<p><img src="repdist_files/figure-html/pcoa-1.png" alt="PCoA of the samples under MMD and Bray-Curtis, group convex hulls" width="768" /></p>
-<p>MMD separates the groups and Bray-Curtis does not. Bray-Curtis
-compares accessions, and each GrpE protein is in one sample only, so to
-it the enrichment is noise; MMD credits the ten GrpE proteins for being
-close in the embedding space.</p>
+<p><img src="repdist_files/figure-html/pcoa-1.png" alt="PCoA of the samples under MMD, Bray-Curtis on proteins and Bray-Curtis on bins, group convex hulls" width="864" /></p>
+<p>The groups overlap under every distance: the enrichment is 5% of the
+abundance of ten of the 110 proteins, and R² is 0.15 under MMD, so the
+test finds a difference that the plot only hints at.</p>
 </div>
-<div id="protein-bins-and-differential-abundance"
-class="section level1">
-<h1>Protein bins and differential abundance</h1>
-<p><code>protein_similarity()</code> joins two proteins when their
-alignment has an E-value of at most 0.01, weighting the edge by their
-predicted TM-score. <code>bin_proteins()</code> splits that graph by
-Markov clustering and returns each protein’s bin
-(<code>membership</code>), the proteins of each bin
-(<code>clusters</code>) and each bin’s medoid
-(<code>representatives</code>).</p>
-<pre class="r"><code># aligns every pair with a positive similarity: quadratic in proteins
-S &lt;- protein_similarity(proteins, progress = FALSE)
-bins &lt;- bin_proteins(S)
-table(size = lengths(bins$clusters))
-#&gt; size
-#&gt;  1  2  4 11 
-#&gt; 89  3  1  1</code></pre>
-<p>The GrpE labels were not used to build the bins, so they can score
-them: coherence is the share of the GrpE proteins in the bin that holds
-most of them, and purity the share of that bin’s proteins that are
-GrpE.</p>
-<pre class="r"><code>grpe &lt;- annotation$protein[annotation$role == &quot;GrpE&quot;]
-grpe_bin &lt;- names(which.max(table(bins$membership[grpe])))
-c(coherence = mean(bins$membership[grpe] == grpe_bin),
-    purity = mean(bins$clusters[[grpe_bin]] %in% grpe))
-#&gt; coherence    purity 
-#&gt; 1.0000000 0.9090909</code></pre>
+<div id="plotting-without-the-most-abundant-regions"
+class="section level2">
+<h2>Plotting without the most abundant regions</h2>
+<p><code>plot_pcoa()</code> draws the same MMD ordination for a real
+dataset, where a few very abundant proteins, such as elongation factor
+Tu, can dominate the distances. It leaves out the <code>drop</code> most
+abundant regions before the PCoA. A region is a group of proteins linked
+by predicted TM-scores of at least <code>min_sim</code> (0.9), so that
+near-copies of one protein count as one; a message names the most
+abundant protein of each region and its size. The choice ignores the
+group labels and is for display only: test on the full distance
+above.</p>
+<pre class="r"><code>plot_pcoa(counts, proteins, samples$group, drop = 2)
+#&gt; Dropped 2 regions, 18% of abundance: WP_012740872.1 (1 protein), WP_240984665.1 (1 protein).</code></pre>
+<p><img src="repdist_files/figure-html/plot-pcoa-1.png" alt="PCoA under MMD without the two most abundant protein regions" width="480" /></p>
+<p>Here the two most abundant regions are single background proteins,
+18% of the abundance, and dropping them gives a cleaner separation than
+the full distance does. <code>drop = 0</code> draws the full
+distance.</p>
+</div>
+</div>
+<div id="differential-abundance" class="section level1">
+<h1>Differential abundance</h1>
 <p><code>bin_glom()</code> sums the counts within each bin. Any
 differential abundance method can take the bin table; here a linear
 model per bin on the centred log-ratio (CLR) of the counts, with a
-pseudo count of 1, and Benjamini-Hochberg adjustment. LFC is the log2
-fold change of group A over group B. Bins with p &lt; 0.05:</p>
+pseudo count of 1, and Benjamini-Hochberg adjustment (q). LFC is the
+log2 fold change of group A over group B. Bins with p &lt; 0.05:</p>
 <pre class="r"><code>bin_counts &lt;- bin_glom(counts, bins) # samples x bins
-clr &lt;- log2(bin_counts + 1)
-clr &lt;- clr - rowMeans(clr)
-group &lt;- factor(samples$group, c(&quot;B&quot;, &quot;A&quot;))
-fit &lt;- t(apply(clr, 2, function(y) {
-    summary(lm(y ~ group))$coefficients[&quot;groupA&quot;, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)]
-}))
-res &lt;- data.frame(bin = rownames(fit), LFC = fit[, 1], p = fit[, 2],
-    q = p.adjust(fit[, 2], &quot;BH&quot;))
-res &lt;- res[res$p &lt; 0.05, ]
-knitr::kable(transform(res, LFC = round(LFC, 2),
+da &lt;- function(m) {
+    clr &lt;- log2(m + 1)
+    clr &lt;- clr - rowMeans(clr)
+    group &lt;- factor(samples$group, c(&quot;B&quot;, &quot;A&quot;))
+    fit &lt;- t(apply(clr, 2, function(y) {
+        summary(lm(y ~ group))$coefficients[&quot;groupA&quot;, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)]
+    }))
+    data.frame(feature = colnames(m), LFC = fit[, 1], p = fit[, 2],
+        q = p.adjust(fit[, 2], &quot;BH&quot;))
+}
+res &lt;- da(bin_counts)
+knitr::kable(transform(res[res$p &lt; 0.05, ], LFC = round(LFC, 2),
     p = formatC(p, format = &quot;g&quot;, digits = 2),
     q = formatC(q, format = &quot;g&quot;, digits = 2)),
     row.names = FALSE)</code></pre>
 <table>
 <thead>
 <tr class="header">
-<th align="left">bin</th>
+<th align="left">feature</th>
 <th align="right">LFC</th>
 <th align="left">p</th>
 <th align="left">q</th>
@@ -625,19 +846,50 @@ knitr::kable(transform(res, LFC = round(LFC, 2),
 </tr>
 </tbody>
 </table>
-<p>The GrpE bin, bin1, stands out, although each GrpE protein is
-abundant in one sample only.</p>
+<p>The GrpE bin, bin1, is the only one that survives the adjustment (q
+&lt; 0.05); the other bins with p &lt; 0.05 are what chance gives among
+94 tests. The same model on single proteins finds nothing, since each
+GrpE protein is abundant in one sample only:</p>
+<pre class="r"><code>per_protein &lt;- da(counts)
+c(proteins_q_below_0.05 = sum(per_protein$q &lt; 0.05),
+    smallest_GrpE_q = min(per_protein$q[per_protein$feature %in% grpe]))
+#&gt; proteins_q_below_0.05       smallest_GrpE_q 
+#&gt;             0.0000000             0.7978687</code></pre>
 </div>
-<div id="notes" class="section level1">
-<h1>Notes</h1>
-<p><code>protein_similarity()</code> aligns every pair with a positive
-similarity and <code>sample_mmd()</code> holds a protein-by-protein
-kernel, so on real data use the proteins identified in your samples,
-never a whole search database: 20,000 proteins take about 3 GB.
-<code>protein_similarity()</code> parallelises with
-<code>n_cores</code>. Structural similarity does not guarantee shared
-function: the GrpE bin also holds a DnaK protein, GrpE’s HSP-70
-partner.</p>
+<div id="choosing-parameters-and-cost" class="section level1">
+<h1>Choosing parameters and cost</h1>
+<ul>
+<li><strong><code>max_evalue</code></strong> (default 0.01) is the edge
+gate of <code>protein_similarity()</code>. It is relative to the total
+length of <code>proteins</code>, so one value is stricter on a larger
+set. On this data 1e-5 gives 98 bins, with 9 of the 10 GrpE proteins in
+one; 0.01 gives 94, with all 10; and 10 gives 25 bins. It matters more
+for sets with many distant relatives.</li>
+<li><strong><code>inflation</code></strong> (default 2) of
+<code>bin_proteins()</code> sets how fine the bins are, higher values
+giving finer ones. Here 1.4 gives purity 0.77 and 2 or 4 give 0.91; a
+bin’s purity is what annotation, if you have any, can check.</li>
+<li><strong><code>sigma</code></strong> of <code>sample_mmd()</code> is
+the kernel bandwidth. The default is the median distance between the
+proteins (1.14 here, wider than any TM-score), and the value used is
+returned as <code>attr(, "sigma")</code>. For TM-Vec,
+<code>sigma = sqrt(1 - t)</code> puts the kernel’s <code>1/e</code>
+point at predicted TM-score <code>t</code>: <code>sqrt(1 - 0.9)</code>
+makes only near-identical folds similar and here lowers R² from 0.15 to
+0.08.</li>
+<li><strong>Cost.</strong> <code>protein_similarity()</code> aligns
+every pair with a positive similarity and <code>sample_mmd()</code>
+holds a protein-by-protein kernel, so on real data use the proteins
+identified in your samples, never a whole search database. At 20,000
+proteins the kernel alone is 3 GB and <code>sample_mmd()</code> needs at
+least twice that at its peak; the alignments, scaled from 40 minutes for
+5,000 proteins on 10 cores, take about 11 hours on 10 cores
+(<code>n_cores</code>).</li>
+</ul>
+<p>A bin is not guaranteed to hold one function. The GrpE bin also holds
+a DnaK protein, GrpE’s HSP-70 partner, joined to it by a single edge
+with a predicted TM-score of 0.31, which the alignment gate let through;
+<code>plot_bin_similarity()</code> shows such an edge.</p>
 </div>
 <div id="references" class="section level1">
 <h1>References</h1>
@@ -674,48 +926,50 @@ University of Utrecht.</li>
 <div id="session-information" class="section level1">
 <h1>Session information</h1>
 <pre class="r"><code>sessionInfo()
-#&gt; R version 4.5.2 (2025-10-31)
-#&gt; Platform: aarch64-apple-darwin20
-#&gt; Running under: macOS 27.0.1
+#&gt; R version 4.6.2 (2026-10-29)
+#&gt; Platform: x86_64-pc-linux-gnu
+#&gt; Running under: Ubuntu 26.04.1 LTS
 #&gt; 
 #&gt; Matrix products: default
-#&gt; BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
-#&gt; LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+#&gt; BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3 
+#&gt; LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.32.so;  LAPACK version 3.12.0
 #&gt; 
 #&gt; locale:
-#&gt; [1] en_US/en_US/en_US/C/en_US/en_US
+#&gt;  [1] LC_CTYPE=C.UTF-8       LC_NUMERIC=C           LC_TIME=C.UTF-8       
+#&gt;  [4] LC_COLLATE=C.UTF-8     LC_MONETARY=C.UTF-8    LC_MESSAGES=C.UTF-8   
+#&gt;  [7] LC_PAPER=C.UTF-8       LC_NAME=C              LC_ADDRESS=C          
+#&gt; [10] LC_TELEPHONE=C         LC_MEASUREMENT=C.UTF-8 LC_IDENTIFICATION=C   
 #&gt; 
-#&gt; time zone: America/New_York
-#&gt; tzcode source: internal
+#&gt; time zone: UTC
+#&gt; tzcode source: system (glibc)
 #&gt; 
 #&gt; attached base packages:
 #&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
 #&gt; 
 #&gt; other attached packages:
-#&gt; [1] vegan_2.7-5    permute_0.9-10 ggplot2_4.0.3  repdist_0.99.0
+#&gt; [1] ggplot2_4.0.4  vegan_2.7-6    permute_0.10-0 repdist_0.99.0
 #&gt; 
 #&gt; loaded via a namespace (and not attached):
-#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.22-9     
+#&gt;  [1] sass_0.4.10         generics_0.1.4      lattice_0.23-1     
 #&gt;  [4] MCL_1.0             digest_0.6.39       magrittr_2.0.5     
-#&gt;  [7] evaluate_1.0.5      grid_4.5.2          RColorBrewer_1.1-3 
-#&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-5       
+#&gt;  [7] evaluate_1.0.5      grid_4.6.2          RColorBrewer_1.1-3 
+#&gt; [10] fastmap_1.2.0       jsonlite_2.0.0      Matrix_1.7-6       
 #&gt; [13] mgcv_1.9-4          viridisLite_0.4.3   scales_1.4.0       
-#&gt; [16] Biostrings_2.78.0   codetools_0.2-20    jquerylib_0.1.4    
-#&gt; [19] cli_3.6.6           expm_1.0-0          rlang_1.3.0        
-#&gt; [22] crayon_1.5.3        XVector_0.50.0      splines_4.5.2      
+#&gt; [16] Biostrings_2.80.2   codetools_0.2-20    jquerylib_0.1.4    
+#&gt; [19] cli_3.6.6           expm_1.0-1          rlang_1.3.0        
+#&gt; [22] crayon_1.5.3        XVector_0.52.0      splines_4.6.2      
 #&gt; [25] withr_3.0.3         cachem_1.1.0        yaml_2.3.12        
-#&gt; [28] otel_0.2.0          Rtsne_0.17          tools_4.5.2        
-#&gt; [31] parallel_4.5.2      BiocParallel_1.44.0 dplyr_1.2.1        
-#&gt; [34] BiocGenerics_0.56.0 vctrs_0.7.3         R6_2.6.1           
-#&gt; [37] stats4_4.5.2        lifecycle_1.0.5     pwalign_1.6.0      
-#&gt; [40] Seqinfo_1.0.0       S4Vectors_0.48.1    IRanges_2.44.0     
-#&gt; [43] MASS_7.3-65         fontawesome_0.5.3   cluster_2.1.8.2    
-#&gt; [46] pkgconfig_2.0.3     pillar_1.11.1       bslib_0.11.0       
-#&gt; [49] gtable_0.3.6        Rcpp_1.1.2          glue_1.8.1         
-#&gt; [52] xfun_0.58           tibble_3.3.1        tidyselect_1.2.1   
-#&gt; [55] knitr_1.51          farver_2.1.2        htmltools_0.5.9    
-#&gt; [58] nlme_3.1-169        labeling_0.4.3      rmarkdown_2.31     
-#&gt; [61] compiler_4.5.2      S7_0.2.2</code></pre>
+#&gt; [28] otel_0.3.0          tools_4.6.2         parallel_4.6.2     
+#&gt; [31] BiocParallel_1.46.0 dplyr_1.2.1         BiocGenerics_0.58.1
+#&gt; [34] vctrs_0.7.3         R6_2.6.1            stats4_4.6.2       
+#&gt; [37] lifecycle_1.0.5     pwalign_1.8.0       Seqinfo_1.2.0      
+#&gt; [40] S4Vectors_0.50.3    IRanges_2.46.0      MASS_7.3-66        
+#&gt; [43] cluster_2.1.8.3     pkgconfig_2.0.3     bslib_0.12.0       
+#&gt; [46] pillar_1.11.1       gtable_0.3.6        glue_1.8.1         
+#&gt; [49] xfun_0.62           tibble_3.3.1        tidyselect_1.2.1   
+#&gt; [52] knitr_1.52          farver_2.1.2        htmltools_0.5.9    
+#&gt; [55] nlme_3.1-171        labeling_0.4.3      rmarkdown_2.32     
+#&gt; [58] compiler_4.6.2      S7_0.2.2</code></pre>
 </div>
 
 
