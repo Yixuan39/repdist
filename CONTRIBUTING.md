@@ -18,7 +18,9 @@ downloads model weights.
 
 `.github/workflows/R-CMD-check.yaml` runs `R CMD check` on every push and pull
 request to `main`. A passing push to `main` also uploads coverage to Codecov.
-The site's `repdist.html` is rendered by hand on the `gh-pages` branch.
+A passing push to `main` also re-renders the site's `repdist.html` from
+`vignettes/repdist.Rmd` on the `gh-pages` branch (the `site` job), inside a
+`gh-pages` checkout so that the page keeps the site's navbar and theme.
 
 ## Vignette
 
