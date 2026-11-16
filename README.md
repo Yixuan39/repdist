@@ -29,8 +29,10 @@ and PERMDISP, 999 permutations:
 | MMD | 0.150 | 0.001 | 0.023 |
 | Bray-Curtis (protein) | 0.051 | 0.482 | 0.010 |
 
-Group A is also more dispersed under both distances, since each of its
-samples carries a different GrpE protein. This is the
+Group A is also more dispersed under both distances (PERMDISP), as the
+design builds in: each group-A sample carries a different GrpE protein and
+no group-B sample carries one. A larger spike widens the gap (at 10%,
+PERMDISP p = 0.001 under both). This is the
 [vignette](https://yixuan39.github.io/repdist/repdist.html)'s dataset,
 `data(simulate_cog)`; the
 [simulated data page](https://yixuan39.github.io/repdist/data_simulation.html)
@@ -40,19 +42,18 @@ shows how it was built.
 
 | Input | Typical file | Read with |
 | --- | --- | --- |
-| Protein sequences | FASTA, one record per protein, the protein ID first in the header | `embed_proteins()`, or `read_embeddings()` for `tmvec` output |
+| Protein sequences | FASTA, one record per protein, the protein ID first in the header | `embed_proteins()` |
 | Protein counts | tab-separated, samples in rows, sample IDs in the first column, protein IDs as column names (e.g. PSM or spectral counts) | `as.matrix(read.delim(f, row.names = 1, check.names = FALSE))` |
 | Sample metadata | tab-separated, one row per sample, in the count table's row order | `read.delim()` |
 
 `inst/extdata` ships one of each, 100 proteins of a mouse gut metaproteome in
-23 samples on two diets, plus their `tmvec` embeddings; the
-[Quick start](#quick-start) runs from them.
+23 samples on two diets; the end of the [Quick start](#quick-start) reads
+them.
 
 Python, conda and git do not need to be installed: the first
 `embed_proteins()` call downloads a standalone Python and sets up a private,
 version-pinned environment (up to a few GB, once), on Windows, macOS and
-Linux. Embeddings from the
-`tmvec` command-line tool can be read with `read_embeddings()` instead.
+Linux.
 
 **New to repdist? Start with the
 [vignette](https://yixuan39.github.io/repdist/repdist.html)**
@@ -99,7 +100,7 @@ Then, in R:
 if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 BiocManager::install(c("basilisk", "BiocFileCache", "BiocParallel",
-    "Biostrings", "pwalign", "rhdf5", "S4Vectors", "MCL"))
+    "Biostrings", "pwalign", "S4Vectors", "MCL"))
 if (!requireNamespace("remotes", quietly = TRUE))
     install.packages("remotes")
 # dependencies = TRUE also installs vegan and ggplot2 for the vignette, and Rtsne for plot_tsne()
@@ -122,6 +123,7 @@ meta <- simulate_cog$samples      # one row per sample; `group` is "A" or "B"
 # Beta diversity between samples
 D <- sample_mmd(counts, proteins)
 vegan::adonis2(D ~ group, data = meta)
+plot_pcoa(counts, proteins, meta$group) # display only; drops 2 top regions
 
 # Structure-level protein bins, e.g. for biomarker discovery
 S <- protein_similarity(proteins, max_evalue = 0.01)
@@ -132,22 +134,21 @@ bin_counts <- bin_glom(counts, bins) # samples x bins
 `proteins` is an `AAStringSet` of the sequences with the embeddings in
 `mcols(proteins)$embedding`; `simulate_cog` ships with its embeddings already
 computed, so loading it needs no model download. `protein_similarity()`
-aligns every pair and keeps the predicted TM-score of those whose alignment
-E-value is at most `max_evalue`, so its time grows with the square of the
-number of proteins. `bin_proteins()` runs MCL on the remaining edges. The
+aligns every pair with a positive similarity and keeps the predicted
+TM-score of those whose alignment E-value is at most `max_evalue`, so its
+time grows with the square of the number of proteins. `bin_proteins()` runs
+MCL on the remaining edges. The
 gate applies to edges, not all pairs: a bin can hold pairs that did not pass
 it. Structural similarity alone does not guarantee shared function, so weigh
 annotation agreement against how much of the catalog the non-singleton bins
 hold, and how far families fragment, before transferring labels.
 
-The same from files, with the examples in `inst/extdata` (also runs as
-shown); swap in your own paths:
+The same from files, with the examples in `inst/extdata`; swap in your own
+paths. `embed_proteins()` downloads the model on first use:
 
 ```r
 ex <- function(f) system.file("extdata", f, package = "repdist")
-proteins <- read_embeddings(ex("metaproteomics.npz"), ex("metaproteomics.fasta"))
-# or compute the embeddings (downloads the model on first use):
-# proteins <- embed_proteins(ex("metaproteomics.fasta"))
+proteins <- embed_proteins(ex("metaproteomics.fasta"))
 counts <- as.matrix(read.delim(ex("metaproteomics_counts.tsv"),
     row.names = 1, check.names = FALSE))
 meta <- read.delim(ex("metaproteomics_samples.tsv"))

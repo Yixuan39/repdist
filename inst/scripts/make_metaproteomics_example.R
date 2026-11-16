@@ -1,8 +1,7 @@
-# Writes inst/extdata/metaproteomics.{npz,fasta}: 100 proteins of the diet
-# study, as a tmvec build-db database plus the FASTA it was built from, and
-# metaproteomics_{counts,samples}.tsv, their PSM counts and sample metadata
-# on the Yeast and Casein diets. See DATA_PROVENANCE.md. Run from the source repository root with repdist
-# installed; the npz is written with numpy from repdist's own environment.
+# Writes inst/extdata/metaproteomics.fasta, 100 proteins of the diet study,
+# and metaproteomics_{counts,samples}.tsv, their PSM counts and sample
+# metadata on the Yeast and Casein diets. See DATA_PROVENANCE.md. Run from the
+# source repository root with repdist installed.
 #
 # Usage: Rscript inst/scripts/make_metaproteomics_example.R [diet_series.rds]
 
@@ -23,7 +22,6 @@ rest <- setdiff(names(sort(yc, decreasing = TRUE)), gh92)
 ids <- c(gh92, rest[seq_len(100 - length(gh92))])
 
 x <- d$proteins[ids]
-Z <- S4Vectors::mcols(x)$embedding
 S4Vectors::mcols(x) <- NULL
 Biostrings::writeXStringSet(x, "inst/extdata/metaproteomics.fasta")
 
@@ -33,15 +31,3 @@ utils::write.table(d$counts[rownames(s), ids],
     sep = "\t", quote = FALSE, col.names = NA)
 utils::write.table(s, "inst/extdata/metaproteomics_samples.tsv",
     sep = "\t", quote = FALSE, row.names = FALSE)
-
-basilisk::basiliskRun(env = repdist:::repdist_env, fun = function(ids, Z) {
-    np <- reticulate::import("numpy", convert = FALSE)
-    np$savez_compressed("inst/extdata/metaproteomics.npz",
-        headers = np$array(ids, dtype = "U"),
-        # row-major, as tmvec writes it
-        embeddings = np$ascontiguousarray(Z, dtype = "float32"),
-        input_fasta = np$array("metaproteomics.fasta", dtype = "U"),
-        tm_vec_weights = np$array("", dtype = "U"),
-        protrans_model_path = np$array("", dtype = "U"))
-    NULL
-}, ids = ids, Z = unname(Z))

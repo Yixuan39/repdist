@@ -185,7 +185,8 @@ known_models <- function() {
 #' subset, or silently dropped, and no length limit is imposed -- a sequence
 #' past a model's `training_max_length` is embedded, just outside the
 #' range it was fitted on. A sequence too large for device memory even in a
-#' batch of its own is an error naming the offender. Batches are capped at
+#' batch of its own is embedded on the CPU with a warning; only running out
+#' of CPU memory is an error. Batches are capped at
 #' `batch_size` sequences (and an internal padded-token limit); a batch
 #' that still exceeds device memory is split and retried automatically.
 #'
@@ -212,7 +213,8 @@ known_models <- function() {
 #' @param batch_size Maximum number of sequences per model batch, a positive
 #'   integer. A throughput knob, not a correctness one: lower it to reduce
 #'   peak memory when sharing a device with other processes.
-#' @param progress Show a progress bar (default `TRUE`).
+#' @param progress Show a progress bar (default: in interactive sessions
+#'   only).
 #' @return An `AAStringSet` of the sequences, named by accession, with one
 #'   unit-norm embedding row per protein in the matrix `mcols(x)$embedding`.
 #'   To use embeddings from elsewhere, build the same object:
@@ -223,7 +225,7 @@ known_models <- function() {
 #'     model = "tmvec",
 #'     device = c("auto", "mps", "cuda", "cpu"),
 #'     batch_size = 16L,
-#'     progress = TRUE
+#'     progress = interactive()
 #' )
 #' @references Hamamsy et al. (2024). Protein remote homology detection and
 #'   structural alignment using deep learning. Nature Biotechnology.
@@ -243,7 +245,7 @@ known_models <- function() {
 embed_proteins <- function(
     seqs, model = "tmvec",
     device = c("auto", "mps", "cuda", "cpu"), batch_size = 16L,
-    progress = TRUE
+    progress = interactive()
 ) {
     device <- match.arg(device)
     stopifnot(isTRUE(progress) || isFALSE(progress))
@@ -293,85 +295,6 @@ embed_proteins <- function(
     x <- Biostrings::AAStringSet(seqs)
     S4Vectors::mcols(x)$embedding <- Z
     x
-}
-
-#' Read embeddings computed outside R
-#'
-#' Reads a `build-db` database (`.npz`) from the tmvec command-line tool
-#' (<https://github.com/valentynbez/tmvec>), or an HDF5 file in the layout
-#' of `tmvec embed` -- one group per protein holding datasets `seq` and
-#' `emb` -- which is the way in for embeddings from any other model. A
-#' per-residue `emb` matrix is averaged over residues; rows are L2-normalised.
-#'
-#' @param path Path to a `.npz` database or an HDF5 file.
-#' @param seqs For a `.npz`, which stores no sequences: a FASTA path or named
-#'   character vector covering its proteins. Defaults to the FASTA the
-#'   database was built from. Ignored for HDF5, which stores them.
-#' @return As [embed_proteins()].
-#' @examples
-#' # 100 gut metaproteome proteins, as written by `tmvec build-db`
-#' x <- read_embeddings(
-#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
-#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
-#' )
-#' x
-#' @export
-read_embeddings <- function(path, seqs = NULL) {
-    if (grepl("\\.npz$", path, ignore.case = TRUE)) {
-        Z <- .read_npy(path, "embeddings")
-        rownames(Z) <- .read_npy(path, "headers")
-        if (is.null(seqs)) {
-            seqs <- .read_npy(path, "input_fasta")
-            if (!file.exists(seqs)) {
-                stop("The database's FASTA, ", seqs, ", is missing; pass ",
-                    "`seqs`.", call. = FALSE)
-            }
-        }
-    } else {
-        h5 <- rhdf5::h5dump(path)
-        Z <- do.call(rbind, lapply(h5, function(g) rowMeans(as.matrix(g$emb))))
-        seqs <- vapply(h5, function(g) as.character(g$seq), "")
-    }
-    .check_ids(rownames(Z), "Embedded protein")
-    seqs <- .check_sequences(seqs)
-    missing <- setdiff(rownames(Z), names(seqs))
-    if (length(missing)) {
-        stop(length(missing), " embedded protein(s) have no sequence, e.g. ",
-            missing[[1]], ".", call. = FALSE)
-    }
-    x <- Biostrings::AAStringSet(seqs[rownames(Z)])
-    S4Vectors::mcols(x)$embedding <- Z / sqrt(rowSums(Z^2))
-    x
-}
-
-# One array from a NumPy .npz archive, as numpy.savez writes it: C order,
-# little-endian float or unicode.
-.read_npy <- function(path, name) {
-    con <- unz(path, paste0(name, ".npy"), "rb")
-    on.exit(close(con))
-    magic <- readBin(con, "raw", 8L) # \x93NUMPY, then the format version
-    size <- if (magic[[7]] == as.raw(1L)) 2L else 4L
-    header <- rawToChar(readBin(con, "raw",
-        readBin(con, "integer", size = size, endian = "little")))
-    descr <- sub(".*'descr': *'([^']*)'.*", "\\1", header)
-    dims <- sub(".*'shape': *\\(([^)]*)\\).*", "\\1", header)
-    dims <- as.integer(strsplit(dims, ", *")[[1]])
-    n <- prod(dims)
-    width <- as.integer(substring(descr, 3L))
-    x <- switch(substr(descr, 2L, 2L),
-        f = readBin(con, "double", n, size = width, endian = "little"),
-        U = vapply(split(
-            readBin(con, "integer", n * width, size = 4L, endian = "little"),
-            rep(seq_len(n), each = width)
-        ), function(u) intToUtf8(u[u > 0L]), ""),
-        stop("Unsupported array type ", descr, " in ", path, ".",
-            call. = FALSE)
-    )
-    if (length(dims) == 2L) {
-        matrix(x, dims[[1]], byrow = !grepl("'fortran_order': *True", header))
-    } else {
-        unname(x)
-    }
 }
 
 # The unit-norm embedding matrix of an embed_proteins() result, rows named by

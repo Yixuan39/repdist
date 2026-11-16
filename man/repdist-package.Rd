@@ -7,24 +7,26 @@
 \title{Structure-aware protein distances, clustering and beta diversity}
 \description{
 Embed protein sequences with \code{\link[=read_fasta]{read_fasta()}} and
-\code{\link[=embed_proteins]{embed_proteins()}},
-or read embeddings made with the tmvec tool with
-\code{\link[=read_embeddings]{read_embeddings()}}. Each gives an \code{AAStringSet} with the embeddings in
-\code{mcols()}.
+\code{\link[=embed_proteins]{embed_proteins()}}, which gives an
+\code{AAStringSet} with the embeddings in \code{mcols()}.
 }
 \details{
 \code{\link[=protein_similarity]{protein_similarity()}} builds the
 protein-by-protein similarity graph, gated on alignment E-value, and
-\code{\link[=bin_proteins]{bin_proteins()}} groups proteins into structural bins by Markov clustering
-of it; \code{\link[=bin_glom]{bin_glom()}} sums a count table to those bins.
-\code{\link[=plot_tsne]{plot_tsne()}} maps the embeddings and \code{\link[=plot_bin_similarity]{plot_bin_similarity()}} shows the
-pairwise similarities inside one bin.
+\code{\link[=bin_proteins]{bin_proteins()}} groups proteins into
+structural bins by Markov clustering of it;
+\code{\link[=bin_glom]{bin_glom()}} sums a count table to those bins.
+\code{\link[=plot_tsne]{plot_tsne()}} maps the embeddings and
+\code{\link[=plot_bin_similarity]{plot_bin_similarity()}} shows the pairwise
+similarities inside one bin.
 
 \code{\link[=sample_mmd]{sample_mmd()}}
 is the beta-diversity side: it represents each sample
 as an abundance-weighted distribution over the same embeddings and compares
 samples by Gaussian-kernel maximum mean discrepancy. Counts have samples in
 rows and proteins in columns, matched to the proteins by name.
+\code{\link[=plot_pcoa]{plot_pcoa()}} draws its principal coordinates
+without the most abundant protein regions.
 
 See \code{vignette("repdist")} for beta diversity, protein bins and
 differential abundance.

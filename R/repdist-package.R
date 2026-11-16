@@ -1,23 +1,25 @@
 #' Structure-aware protein distances, clustering and beta diversity
 #'
 #' Embed protein sequences with [read_fasta()] and
-#' [embed_proteins()],
-#' or read embeddings made with the tmvec tool with
-#' [read_embeddings()]. Each gives an `AAStringSet` with the embeddings in
-#' `mcols()`.
+#' [embed_proteins()], which gives an
+#' `AAStringSet` with the embeddings in `mcols()`.
 #'
 #' [protein_similarity()] builds the
 #' protein-by-protein similarity graph, gated on alignment E-value, and
-#' [bin_proteins()] groups proteins into structural bins by Markov clustering
-#' of it; [bin_glom()] sums a count table to those bins.
-#' [plot_tsne()] maps the embeddings and [plot_bin_similarity()] shows the
-#' pairwise similarities inside one bin.
+#' [bin_proteins()] groups proteins into
+#' structural bins by Markov clustering of it;
+#' [bin_glom()] sums a count table to those bins.
+#' [plot_tsne()] maps the embeddings and
+#' [plot_bin_similarity()] shows the pairwise
+#' similarities inside one bin.
 #'
 #' [sample_mmd()]
 #' is the beta-diversity side: it represents each sample
 #' as an abundance-weighted distribution over the same embeddings and compares
 #' samples by Gaussian-kernel maximum mean discrepancy. Counts have samples in
 #' rows and proteins in columns, matched to the proteins by name.
+#' [plot_pcoa()] draws its principal coordinates
+#' without the most abundant protein regions.
 #'
 #' See `vignette("repdist")` for beta diversity, protein bins and
 #' differential abundance.
@@ -63,16 +65,18 @@ NULL
 #' `system.file("extdata", "simulate_cog.fasta", package = "repdist")`.
 #'
 #' @format A list of five elements:
-#' - `proteins`: `AAStringSet` of the sequences, with TM-Vec embeddings
-#'   rounded to 4 decimals in `mcols(proteins)$embedding` (110 x 512).
+#' - `proteins`: `AAStringSet` of the sequences, with TM-Vec
+#'   embeddings rounded to 4 decimals in `mcols(proteins)$embedding`
+#'   (110 x 512).
 #' - `counts`: integer matrix, 20 samples x 110 proteins.
 #' - `samples`: data frame with `sample`, `group` (A or B) and
 #'   `grpe_protein`, the GrpE protein of a group-A sample.
-#' - `annotation`: data frame, one row per protein: `protein` (NCBI protein
-#'   id), `role` (GrpE or background), `enriched_in` (the sample a GrpE
-#'   protein is spiked into), `cog`, `cog_name`, `gene`, `category` and
-#'   `category_name` (COG functional category), `length`, `organism`, and
-#'   `mmseqs30` (its MMseqs2 30%-identity cluster representative).
+#' - `annotation`: data frame, one row per protein: `protein`
+#'   (NCBI protein id), `role` (GrpE or background), `enriched_in`
+#'   (the sample a GrpE protein is spiked into), `cog`, `cog_name`,
+#'   `gene`, `category` and `category_name` (COG functional
+#'   category), `length`, `organism`, and `mmseqs30` (its MMseqs2
+#'   30%-identity cluster representative).
 #' - `provenance`: source, license, design, seeds and session.
 #'
 #' @source NCBI COG 2024, <https://ftp.ncbi.nih.gov/pub/COG/COG2024/data/>.

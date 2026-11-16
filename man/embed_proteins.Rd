@@ -9,7 +9,7 @@ embed_proteins(
     model = "tmvec",
     device = c("auto", "mps", "cuda", "cpu"),
     batch_size = 16L,
-    progress = TRUE
+    progress = interactive()
 )
 }
 \arguments{
@@ -40,7 +40,8 @@ sequence that still does not fit is embedded on the CPU with a warning.}
 integer. A throughput knob, not a correctness one: lower it to reduce
 peak memory when sharing a device with other processes.}
 
-\item{progress}{Show a progress bar (default \code{TRUE}).}
+\item{progress}{Show a progress bar (default: in interactive sessions
+only).}
 }
 \value{
 An \code{AAStringSet} of the sequences, named by accession, with one
@@ -71,7 +72,8 @@ Every sequence is embedded whole and in input order: nothing is truncated,
 subset, or silently dropped, and no length limit is imposed -- a sequence
 past a model's \code{training_max_length} is embedded, just outside the
 range it was fitted on. A sequence too large for device memory even in a
-batch of its own is an error naming the offender. Batches are capped at
+batch of its own is embedded on the CPU with a warning; only running out
+of CPU memory is an error. Batches are capped at
 \code{batch_size} sequences (and an internal padded-token limit); a batch
 that still exceeds device memory is split and retried automatically.
 }

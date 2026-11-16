@@ -1,6 +1,5 @@
 utils::globalVariables(c(
-    "similarity", "protein", "partner", "tsne1", "tsne2",
-    "x_from", "y_from", "x_to", "y_to"
+    "similarity", "protein", "partner", "tsne1", "tsne2"
 ))
 
 #' Plot protein embeddings with t-SNE
@@ -12,20 +11,19 @@ utils::globalVariables(c(
 #' between clusters or their sizes. The layout is stochastic; call
 #' [set.seed()] first to reproduce it.
 #'
-#' @param x Proteins with embeddings, from [embed_proteins()] or
-#'   [read_embeddings()].
+#' @param x Proteins with embeddings, from
+#'   [embed_proteins()].
 #' @param perplexity t-SNE perplexity. Defaults to 30, or the largest value
 #'   t-SNE accepts when there are fewer than 94 proteins.
 #' @param color Optional labels to colour by, such as a functional class: a
 #'   vector named by protein. The 12 most frequent labels get colours, the
 #'   rest are drawn as `"other"`, and proteins without a label are grey.
-#' @return A ggplot object whose `data` holds the t-SNE coordinates (and the
-#'   `label` used for colour). Needs the `ggplot2` and `Rtsne` packages.
+#' @return A ggplot object whose `data` holds the t-SNE coordinates (and
+#'   the `label` used for colour). Needs the `ggplot2` and `Rtsne`
+#'   packages.
 #' @examples
-#' x <- read_embeddings(
-#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
-#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
-#' )
+#' data(simulate_cog, package = "repdist")
+#' x <- simulate_cog$proteins
 #' if (requireNamespace("ggplot2", quietly = TRUE) &&
 #'     requireNamespace("Rtsne", quietly = TRUE)) {
 #'     set.seed(1)
@@ -77,32 +75,28 @@ plot_tsne <- function(x, perplexity = NULL, color = NULL) {
 #'
 #' Heatmap of every pairwise similarity among one bin's members, the
 #' representative first and the rest by decreasing similarity to it. Colour
-#' is the similarity before any gate, from the embeddings; a cross marks each
-#' pair that is not an edge of `S`, the graph MCL clustered. An MCL bin joins
-#' members through shared neighbours, so a pair inside it need not be an edge,
-#' and a pair of similar proteins is not one if it failed the E-value gate.
+#' is the pair's edge weight in `S`, the graph MCL clustered; a grey cell is
+#' a pair that is not an edge, such as one whose alignment failed the E-value
+#' gate. An MCL bin joins members through shared neighbours, so a pair inside
+#' it need not be an edge.
 #'
 #' @param bins Result of [bin_proteins()].
 #' @param bin Bin name, e.g. `"bin1"`.
-#' @param S The similarity matrix given to [bin_proteins()], gates applied.
-#' @param x The proteins `S` was computed from; the colours come from their
-#'   embeddings, so no ungated matrix is needed.
+#' @param S The similarity matrix given to
+#'   [bin_proteins()].
 #' @param label_max Above this many members, accessions and cell values are
 #'   dropped.
 #' @param name_max Accessions longer than this are elided in the middle.
-#' @return A ggplot object whose `data` holds each pair's `similarity` and
-#'   whether it is an `edge`. Needs the `ggplot2` package.
+#' @return A ggplot object whose `data` holds each pair's `similarity`, `NA`
+#'   where the pair is not an edge. Needs the `ggplot2` package.
 #' @examples
-#' x <- read_embeddings(
-#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
-#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
-#' )
-#' S <- protein_similarity(x)
+#' data(simulate_cog, package = "repdist")
+#' S <- protein_similarity(simulate_cog$proteins)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
-#'     plot_bin_similarity(bin_proteins(S), "bin1", S, x)
+#'     plot_bin_similarity(bin_proteins(S), "bin1", S)
 #' }
 #' @export
-plot_bin_similarity <- function(bins, bin, S, x, label_max = 20L,
+plot_bin_similarity <- function(bins, bin, S, label_max = 20L,
     name_max = 25L) {
     S <- .check_sim(S)
     if (!is.list(bins$clusters) || is.null(bins$representatives)) {
@@ -111,7 +105,6 @@ plot_bin_similarity <- function(bins, bin, S, x, label_max = 20L,
     if (length(bin) != 1L || !bin %in% names(bins$clusters)) {
         stop("`bin` must name one bin, e.g. \"bin1\".", call. = FALSE)
     }
-    # an ungated matrix here would make every pair an edge
     n_edges <- sum(S[upper.tri(S)] > 0)
     if (nrow(S) != bins$graph[["proteins"]] ||
         n_edges != bins$graph[["edges"]]) {
@@ -123,57 +116,39 @@ plot_bin_similarity <- function(bins, bin, S, x, label_max = 20L,
     if (length(members) < 2L) {
         stop("`", bin, "` holds one protein; no pair to plot.", call. = FALSE)
     }
-    Z <- .embeddings(x)
-    if (!all(members %in% rownames(Z))) {
-        stop("`x` must hold every member of `", bin, "`.", call. = FALSE)
-    }
-    # as protein_similarity(x, max_evalue = Inf) gives it
-    R <- pmax(pmin(tcrossprod(Z[members, , drop = FALSE]), 1), 0)
     medoid <- bins$representatives[[bin]]
-    members <- members[order(members != medoid, -R[medoid, members])]
-    R <- R[members, members]
-    E <- S[members, members] > 0
-    diag(E) <- FALSE
+    members <- members[order(members != medoid, -S[medoid, members])]
+    R <- S[members, members]
+    R[R == 0] <- NA # not an edge
     n <- length(members)
     # y levels reversed so the diagonal runs from the upper left
     df <- data.frame(
         protein = factor(rep(members, times = n), members),
         partner = factor(rep(members, each = n), rev(members)),
-        similarity = as.numeric(R),
-        edge = as.vector(E)
+        similarity = as.numeric(R)
     )
-    # each pair that is not an edge is crossed corner to corner
-    self <- as.character(df$protein) == as.character(df$partner)
-    off <- df[!df$edge & !self, ]
-    at_x <- as.numeric(off$protein)
-    at_y <- as.numeric(off$partner)
-    h <- 0.42
-    cross <- data.frame(x_from = at_x - h, x_to = at_x + h,
-        y_from = c(at_y - h, at_y + h), y_to = c(at_y + h, at_y - h))
     half <- name_max %/% 2
     elide <- function(x) ifelse(nchar(x) <= name_max, x, paste0(
         substr(x, 1L, half), "\u2026", substring(x, nchar(x) - half + 2L)))
     p <- ggplot2::ggplot(df,
         ggplot2::aes(protein, partner, fill = similarity)) +
         ggplot2::geom_tile() +
-        ggplot2::geom_segment(data = cross, ggplot2::aes(x = x_from,
-            y = y_from, xend = x_to, yend = y_to), inherit.aes = FALSE,
-            linewidth = if (n > label_max) 0.3 else 0.6) +
-        ggplot2::scale_fill_viridis_c(limits = c(0, 1)) +
+        ggplot2::scale_fill_viridis_c(limits = c(0, 1), na.value = "grey85") +
         ggplot2::scale_y_discrete(labels = elide) +
         ggplot2::coord_fixed() +
         ggplot2::labs(x = NULL, y = NULL,
             title = sprintf("%s: %d proteins", bin, n),
-            subtitle = sprintf("%.0f%% of pairs are edges",
-                100 * mean(E[upper.tri(E)]))) +
+            subtitle = sprintf("%.0f%% of pairs are edges; grey: not an edge",
+                100 * mean(!is.na(R[upper.tri(R)])))) +
         ggplot2::theme_minimal() +
         ggplot2::theme(axis.text.x = ggplot2::element_blank())
     if (n > label_max) {
         return(p + ggplot2::theme(axis.text.y = ggplot2::element_blank()))
     }
     # viridis runs dark to light, so no one text colour reads at both ends
-    p + ggplot2::geom_text(ggplot2::aes(label = sprintf("%.2f", similarity),
-        color = similarity > 0.5), size = 2.6, show.legend = FALSE) +
+    p + ggplot2::geom_text(data = df[!is.na(df$similarity), ],
+        ggplot2::aes(label = sprintf("%.2f", similarity),
+            color = similarity > 0.5), size = 2.6, show.legend = FALSE) +
         ggplot2::scale_color_manual(
             values = c(`FALSE` = "white", `TRUE` = "black"))
 }

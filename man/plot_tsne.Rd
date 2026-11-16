@@ -7,8 +7,8 @@
 plot_tsne(x, perplexity = NULL, color = NULL)
 }
 \arguments{
-\item{x}{Proteins with embeddings, from \code{\link[=embed_proteins]{embed_proteins()}} or
-\code{\link[=read_embeddings]{read_embeddings()}}.}
+\item{x}{Proteins with embeddings, from
+\code{\link[=embed_proteins]{embed_proteins()}}.}
 
 \item{perplexity}{t-SNE perplexity. Defaults to 30, or the largest value
 t-SNE accepts when there are fewer than 94 proteins.}
@@ -18,8 +18,9 @@ vector named by protein. The 12 most frequent labels get colours, the
 rest are drawn as \code{"other"}, and proteins without a label are grey.}
 }
 \value{
-A ggplot object whose \code{data} holds the t-SNE coordinates (and the
-\code{label} used for colour). Needs the \code{ggplot2} and \code{Rtsne} packages.
+A ggplot object whose \code{data} holds the t-SNE coordinates (and
+the \code{label} used for colour). Needs the \code{ggplot2} and \code{Rtsne}
+packages.
 }
 \description{
 Two-dimensional t-SNE of the protein embeddings on cosine distance, one
@@ -30,10 +31,8 @@ between clusters or their sizes. The layout is stochastic; call
 \code{\link[=set.seed]{set.seed()}} first to reproduce it.
 }
 \examples{
-x <- read_embeddings(
-    system.file("extdata", "metaproteomics.npz", package = "repdist"),
-    system.file("extdata", "metaproteomics.fasta", package = "repdist")
-)
+data(simulate_cog, package = "repdist")
+x <- simulate_cog$proteins
 if (requireNamespace("ggplot2", quietly = TRUE) &&
     requireNamespace("Rtsne", quietly = TRUE)) {
     set.seed(1)

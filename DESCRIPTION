@@ -10,8 +10,7 @@ Description: Structure-aware protein distances from pretrained protein
     environment provisioned by 'basilisk'; with the default TM-Vec model the
     distance between two proteins is calibrated to a predicted TM-score, and
     it is defined for every amino-acid sequence, including proteins with no
-    annotation and no place in a reference tree. Embeddings made with the
-    'tmvec' command-line tool can be read in instead. Markov clustering of
+    annotation and no place in a reference tree. Markov clustering of
     the graph joining protein pairs whose alignment E-value is significant,
     weighted by similarity, groups proteins into structural bins, with
     plots of the embedding space and of the similarities inside a bin; bin
@@ -21,7 +20,9 @@ Description: Structure-aware protein distances from pretrained protein
     are compared by maximum mean discrepancy under a Gaussian kernel, so two
     samples holding different accessions of similar proteins come out close
     rather than maximally apart. Distances are returned as 'dist' objects
-    for direct use with 'vegan' and other distance-based methods.
+    for direct use with 'vegan' and other distance-based methods, and a
+    principal-coordinates plot can set the most abundant protein regions
+    aside for display.
 License: MIT + file LICENSE
 URL: https://github.com/Yixuan39/repdist
 BugReports: https://github.com/Yixuan39/repdist/issues
@@ -43,7 +44,6 @@ Imports:
     MCL,
     pwalign,
     reticulate (>= 1.41.0),
-    rhdf5,
     S4Vectors,
     stats,
     utils

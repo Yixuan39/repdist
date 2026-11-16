@@ -30,8 +30,8 @@ size.}
 Partitions the similarity graph from
 \code{\link[=protein_similarity]{protein_similarity()}}
 by Markov clustering (MCL, via the \code{MCL} package). Every nonzero pair is an
-edge weighted by its similarity. Bins are named \code{bin1}, \code{bin2}, ... from
-largest to smallest; proteins with no edge are singleton bins.
+edge weighted by its similarity. Bins are named \code{bin1}, \code{bin2}, ...
+from largest to smallest; proteins with no edge are singleton bins.
 }
 \details{
 The E-value gate applies to edges, not to all pairs: a bin can hold pairs
@@ -40,10 +40,8 @@ joined only through shared neighbours (see
 Collapse a counts table to bins with \code{\link[=bin_glom]{bin_glom()}}.
 }
 \examples{
-x <- read_embeddings(
-    system.file("extdata", "metaproteomics.npz", package = "repdist"),
-    system.file("extdata", "metaproteomics.fasta", package = "repdist")
-)
+data(simulate_cog, package = "repdist")
+x <- simulate_cog$proteins
 b <- bin_proteins(protein_similarity(x))
 head(lengths(b$clusters))
 }

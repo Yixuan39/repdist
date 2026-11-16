@@ -4,12 +4,16 @@
 \alias{protein_similarity}
 \title{Protein similarity matrix from embeddings}
 \usage{
-protein_similarity(x, max_evalue = 0.01, n_cores = 1L, progress = TRUE)
+protein_similarity(
+  x,
+  max_evalue = 0.01,
+  n_cores = 1L,
+  progress = interactive()
+)
 }
 \arguments{
 \item{x}{Proteins with embeddings, from
-\code{\link[=embed_proteins]{embed_proteins()}} or
-\code{\link[=read_embeddings]{read_embeddings()}}.}
+\code{\link[=embed_proteins]{embed_proteins()}}.}
 
 \item{max_evalue}{Largest alignment E-value kept (default 0.01); \code{Inf}
 skips alignment and keeps every pair.}
@@ -18,7 +22,8 @@ skips alignment and keeps every pair.}
 alignments run in forked processes, which Windows does not support: there
 they run on one core with a warning.}
 
-\item{progress}{Show a progress bar over the alignments (default \code{TRUE}).}
+\item{progress}{Show a progress bar over the alignments (default: in
+interactive sessions only, so knitr output stays clean).}
 }
 \value{
 Symmetric numeric matrix of similarities, 1 on the diagonal and 0
@@ -26,8 +31,9 @@ for every gated pair.
 }
 \description{
 Cosine similarity between proteins -- for TM-Vec embeddings, the predicted
-TM-score -- kept only for pairs whose sequences align: the weighted graph
-\code{\link[=bin_proteins]{bin_proteins()}} clusters. Negative similarities are set to 0.
+TM-score -- kept only for pairs whose sequences align. Negative
+similarities are set to 0. The result is the weighted graph
+\code{\link[=bin_proteins]{bin_proteins()}} clusters.
 }
 \details{
 Every pair with a positive similarity is aligned (local, BLOSUM62, gap
@@ -38,9 +44,9 @@ E-value is BLAST's for the shorter protein searched against all of \code{x},
 from the Karlin-Altschul statistics of BLOSUM62 with these gaps (lambda
 0.267, K 0.041) and without length correction or composition-based
 statistics. It grows with the total length of \code{x}, so one
-\code{max_evalue} is stricter on a larger \code{x}. The number of alignments grows
-with the square of the number of proteins: 5,000 proteins take about
-40 minutes on 10 cores.
+\code{max_evalue} is stricter on a larger \code{x}. The number of alignments
+grows with the square of the number of proteins: 5,000 proteins take
+about 40 minutes on 10 cores.
 }
 \examples{
 x <- Biostrings::AAStringSet(c(

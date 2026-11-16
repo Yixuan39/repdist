@@ -4,17 +4,15 @@
 \alias{plot_bin_similarity}
 \title{Plot the similarity matrix inside one bin}
 \usage{
-plot_bin_similarity(bins, bin, S, x, label_max = 20L, name_max = 25L)
+plot_bin_similarity(bins, bin, S, label_max = 20L, name_max = 25L)
 }
 \arguments{
 \item{bins}{Result of \code{\link[=bin_proteins]{bin_proteins()}}.}
 
 \item{bin}{Bin name, e.g. \code{"bin1"}.}
 
-\item{S}{The similarity matrix given to \code{\link[=bin_proteins]{bin_proteins()}}, gates applied.}
-
-\item{x}{The proteins \code{S} was computed from; the colours come from their
-embeddings, so no ungated matrix is needed.}
+\item{S}{The similarity matrix given to
+\code{\link[=bin_proteins]{bin_proteins()}}.}
 
 \item{label_max}{Above this many members, accessions and cell values are
 dropped.}
@@ -22,24 +20,21 @@ dropped.}
 \item{name_max}{Accessions longer than this are elided in the middle.}
 }
 \value{
-A ggplot object whose \code{data} holds each pair's \code{similarity} and
-whether it is an \code{edge}. Needs the \code{ggplot2} package.
+A ggplot object whose \code{data} holds each pair's \code{similarity}, \code{NA}
+where the pair is not an edge. Needs the \code{ggplot2} package.
 }
 \description{
 Heatmap of every pairwise similarity among one bin's members, the
 representative first and the rest by decreasing similarity to it. Colour
-is the similarity before any gate, from the embeddings; a cross marks each
-pair that is not an edge of \code{S}, the graph MCL clustered. An MCL bin joins
-members through shared neighbours, so a pair inside it need not be an edge,
-and a pair of similar proteins is not one if it failed the E-value gate.
+is the pair's edge weight in \code{S}, the graph MCL clustered; a grey cell is
+a pair that is not an edge, such as one whose alignment failed the E-value
+gate. An MCL bin joins members through shared neighbours, so a pair inside
+it need not be an edge.
 }
 \examples{
-x <- read_embeddings(
-    system.file("extdata", "metaproteomics.npz", package = "repdist"),
-    system.file("extdata", "metaproteomics.fasta", package = "repdist")
-)
-S <- protein_similarity(x)
+data(simulate_cog, package = "repdist")
+S <- protein_similarity(simulate_cog$proteins)
 if (requireNamespace("ggplot2", quietly = TRUE)) {
-    plot_bin_similarity(bin_proteins(S), "bin1", S, x)
+    plot_bin_similarity(bin_proteins(S), "bin1", S)
 }
 }

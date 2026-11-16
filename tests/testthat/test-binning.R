@@ -9,8 +9,6 @@ rownames(Z) <- paste0("p", 1:15)
 family <- rep(1:3, each = 5)
 S <- cosine_graph(Z, 0.5)
 
-unit <- function(W) W / sqrt(rowSums(W^2))
-
 # Plain dense MCL with the same settings and no pruning: the reference
 # bin_proteins() must agree with on small graphs.
 dense_mcl <- function(S, inflation) {
@@ -243,8 +241,8 @@ test_that("E-values match BLAST's bit scores", {
 
 test_that("E-values do not overflow on a large protein set", {
     # 1,000 residues x 3 million total residues > 2^31
-    unit <- "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKAL"
-    a <- substr(strrep(unit, 20), 1, 1000)
+    motif <- "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKAL"
+    a <- substr(strrep(motif, 20), 1, 1000)
     aa <- Biostrings::AAStringSet(c(a = a, b = a,
         filler = strrep("A", 3e6)))
     E <- repdist:::.evalue(rbind(1:2), aa)

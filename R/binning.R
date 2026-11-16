@@ -1,8 +1,9 @@
 #' Protein similarity matrix from embeddings
 #'
 #' Cosine similarity between proteins -- for TM-Vec embeddings, the predicted
-#' TM-score -- kept only for pairs whose sequences align: the weighted graph
-#' [bin_proteins()] clusters. Negative similarities are set to 0.
+#' TM-score -- kept only for pairs whose sequences align. Negative
+#' similarities are set to 0. The result is the weighted graph
+#' [bin_proteins()] clusters.
 #'
 #' Every pair with a positive similarity is aligned (local, BLOSUM62, gap
 #' opening 11, extension 1, via
@@ -12,19 +13,19 @@
 #' from the Karlin-Altschul statistics of BLOSUM62 with these gaps (lambda
 #' 0.267, K 0.041) and without length correction or composition-based
 #' statistics. It grows with the total length of `x`, so one
-#' `max_evalue` is stricter on a larger `x`. The number of alignments grows
-#' with the square of the number of proteins: 5,000 proteins take about
-#' 40 minutes on 10 cores.
+#' `max_evalue` is stricter on a larger `x`. The number of alignments
+#' grows with the square of the number of proteins: 5,000 proteins take
+#' about 40 minutes on 10 cores.
 #'
 #' @param x Proteins with embeddings, from
-#'   [embed_proteins()] or
-#'   [read_embeddings()].
+#'   [embed_proteins()].
 #' @param max_evalue Largest alignment E-value kept (default 0.01); `Inf`
 #'   skips alignment and keeps every pair.
 #' @param n_cores Number of cores for the alignments (default 1). Above 1 the
 #'   alignments run in forked processes, which Windows does not support: there
 #'   they run on one core with a warning.
-#' @param progress Show a progress bar over the alignments (default `TRUE`).
+#' @param progress Show a progress bar over the alignments (default: in
+#'   interactive sessions only, so knitr output stays clean).
 #' @return Symmetric numeric matrix of similarities, 1 on the diagonal and 0
 #'   for every gated pair.
 #' @references Karlin S, Altschul SF (1990). Methods for assessing the
@@ -40,7 +41,7 @@
 #' protein_similarity(x)
 #' @export
 protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L,
-    progress = TRUE) {
+    progress = interactive()) {
     Z <- .embeddings(x)
     stopifnot(
         is.numeric(max_evalue), length(max_evalue) == 1L,
@@ -133,8 +134,8 @@ protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L,
 #' Partitions the similarity graph from
 #' [protein_similarity()]
 #' by Markov clustering (MCL, via the `MCL` package). Every nonzero pair is an
-#' edge weighted by its similarity. Bins are named `bin1`, `bin2`, ... from
-#' largest to smallest; proteins with no edge are singleton bins.
+#' edge weighted by its similarity. Bins are named `bin1`, `bin2`, ...
+#' from largest to smallest; proteins with no edge are singleton bins.
 #'
 #' The E-value gate applies to edges, not to all pairs: a bin can hold pairs
 #' joined only through shared neighbours (see
@@ -159,10 +160,8 @@ protein_similarity <- function(x, max_evalue = 0.01, n_cores = 1L,
 #' @references van Dongen S (2000). Graph clustering by flow simulation.
 #'   PhD thesis, University of Utrecht.
 #' @examples
-#' x <- read_embeddings(
-#'     system.file("extdata", "metaproteomics.npz", package = "repdist"),
-#'     system.file("extdata", "metaproteomics.fasta", package = "repdist")
-#' )
+#' data(simulate_cog, package = "repdist")
+#' x <- simulate_cog$proteins
 #' b <- bin_proteins(protein_similarity(x))
 #' head(lengths(b$clusters))
 #' @export

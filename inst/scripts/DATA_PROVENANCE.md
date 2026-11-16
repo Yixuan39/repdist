@@ -1,6 +1,6 @@
 # Example data provenance
 
-## metaproteomics.npz, metaproteomics.fasta, metaproteomics_counts.tsv, metaproteomics_samples.tsv
+## metaproteomics.fasta, metaproteomics_counts.tsv, metaproteomics_samples.tsv
 
 100 microbial proteins from the mouse gut metaproteomes of Blakeley-Ruiz et
 al. (2025), *Dietary protein source alters gut microbiota composition and
@@ -9,22 +9,17 @@ The article and its supplementary material are distributed under CC BY 4.0
 (https://creativecommons.org/licenses/by/4.0/); raw proteomics accession
 PXD041586.
 
-`metaproteomics.npz` is a database in the layout `tmvec build-db` writes
-(tmvec 1.0.5): protein IDs in `headers`, one float32 TM-Vec embedding per row
-in `embeddings`. It stores no sequences; `metaproteomics.fasta` holds them,
-which is what `read_embeddings()` takes as `seqs`.
-
-Both files are cut from the curated object of the package website's case
-study, `curated/diet_series.rds` on the repository's `gh-pages` branch, built
-by `data-raw/diet_series.R` there from the paper's supplementary Data Set 1
-(PSM counts and sequences) and Data Set 6 (annotation), with embeddings from
-`embed_proteins()` at the default `"tmvec"` model. The 100 proteins are the 12
+`metaproteomics.fasta` holds their sequences. It is cut from the curated
+object of the package website's case study, `curated/diet_series.rds` on the
+repository's `gh-pages` branch, built by `data-raw/diet_series.R` there from
+the paper's supplementary Data Set 1 (PSM counts and sequences) and Data
+Set 6 (annotation). The 100 proteins are the 12
 GH92-annotated proteins seen on the 20% yeast and 20% casein diets, then the 88
 most abundant other proteins on those diets.
 `metaproteomics_counts.tsv` holds their PSM counts in the 23 samples of
 those two diets (samples in rows, sample IDs in the first column), and
 `metaproteomics_samples.tsv` the samples' metadata, one row per sample.
-`inst/scripts/make_metaproteomics_example.R` writes all four files.
+`inst/scripts/make_metaproteomics_example.R` writes all three files.
 
 ## data/simulate_cog.rda and simulate_cog.fasta
 

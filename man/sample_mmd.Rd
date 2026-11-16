@@ -13,9 +13,8 @@ have a positive total. Sample and protein names must be unique,
 non-missing and non-empty.}
 
 \item{x}{Proteins with embeddings, from
-\code{\link[=embed_proteins]{embed_proteins()}} or
-\code{\link[=read_embeddings]{read_embeddings()}},
-covering \code{colnames(counts)}.}
+\code{\link[=embed_proteins]{embed_proteins()}}, covering
+\code{colnames(counts)}.}
 
 \item{weighted}{Use abundance as the weight (default). \code{FALSE} gives every
 detected protein equal weight, the presence/absence counterpart.}

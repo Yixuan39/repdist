@@ -19,3 +19,6 @@ cosine_graph <- function(Z, t) {
     diag(S) <- 1
     S
 }
+
+# Rows scaled to unit norm, as embeddings are.
+unit <- function(W) W / sqrt(rowSums(W^2))

@@ -7,16 +7,18 @@
 \format{
 A list of five elements:
 \itemize{
-\item \code{proteins}: \code{AAStringSet} of the sequences, with TM-Vec embeddings
-rounded to 4 decimals in \code{mcols(proteins)$embedding} (110 x 512).
+\item \code{proteins}: \code{AAStringSet} of the sequences, with TM-Vec
+embeddings rounded to 4 decimals in \code{mcols(proteins)$embedding}
+(110 x 512).
 \item \code{counts}: integer matrix, 20 samples x 110 proteins.
 \item \code{samples}: data frame with \code{sample}, \code{group} (A or B) and
 \code{grpe_protein}, the GrpE protein of a group-A sample.
-\item \code{annotation}: data frame, one row per protein: \code{protein} (NCBI protein
-id), \code{role} (GrpE or background), \code{enriched_in} (the sample a GrpE
-protein is spiked into), \code{cog}, \code{cog_name}, \code{gene}, \code{category} and
-\code{category_name} (COG functional category), \code{length}, \code{organism}, and
-\code{mmseqs30} (its MMseqs2 30\%-identity cluster representative).
+\item \code{annotation}: data frame, one row per protein: \code{protein}
+(NCBI protein id), \code{role} (GrpE or background), \code{enriched_in}
+(the sample a GrpE protein is spiked into), \code{cog}, \code{cog_name},
+\code{gene}, \code{category} and \code{category_name} (COG functional
+category), \code{length}, \code{organism}, and \code{mmseqs30} (its MMseqs2
+30\%-identity cluster representative).
 \item \code{provenance}: source, license, design, seeds and session.
 }
 }

@@ -6,7 +6,7 @@ output:
   BiocStyle::html_document:
     toc_float: true
 vignette: >
-  %\VignetteIndexEntry{Structure-aware beta diversity and protein bins with repdist}
+  %\VignetteIndexEntry{Structure-aware beta diversity and protein bins}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -48,7 +48,7 @@ so that the answer is known:
 | Samples | 20: 10 in group A, 10 in group B |
 | Background | 100 proteins from other COGs, in every sample |
 | Treatment | 10 GrpE proteins (COG0576), one per group-A sample |
-| Remote homology | the 10 GrpE proteins fall in 10 different MMseqs2 30%-identity clusters |
+| Remote homology | each GrpE protein in its own MMseqs2 30%-identity cluster |
 | Perturbation | 5% of each group-A sample's abundance on its GrpE protein |
 | Counts | negative binomial, depth 20,000 |
 
@@ -80,9 +80,9 @@ samples. `embed_proteins()` reads it and returns an `AAStringSet` with one
 embedding per protein in `mcols(proteins)$embedding`. Its first call
 downloads the model (up to a few GB), so it does not run here;
 `simulate_cog` ships the result. Once the model is downloaded, the 110
-proteins take about 40 seconds on a laptop with an Apple M-series GPU. `known_models()` lists the models,
-`read_fasta()` reads and checks a FASTA file, and `read_embeddings()` reads
-embeddings that the `tmvec` command-line tool already made.
+proteins take about 40 seconds on a laptop with an Apple M-series GPU.
+`known_models()` lists the models, and `read_fasta()` reads and checks a
+FASTA file.
 
 ```{r embed, eval = FALSE}
 fasta <- system.file("extdata", "simulate_cog.fasta", package = "repdist")
@@ -109,16 +109,26 @@ D <- list(MMD = sample_mmd(relative, proteins),
     `Bray-Curtis` = vegdist(relative, "bray"))
 ```
 
-PERMANOVA (`adonis2()`, 999 permutations) tests whether the groups differ.
+PERMANOVA (`adonis2()`) tests whether the groups differ, and PERMDISP
+(`betadisper()`) whether they differ in spread, each with 999 permutations.
 
 ```{r permanova}
 set.seed(1)
 mmd <- adonis2(D$MMD ~ group, data = samples)
 set.seed(1)
 bc <- adonis2(D$`Bray-Curtis` ~ group, data = samples)
+disp <- vapply(D, function(d) {
+    set.seed(1)
+    permutest(betadisper(d, samples$group))$tab[1, "Pr(>F)"]
+}, numeric(1))
 knitr::kable(data.frame(distance = names(D), R2 = c(mmd$R2[1], bc$R2[1]),
-    p = c(mmd$`Pr(>F)`[1], bc$`Pr(>F)`[1])), digits = 3)
+    p = c(mmd$`Pr(>F)`[1], bc$`Pr(>F)`[1]), PERMDISP_p = disp,
+    row.names = NULL), digits = 3)
 ```
+
+Group A is more spread out under both distances, as the design builds in:
+each group-A sample carries a different GrpE protein, and no group-B sample
+carries one.
 
 Principal coordinates (`cmdscale()`); each group's outermost samples are
 joined by a line (its convex hull).
@@ -156,7 +166,8 @@ protein's bin (`membership`), the proteins of each bin (`clusters`) and
 each bin's medoid (`representatives`).
 
 ```{r bins}
-S <- protein_similarity(proteins, progress = FALSE) # aligns every pair
+# aligns every pair with a positive similarity: quadratic in proteins
+S <- protein_similarity(proteins, progress = FALSE)
 bins <- bin_proteins(S)
 table(size = lengths(bins$clusters))
 ```
@@ -190,7 +201,8 @@ res <- data.frame(bin = rownames(fit), LFC = fit[, 1], p = fit[, 2],
     q = p.adjust(fit[, 2], "BH"))
 res <- res[res$p < 0.05, ]
 knitr::kable(transform(res, LFC = round(LFC, 2),
-    p = formatC(p, format = "g", digits = 2), q = formatC(q, format = "g", digits = 2)),
+    p = formatC(p, format = "g", digits = 2),
+    q = formatC(q, format = "g", digits = 2)),
     row.names = FALSE)
 ```
 
@@ -199,8 +211,9 @@ abundant in one sample only.
 
 # Notes
 
-`protein_similarity()` aligns every pair and `sample_mmd()` holds a
-protein-by-protein kernel, so on real data use the proteins identified in
+`protein_similarity()` aligns every pair with a positive similarity and
+`sample_mmd()` holds a protein-by-protein kernel, so on real data use the
+proteins identified in
 your samples, never a whole search database: 20,000 proteins take about 3 GB.
 `protein_similarity()` parallelises with `n_cores`. Structural similarity
 does not guarantee shared function: the GrpE bin also holds a DnaK protein,

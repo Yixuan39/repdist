@@ -1,5 +1,3 @@
-unit <- function(W) W / sqrt(rowSums(W^2))
-
 set.seed(3)
 Z <- unit(matrix(rnorm(90), 30, 3, dimnames = list(paste0("p", 1:30), NULL)))
 
@@ -8,10 +6,9 @@ test_that("plot_bin_similarity shows one bin's pairwise similarities", {
     W <- unit(rbind(
         p1 = c(1, 0), p2 = c(0.99, 0.14), p3 = c(0.97, 0.24), p4 = c(0, 1)
     ))
-    x <- as_proteins(W)
     G <- cosine_graph(W, 0.9)
     b <- bin_proteins(G)
-    p <- plot_bin_similarity(b, "bin1", G, x)
+    p <- plot_bin_similarity(b, "bin1", G)
     expect_s3_class(p, "ggplot")
     members <- b$clusters$bin1
     S <- G[members, members]
@@ -29,14 +26,13 @@ test_that("plot_bin_similarity shows one bin's pairwise similarities", {
     expect_identical(levels(p$data$partner), rev(levels(p$data$protein)))
     expect_match(p$labels$title, sprintf("bin1: %d proteins", length(members)))
 
-    expect_error(plot_bin_similarity(b, 1L, G, x), "must name one")
-    expect_error(plot_bin_similarity(b, "bin99", G, x), "must name one")
+    expect_error(plot_bin_similarity(b, 1L, G), "must name one")
+    expect_error(plot_bin_similarity(b, "bin99", G), "must name one")
     expect_error(
-        plot_bin_similarity(list(clusters = 1), "bin1", G, x), "bin_proteins"
+        plot_bin_similarity(list(clusters = 1), "bin1", G), "bin_proteins"
     )
     singleton <- names(which(lengths(b$clusters) == 1L))[[1]]
-    expect_error(plot_bin_similarity(b, singleton, G, x), "no pair")
-    expect_error(plot_bin_similarity(b, "bin1", G, x[4]), "every member")
+    expect_error(plot_bin_similarity(b, singleton, G), "no pair")
 })
 
 test_that("an MCL bin can hold pairs that are not edges", {
@@ -45,22 +41,22 @@ test_that("an MCL bin can hold pairs that are not edges", {
     ang <- c(0, 0.5, 1, 1.5)
     W <- cbind(cos(ang), sin(ang))
     rownames(W) <- paste0("c", 1:4)
-    x <- as_proteins(W)
     G <- cosine_graph(W, 0.8)
     b <- bin_proteins(G, inflation = 1.4)
     expect_length(b$clusters, 1L)
-    p <- plot_bin_similarity(b, "bin1", G, x)
-    # every cell carries its ungated similarity; the 3 pairs that are not
-    # edges are crossed, two strokes per cell on both sides of the diagonal
-    S_all <- protein_similarity(x, max_evalue = Inf)
-    expect_equal(p$data$similarity, as.numeric(S_all[
-        levels(p$data$protein), levels(p$data$protein)]))
-    expect_gt(min(p$data$similarity), 0)
-    expect_equal(sum(p$data$edge), 6L)
-    expect_equal(nrow(p$layers[[2]]$data), 12L)
-    expect_match(p$labels$subtitle, "^50% of pairs are edges$")
+    p <- plot_bin_similarity(b, "bin1", G)
+    # edges carry their weight in G; the 3 pairs that are not edges are NA
+    # (grey), on both sides of the diagonal
+    R <- G[levels(p$data$protein), levels(p$data$protein)]
+    R[R == 0] <- NA
+    expect_equal(p$data$similarity, as.numeric(R))
+    expect_equal(sum(is.na(p$data$similarity)), 6L)
+    expect_match(p$labels$subtitle, "^50% of pairs are edges")
+    # no value is printed on a grey cell
+    expect_equal(nrow(p$layers[[2]]$data), 10L)
     # the ungated matrix is not the graph MCL clustered
-    expect_error(plot_bin_similarity(b, "bin1", S_all, x),
+    S_all <- protein_similarity(as_proteins(W), max_evalue = Inf)
+    expect_error(plot_bin_similarity(b, "bin1", S_all),
         "6 edges but `bins` was built from 3")
 })
 
